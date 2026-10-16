@@ -186,6 +186,9 @@ importers:
       geist:
         specifier: 1.8.1
         version: 1.8.1(next@16.4.2(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))
+      hash-wasm:
+        specifier: ^4.12.0
+        version: 4.12.0
       motion:
         specifier: 14.3.0
         version: 14.3.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -247,6 +250,9 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
     devDependencies:
+      '@prepo/config':
+        specifier: workspace:*
+        version: link:../config
       typescript:
         specifier: ^5
         version: 5.9.3
@@ -1237,6 +1243,9 @@ packages:
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
 
+  hash-wasm@4.12.0:
+    resolution: {integrity: sha512-+/2B2rYLb48I/evdOIhP+K/DD2ca2fgBjp6O+GBEnCDk2e4rpeXIK8GvIyRPjTezgmWn9gmKwkQjjx6BtqDHVQ==}
+
   jiti@2.7.0:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
@@ -2141,6 +2150,8 @@ snapshots:
       resolve-pkg-maps: 1.0.0
 
   graceful-fs@4.2.11: {}
+
+  hash-wasm@4.12.0: {}
 
   jiti@2.7.0: {}
 

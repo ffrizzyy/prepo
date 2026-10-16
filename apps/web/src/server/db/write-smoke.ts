@@ -1,17 +1,16 @@
 /**
- * End-to-end check of the write path. Calls the same server actions the UI calls,
- * then reads the results back through the same tenant-scoped queries. It reseeds
- * first so it is repeatable:
+ * End-to-end check of the write path. Calls the same write functions the server
+ * actions call — with the tenant and actor resolved up front — then reads the
+ * results back through the same tenant-scoped queries. It reseeds first so it is
+ * repeatable:
  *   pnpm --filter @prepo/web db:smoke
+ *
+ * The server actions themselves cannot be called here: they read cookies and
+ * revalidate, both of which need a request scope a script does not have.
  */
 import { eq } from "drizzle-orm";
-import {
-  addComment,
-  approveActionItems,
-  moveTicket,
-  rejectActionItem,
-  setAutonomy,
-} from "../actions";
+import { getUserByEmail } from "../auth/accounts";
+import { DEMO } from "../auth/demo";
 import {
   listActionItemsView,
   listFollowupsView,
@@ -19,32 +18,25 @@ import {
   listTicketEvents,
   listTicketsView,
 } from "../queries";
-import { migrateAndApply } from "./migrate";
-import { resolveWorkspaceId } from "./repo";
-import { runCli } from "./run";
-import { seed } from "./seed";
+import {
+  addComment,
+  approveActionItems,
+  moveTicket,
+  rejectActionItem,
+  updateSettings,
+} from "../writes";
 import { withWorkspace } from "./client";
+import { migrateAndApply } from "./migrate";
+import { listWorkspacesForUser, resolveWorkspaceId } from "./repo";
+import { runCli } from "./run";
 import * as t from "./schema";
+import { seed } from "./seed";
 
 let failures = 0;
 
 function check(label: string, ok: boolean, detail = ""): void {
   console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`);
   if (!ok) failures += 1;
-}
-
-/** Server actions revalidate; that needs a request scope we do not have here. */
-async function act<T>(fn: () => Promise<T>): Promise<T | undefined> {
-  try {
-    return await fn();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/revalidate|static generation|request/i.test(message)) {
-      console.log(`      (revalidate skipped outside a request: ${message})`);
-      return undefined;
-    }
-    throw error;
-  }
 }
 
 runCli("write-smoke.ts", async () => {
@@ -54,12 +46,37 @@ runCli("write-smoke.ts", async () => {
   const northwind = (await resolveWorkspaceId("northwind"))!;
   const globex = (await resolveWorkspaceId("globex"))!;
 
+  // The actor is the seeded demo account, so this exercises the same membership
+  // the sign-in flow resolves to.
+  const demo = await getUserByEmail(DEMO.email);
+  const actorId = demo!.id;
+  check(
+    "the demo account is a member of northwind",
+    (await listWorkspacesForUser(actorId)).some(
+      (workspace) => workspace.id === northwind,
+    ),
+    DEMO.email,
+  );
+
+  const [northwindSettings] = await withWorkspace(northwind, (tx) =>
+    tx.select({ settings: t.workspaces.settings }).from(t.workspaces),
+  );
+  const prefix = northwindSettings!.settings.ticketPrefix ?? "PRE";
+
+  const [globexTicket] = await withWorkspace(globex, (tx) =>
+    tx.select({ id: t.tickets.id, key: t.tickets.key }).from(t.tickets),
+  );
+
   /* ------------------------------------------------------------ baseline */
   const seedItems = await listActionItemsView(northwind);
   const seedTickets = await listTicketsView(northwind);
   const proposed = seedItems.filter((item) => item.status === "proposed");
 
-  check("seed has 7 proposed action items", proposed.length === 7, String(proposed.length));
+  check(
+    "seed has 7 proposed action items",
+    proposed.length === 7,
+    String(proposed.length),
+  );
   check("seed has 9 tickets", seedTickets.length === 9, String(seedTickets.length));
   check(
     "no seeded ticket claims a meeting origin",
@@ -68,37 +85,52 @@ runCli("write-smoke.ts", async () => {
 
   /* ----------------------------------------------------------- approve */
   const target = proposed.slice(0, 2);
-  await act(() =>
-    approveActionItems({
-      workspace: "northwind",
-      actionItemIds: target.map((item) => item.id),
-    }),
-  );
+  await approveActionItems({
+    workspaceId: northwind,
+    actorId,
+    prefix,
+    actionItemIds: target.map((item) => item.id),
+  });
 
   const afterTickets = await listTicketsView(northwind);
-  const created = afterTickets.filter((ticket) => !seedTickets.some((s) => s.id === ticket.id));
+  const created = afterTickets.filter(
+    (ticket) => !seedTickets.some((seeded) => seeded.id === ticket.id),
+  );
 
-  check("approving two items created two tickets", created.length === 2, String(created.length));
+  check(
+    "approving two items created two tickets",
+    created.length === 2,
+    String(created.length),
+  );
   check(
     "new keys continue the sequence",
-    created.map((ticket) => ticket.key).sort().join(",") === "PRE-142,PRE-143",
+    created
+      .map((ticket) => ticket.key)
+      .sort()
+      .join(",") === "PRE-142,PRE-143",
     created.map((ticket) => ticket.key).join(","),
   );
   check(
     "new tickets are traced to the meeting",
-    created.every((ticket) => ticket.meetingId !== null && ticket.sourceQuote !== null),
-    created.map((ticket) => `${ticket.key}:${ticket.meetingId ? "linked" : "none"}`).join(" "),
+    created.every(
+      (ticket) => ticket.meetingId !== null && ticket.sourceQuote !== null,
+    ),
+    created
+      .map((ticket) => `${ticket.key}:${ticket.meetingId ? "linked" : "none"}`)
+      .join(" "),
   );
   check(
     "new tickets get an assignee when the item had an owner",
-    created.every((ticket) => ticket.status === "todo" || ticket.status === "backlog"),
+    created.every(
+      (ticket) => ticket.status === "todo" || ticket.status === "backlog",
+    ),
   );
 
   const afterItems = await listActionItemsView(northwind);
   check(
     "approved items moved to ticketed",
     afterItems
-      .filter((item) => target.some((t2) => t2.id === item.id))
+      .filter((item) => target.some((chosen) => chosen.id === item.id))
       .every((item) => item.status === "ticketed"),
   );
   check(
@@ -108,12 +140,12 @@ runCli("write-smoke.ts", async () => {
   );
 
   /* -------------------------------------------------------- idempotency */
-  await act(() =>
-    approveActionItems({
-      workspace: "northwind",
-      actionItemIds: target.map((item) => item.id),
-    }),
-  );
+  await approveActionItems({
+    workspaceId: northwind,
+    actorId,
+    prefix,
+    actionItemIds: target.map((item) => item.id),
+  });
   const afterRepeat = await listTicketsView(northwind);
   check(
     "re-approving the same items creates nothing",
@@ -135,11 +167,21 @@ runCli("write-smoke.ts", async () => {
 
   /* --------------------------------------------------------------- move */
   const first = created[0]!;
-  await act(() =>
-    moveTicket({ workspace: "northwind", ticketId: first.id, status: "done" }),
+  const moved = await moveTicket({
+    workspaceId: northwind,
+    actorId,
+    ticketId: first.id,
+    status: "done",
+  });
+  const movedTicket = (await listTicketsView(northwind)).find(
+    (ticket) => ticket.id === first.id,
   );
-  const movedTicket = (await listTicketsView(northwind)).find((ticket) => ticket.id === first.id);
-  check("moving a ticket persists the new status", movedTicket?.status === "done", movedTicket?.status);
+  check("the move is reported as applied", moved, String(moved));
+  check(
+    "moving a ticket persists the new status",
+    movedTicket?.status === "done",
+    movedTicket?.status,
+  );
 
   const events = await listTicketEvents(northwind, first.id);
   check(
@@ -158,7 +200,7 @@ runCli("write-smoke.ts", async () => {
     (item) => item.status === "proposed",
   );
   const toReject = nextProposed[0]!;
-  await act(() => rejectActionItem({ workspace: "northwind", actionItemId: toReject.id }));
+  await rejectActionItem({ workspaceId: northwind, actionItemId: toReject.id });
   const afterReject = await listActionItemsView(northwind);
   check(
     "rejecting an item records it",
@@ -166,13 +208,13 @@ runCli("write-smoke.ts", async () => {
   );
 
   /* ------------------------------------------------------------ comment */
-  await act(() =>
-    addComment({
-      workspace: "northwind",
-      ticketKey: first.key,
-      body: "Smoke test comment.",
-    }),
-  );
+  const commented = await addComment({
+    workspaceId: northwind,
+    actorId,
+    ticketKey: first.key,
+    body: "Smoke test comment.",
+  });
+  check("the comment finds its ticket", commented, String(commented));
   const comments = await listTicketComments(northwind, first.id);
   check(
     "a comment is stored against the ticket",
@@ -181,33 +223,29 @@ runCli("write-smoke.ts", async () => {
   );
 
   /* ----------------------------------------------------------- settings */
-  await act(() => setAutonomy({ workspace: "northwind", autonomy: "autopilot" }));
-  const [settings] = await withWorkspace(northwind, (tx) =>
+  await updateSettings({
+    workspaceId: northwind,
+    settings: { ...northwindSettings!.settings, autonomy: "autopilot" },
+  });
+  const [savedSettings] = await withWorkspace(northwind, (tx) =>
     tx.select({ settings: t.workspaces.settings }).from(t.workspaces),
   );
   check(
     "the autonomy setting is persisted",
-    settings?.settings.autonomy === "autopilot",
-    settings?.settings.autonomy,
+    savedSettings?.settings.autonomy === "autopilot",
+    savedSettings?.settings.autonomy,
   );
 
   /* ------------------------------------------------------------ tenancy */
-  const [globexTicket] = await withWorkspace(globex, (tx) =>
-    tx.select({ id: t.tickets.id, key: t.tickets.key }).from(t.tickets),
-  );
-  let blocked = false;
-  try {
-    await moveTicket({
-      workspace: "northwind",
-      ticketId: globexTicket!.id,
-      status: "done",
-    });
-  } catch {
-    blocked = true;
-  }
+  const crossed = await moveTicket({
+    workspaceId: northwind,
+    actorId,
+    ticketId: globexTicket!.id,
+    status: "done",
+  });
   check(
     "a northwind session cannot move a globex ticket",
-    blocked,
+    crossed === false,
     `target ${globexTicket?.key}`,
   );
 
@@ -224,6 +262,8 @@ runCli("write-smoke.ts", async () => {
   );
 
   console.log("");
-  console.log(failures === 0 ? "all write checks passed" : `${failures} check(s) failed`);
+  console.log(
+    failures === 0 ? "all write checks passed" : `${failures} check(s) failed`,
+  );
   if (failures > 0) throw new Error("write smoke test failed");
 });

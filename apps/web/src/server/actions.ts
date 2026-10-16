@@ -1,16 +1,22 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { requireWorkspace } from "./context";
-import { withWorkspace } from "./db/client";
-import { uuidv7 } from "./db/ids";
 import * as t from "./db/schema";
+import {
+  addComment as addCommentWrite,
+  approveActionItems as approveWrite,
+  moveTicket as moveWrite,
+  rejectActionItem as rejectWrite,
+  updateSettings,
+} from "./writes";
 
 /**
  * Writes. A client only ever sends the slug that is already in its URL; the
- * workspace id, the acting user and the ticket key are all decided here.
+ * workspace id, the acting user and the ticket key are all decided here. The
+ * mutations themselves live in `writes.ts`, so the same code is exercised by
+ * `db:smoke` without a request scope.
  */
 
 const UUID_RE =
@@ -28,14 +34,6 @@ function revalidateWorkspace(workspaceSlug: string): void {
   revalidatePath(`/${workspaceSlug}`, "layout");
 }
 
-/** Keys are sequential per workspace, so the next one follows the highest number. */
-function highestKeyNumber(keys: string[]): number {
-  return keys.reduce((max, key) => {
-    const value = Number(key.split("-")[1]);
-    return Number.isFinite(value) ? Math.max(max, value) : max;
-  }, 100);
-}
-
 export async function moveTicket(input: {
   workspace: string;
   ticketId: string;
@@ -51,38 +49,16 @@ export async function moveTicket(input: {
 
   const context = await requireWorkspace(parsed.workspace);
 
-  await withWorkspace(context.id, async (tx) => {
-    const [ticket] = await tx
-      .select()
-      .from(t.tickets)
-      .where(eq(t.tickets.id, parsed.ticketId));
-
-    if (!ticket) throw new Error("Ticket not found");
-    if (ticket.status === parsed.status) return;
-
-    await tx
-      .update(t.tickets)
-      .set({ status: parsed.status, version: ticket.version + 1 })
-      .where(eq(t.tickets.id, ticket.id));
-
-    await tx.insert(t.ticketEvents).values({
-      id: uuidv7(),
-      workspaceId: context.id,
-      ticketId: ticket.id,
-      actorId: context.viewer.userId,
-      actorKind: "user",
-      type: "status_changed",
-      payload: { from: ticket.status, to: parsed.status },
-    });
+  await moveWrite({
+    workspaceId: context.id,
+    actorId: context.viewer.userId,
+    ticketId: parsed.ticketId,
+    status: parsed.status,
   });
 
   revalidateWorkspace(parsed.workspace);
 }
 
-/**
- * Approves proposed action items into tickets. Only items still `proposed` are
- * converted, so a double submit cannot create duplicates.
- */
 export async function approveActionItems(input: {
   workspace: string;
   actionItemIds: string[];
@@ -95,91 +71,12 @@ export async function approveActionItems(input: {
     .parse(input);
 
   const context = await requireWorkspace(parsed.workspace);
-  const prefix = context.settings.ticketPrefix ?? "PRE";
-  let created = 0;
 
-  await withWorkspace(context.id, async (tx) => {
-    const items = await tx
-      .select()
-      .from(t.actionItems)
-      .where(
-        and(
-          inArray(t.actionItems.id, parsed.actionItemIds),
-          eq(t.actionItems.status, "proposed"),
-        ),
-      );
-
-    if (items.length === 0) return;
-
-    const existing = await tx
-      .select({ key: t.tickets.key, position: t.tickets.position })
-      .from(t.tickets);
-
-    let nextNumber = highestKeyNumber(existing.map((row) => row.key)) + 1;
-    let nextPosition =
-      existing.reduce((max, row) => Math.max(max, row.position), -1) + 1;
-
-    for (const item of items) {
-      const key = `${prefix}-${nextNumber++}`;
-      const ticketId = uuidv7();
-
-      await tx.insert(t.tickets).values({
-        id: ticketId,
-        workspaceId: context.id,
-        key,
-        actionItemId: item.id,
-        title: item.title,
-        description: item.description,
-        assigneeId: item.ownerId,
-        status: item.ownerId ? "todo" : "backlog",
-        priority: item.priority,
-        dueAt: item.dueAt,
-        labels: ["from-meeting"],
-        position: nextPosition++,
-        version: 1,
-      });
-
-      await tx.insert(t.ticketEvents).values({
-        id: uuidv7(),
-        workspaceId: context.id,
-        ticketId,
-        actorId: context.viewer.userId,
-        actorKind: "user",
-        type: "created",
-        payload: {
-          key,
-          actionItemId: item.id,
-          title: item.title,
-          source: "meeting",
-        },
-      });
-
-      // The follow-up engine is milestone 5; scheduling the first reminder here
-      // keeps the follow-ups page honest about what the product will do.
-      if (item.dueAt) {
-        await tx.insert(t.followups).values({
-          id: uuidv7(),
-          workspaceId: context.id,
-          ticketId,
-          kind: "reminder",
-          channel: "email",
-          scheduledFor: new Date(item.dueAt.getTime() - 24 * 60 * 60 * 1000),
-          status: "scheduled",
-        });
-      }
-
-      created += 1;
-    }
-
-    await tx
-      .update(t.actionItems)
-      .set({ status: "ticketed" })
-      .where(
-        inArray(
-          t.actionItems.id,
-          items.map((item) => item.id),
-        ),
-      );
+  const { created } = await approveWrite({
+    workspaceId: context.id,
+    actorId: context.viewer.userId,
+    prefix: context.settings.ticketPrefix ?? "PRE",
+    actionItemIds: parsed.actionItemIds,
   });
 
   revalidateWorkspace(parsed.workspace);
@@ -196,12 +93,10 @@ export async function rejectActionItem(input: {
 
   const context = await requireWorkspace(parsed.workspace);
 
-  await withWorkspace(context.id, (tx) =>
-    tx
-      .update(t.actionItems)
-      .set({ status: "rejected" })
-      .where(eq(t.actionItems.id, parsed.actionItemId)),
-  );
+  await rejectWrite({
+    workspaceId: context.id,
+    actionItemId: parsed.actionItemId,
+  });
 
   revalidateWorkspace(parsed.workspace);
 }
@@ -221,22 +116,14 @@ export async function addComment(input: {
 
   const context = await requireWorkspace(parsed.workspace);
 
-  await withWorkspace(context.id, async (tx) => {
-    const [ticket] = await tx
-      .select({ id: t.tickets.id })
-      .from(t.tickets)
-      .where(eq(t.tickets.key, parsed.ticketKey));
-
-    if (!ticket) throw new Error("Ticket not found");
-
-    await tx.insert(t.comments).values({
-      id: uuidv7(),
-      workspaceId: context.id,
-      ticketId: ticket.id,
-      userId: context.viewer.userId,
-      body: parsed.body,
-    });
+  const found = await addCommentWrite({
+    workspaceId: context.id,
+    actorId: context.viewer.userId,
+    ticketKey: parsed.ticketKey,
+    body: parsed.body,
   });
+
+  if (!found) throw new Error("Ticket not found");
 
   revalidateWorkspace(parsed.workspace);
 }
@@ -251,12 +138,10 @@ export async function setAutonomy(input: {
 
   const context = await requireWorkspace(parsed.workspace);
 
-  await withWorkspace(context.id, (tx) =>
-    tx
-      .update(t.workspaces)
-      .set({ settings: { ...context.settings, autonomy: parsed.autonomy } })
-      .where(eq(t.workspaces.id, context.id)),
-  );
+  await updateSettings({
+    workspaceId: context.id,
+    settings: { ...context.settings, autonomy: parsed.autonomy },
+  });
 
   revalidateWorkspace(parsed.workspace);
 }
@@ -271,12 +156,10 @@ export async function setFollowupTone(input: {
 
   const context = await requireWorkspace(parsed.workspace);
 
-  await withWorkspace(context.id, (tx) =>
-    tx
-      .update(t.workspaces)
-      .set({ settings: { ...context.settings, followupTone: parsed.tone } })
-      .where(eq(t.workspaces.id, context.id)),
-  );
+  await updateSettings({
+    workspaceId: context.id,
+    settings: { ...context.settings, followupTone: parsed.tone },
+  });
 
   revalidateWorkspace(parsed.workspace);
 }

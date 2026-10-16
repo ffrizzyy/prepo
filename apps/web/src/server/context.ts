@@ -1,28 +1,22 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
+import { requireUser } from "./auth/dal";
 import {
   getWorkspace,
   getWorkspaceMembers,
   resolveWorkspaceId,
   type WorkspaceMember,
 } from "./db/repo";
-import type { MembershipRole, WorkspaceSettings } from "./db/schema";
+import type { WorkspaceSettings } from "./db/schema";
 
 export type WorkspaceContext = {
   id: string;
   slug: string;
   name: string;
   settings: WorkspaceSettings;
-  /** The acting user. Until auth lands this is the highest-privilege member. */
+  /** The signed-in user's own membership, including their role. */
   viewer: WorkspaceMember;
   members: WorkspaceMember[];
-};
-
-const ROLE_RANK: Record<MembershipRole, number> = {
-  owner: 0,
-  admin: 1,
-  member: 2,
-  viewer: 3,
 };
 
 /**
@@ -30,12 +24,16 @@ const ROLE_RANK: Record<MembershipRole, number> = {
  * both go through here, so the tenant is always decided on the server — a client
  * only ever sends the slug that is already in its URL.
  *
- * Wrapped in `cache` so the layout and the page share one lookup per request.
+ * An unauthenticated request is redirected to sign-in; an authenticated user who
+ * is not a member of this workspace gets a 404 rather than a 403, so the app
+ * never confirms that someone else's workspace exists (PREPO.md §9.3 A01).
  *
- * Auth is the next milestone; the viewer is currently a stand-in.
+ * Wrapped in `cache` so the layout and the page share one lookup per request.
  */
 export const requireWorkspace = cache(
   async (slug: string): Promise<WorkspaceContext> => {
+    const session = await requireUser();
+
     const id = await resolveWorkspaceId(slug);
     if (!id) notFound();
 
@@ -43,10 +41,7 @@ export const requireWorkspace = cache(
     if (!workspace) notFound();
 
     const members = await getWorkspaceMembers(id);
-    const viewer = [...members].sort(
-      (a, b) => ROLE_RANK[a.role] - ROLE_RANK[b.role],
-    )[0];
-    // A workspace with no members has nobody who could be signed in to it.
+    const viewer = members.find((member) => member.userId === session.userId);
     if (!viewer) notFound();
 
     return {

@@ -10,10 +10,11 @@ This repository is being built against the specification in [`PREPO.md`](./PREPO
 
 ## Status
 
-**Milestone 3 — durable data layer and a wired UI.** The schema, migrations, tenant
-isolation and seed are complete and verified against two engines, and the app now reads and
-writes Postgres: server components load the workspace, server actions mutate it, and the UI
-updates optimistically. Auth is the remaining part of this milestone.
+**Milestone 3 — durable data layer, wired UI, and sign-in.** The schema, migrations, tenant
+isolation and seed are complete and verified against two engines; the app reads and writes
+Postgres; and authentication is real — password sign-in, per-device sessions with revoke,
+and throttling. Passkeys, OAuth, magic links and TOTP 2FA are the parts of the spec's auth
+line still outstanding.
 
 | Area | State |
 |---|---|
@@ -26,21 +27,50 @@ updates optimistically. Auth is the remaining part of this milestone.
 | App shell: sidebar, mobile bottom nav, command palette | Done |
 | Dashboard, Meetings (+detail, transcript), Board, Tickets (+detail) | Done |
 | Follow-ups, Insights, Settings, New meeting | Done |
-| Postgres schema — 23 tables, Drizzle migrations | Done |
+| Postgres schema — 24 tables, Drizzle migrations | Done |
 | Row-Level Security, cross-tenant isolation verified | Done |
 | Seed (two workspaces) and the repository read layer | Done |
 | UI wired to Postgres — server-component reads, server-action writes | Done |
-| Auth (sessions, passkeys, TOTP) | Next |
+| Sign-in / sign-up / create workspace, argon2id passwords | Done |
+| Per-device sessions, revoke one / revoke the others, idle + absolute expiry | Done |
+| Sign-in throttling and the identity-plane audit log | Done |
+| Passkeys, magic link, OAuth, TOTP 2FA, breach check, Turnstile | Not started |
 | Real AI + integrations | Not started |
 | Desktop (Tauri) shell | Not started — requires Rust, absent on the build machine |
 
-The app runs at **`/northwind`** on the seeded "Northwind Studio" workspace; any other slug
-404s. Everything you see is read from Postgres. Approving an action item writes a real
-ticket, schedules its first reminder, and moves the item to `ticketed`; moving a ticket on
-the board records an audit event. Mutations are server actions, so the UI updates
+The app runs at **`/northwind`** on the seeded "Northwind Studio" workspace. Sign in
+(see below) and everything you see is read from Postgres. Approving an action item writes a
+real ticket, schedules its first reminder, and moves the item to `ticketed`; moving a ticket
+on the board records an audit event. Mutations are server actions, so the UI updates
 optimistically and the fresh row arrives on the revalidated render. Writes run as the
 non-owner `prepo_app` role inside a workspace-scoped transaction, so the tenant boundary is
 enforced by the database rather than by application code.
+
+## Signing in
+
+`db:seed` gives every seeded person an account on the demo password:
+
+| | |
+|---|---|
+| Email | `lena@northwind.dev` (owner of Northwind Studio) |
+| Password | `prepo-demo-2026` |
+
+`/demo` fills those in for you and posts the ordinary sign-in form. The other seeded people
+work too — `nadia@globex.dev` is the owner of the *other* workspace and is the quickest way to
+watch the tenant boundary hold: signing in as her and opening `/northwind` returns **404**,
+not somebody else's data.
+
+**`/new` creates a workspace.** After signing up you name one, and you become its owner.
+It starts empty — the sample meeting belongs to Northwind Studio — so you get the empty
+states rather than fabricated data.
+
+A note on scope: this is password auth, built on the `users` / `accounts` / `sessions` tables
+`PREPO.md` §4.5 already describes, rather than on Better Auth (see the note in the spec's
+stack table). Sessions are database-backed and verified per request, never decoded from the
+cookie alone; the cookie holds an opaque 256-bit token whose SHA-256 is what the database
+stores. Rate limiting, the timing-equalised failure path, session rotation on login and the
+append-only `auth_events` log are all in place. What is **not** here: passkeys, magic links,
+OAuth, TOTP 2FA, a breached-password check, and Turnstile.
 
 ## Requirements
 
@@ -52,7 +82,8 @@ enforced by the database rather than by application code.
 
 ```bash
 pnpm install
-pnpm dev          # http://localhost:3000
+pnpm --filter @prepo/web db:verify   # migrate, seed, check isolation (also creates the accounts)
+pnpm dev                             # http://localhost:3000 → sign in, or open /demo
 ```
 
 Other scripts:
@@ -82,6 +113,7 @@ pnpm --filter @prepo/web db:migrate    # apply migrations, then RLS policies and
 pnpm --filter @prepo/web db:seed       # load two seeded workspaces
 pnpm --filter @prepo/web db:verify     # prove tenant isolation
 pnpm --filter @prepo/web db:smoke      # exercise the write path end to end
+pnpm --filter @prepo/web db:auth       # exercise the authentication core
 pnpm --filter @prepo/web db:studio     # browse the data
 ```
 
@@ -90,11 +122,20 @@ workspace sees only its own rows, an unscoped session sees nothing, a cross-tena
 explicit id returns nothing, and a cross-tenant **write** is rejected by RLS. All ten checks
 pass on both PGlite and Postgres.
 
-`db:smoke` reseeds, then drives the same server actions the UI calls — approving action
-items, moving a ticket, rejecting one, commenting, changing a setting — and reads the
+`db:smoke` reseeds, then drives the same write functions the server actions call — approving
+action items, moving a ticket, rejecting one, commenting, changing a setting — and reads the
 results back through the tenant-scoped queries. It covers key sequencing, idempotent
 approval, reminder scheduling, audit events, and a northwind session failing to move a
-globex ticket.
+globex ticket. (The mutations live in `src/server/writes.ts` rather than inside the actions,
+precisely so this stays runnable: an action needs a request scope for `cookies()` and
+`revalidatePath()`, a script does not have one.)
+
+`db:auth` reseeds, then exercises the authentication core the way the sign-in action does:
+argon2id hashing and verification, the timing decoy for unknown addresses, per-email and
+per-network throttling windows, session creation and lookup by hash (never by token),
+revocation scoped to the owning user, revoke-others, absolute and idle expiry, account
+creation with a duplicate-email rejection, and creating a workspace whose owner is its only
+member. Twenty-seven checks, all passing.
 
 Search is Postgres-native rather than embedding-based (`PREPO.md` §1.3): a trigger maintains
 a `tsvector` on every transcript segment, with a GIN index for ranking and a `pg_trgm` index
@@ -115,6 +156,31 @@ transaction, switches to the dedicated non-owner `prepo_app` role, and sets the 
 `SECURITY DEFINER` helpers bridge the single bootstrap gap: resolving a slug to a workspace
 id before a workspace is known.
 
+On top of that, `requireWorkspace()` loads the workspace's members and looks for the
+signed-in user among them. A non-member gets a **404**, not a 403, so the app never confirms
+that somebody else's workspace exists.
+
+## Authentication
+
+Sessions are rows, not tokens in the browser. Sign-in mints 256 bits of randomness, sends it
+in the cookie, and stores only its SHA-256 — a database dump therefore does not hand over
+live sessions. Every request re-reads the session from Postgres and checks that it is
+unrevoked, inside its 30-day absolute lifetime and inside a 7-day idle window, so revoking a
+device takes effect on its very next request. `last_seen_at` slides the idle window, written
+at most once every five minutes rather than on every request.
+
+Passwords are argon2id at OWASP's parameters (19 MiB, t=2, p=1). Signing in with an address
+that has no account still performs a full verification against a decoy hash, and returns the
+same message as a wrong password, so neither the response time nor the wording reveals
+whether an account exists. Failed attempts are counted from the append-only `auth_events`
+log — five per minute for an address, twenty for a network — and throttling needs no
+separate state to keep in sync. Every sign-in rotates the session, and sign-out, revoke-one
+and revoke-the-others all write an audit event.
+
+The cookie is `HttpOnly; SameSite=Lax; Path=/`, and in production it is `__Host-` prefixed and
+`Secure`. Development keeps the plain name and drops `Secure`, because the dev server is
+reachable over plain http on the LAN and browsers refuse to send a `Secure` cookie there.
+
 ## Repository layout
 
 ```
@@ -123,11 +189,14 @@ prepo/
 │  └─ web/                     # Next.js 16 (App Router) — landing page + app
 │     ├─ src/app/              # marketing page, globals.css (design tokens)
 │     ├─ src/app/[workspace]/  # app shell: dashboard, meetings, board, tickets…
+│     ├─ src/app/sign-in/      # sign-in, sign-up, /demo and /new (create workspace)
 │     ├─ src/components/ui/    # primitives (Button, Section, Container)
 │     ├─ src/components/marketing/  # landing sections
 │     ├─ src/components/app/   # shell, badges, tables, board, detail views
+│     ├─ src/components/auth/  # auth layout, forms, sessions panel
 │     ├─ src/lib/              # cn() and the shared date/initial formatters
-│     ├─ src/server/           # context (workspace + viewer), queries, server actions
+│     ├─ src/server/           # context (workspace + viewer), queries, actions, writes
+│     ├─ src/server/auth/      # passwords, sessions, throttle, identity audit, DAL
 │     ├─ src/server/db/        # Drizzle schema, client, migrations, seed, verify, repo
 │     └─ drizzle/              # generated migrations + hand-written RLS/policy SQL
 ├─ packages/
@@ -164,8 +233,8 @@ Milestones follow section 12 of `PREPO.md`:
 
 1. ✅ Foundation, design system, landing page
 2. ✅ App shell on seeded data (sidebar, dashboard, meetings, board, tickets)
-3. 🟡 Database, tenant isolation and the durable core loop — schema, RLS, seed and the
-   wired UI done; auth (sessions, passkeys, TOTP) next
+3. ✅ Database, tenant isolation and the durable core loop — schema, RLS, seed, the wired UI,
+   and sign-in with per-device sessions and revocation
 4. Audio and transcription
 5. Follow-up engine
 6. Linear two-way sync

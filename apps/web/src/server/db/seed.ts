@@ -10,6 +10,8 @@ import { getDb, rawExec } from "./client";
 import { uuidv7 } from "./ids";
 import * as t from "./schema";
 import { runCli } from "./run";
+import { DEMO } from "../auth/demo";
+import { hashPassword } from "../auth/password";
 
 /** Fixed ids so verification and deep links can rely on them. */
 export const WORKSPACE_IDS = {
@@ -69,6 +71,22 @@ export async function seed(): Promise<SeedSummary> {
     });
   }
   await db.insert(t.users).values(userRows);
+
+  /* ------------------------------------------------------------- sign-in */
+  // Every seeded person shares the demo password but is hashed with its own
+  // salt, so any of them can sign in and the demo still exercises real hashing.
+  const passwordHashes = await Promise.all(
+    userRows.map(() => hashPassword(DEMO.password)),
+  );
+  await db.insert(t.accounts).values(
+    userRows.map((user, index) => ({
+      id: uuidv7(),
+      userId: user.id!,
+      provider: "password",
+      providerAccountId: user.email,
+      passwordHash: passwordHashes[index]!,
+    })),
+  );
 
   /* --------------------------------------------------------- workspaces */
   await db.insert(t.workspaces).values([

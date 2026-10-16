@@ -23,6 +23,7 @@ export default async function WorkspaceLayout({
       workspace={context.slug}
       workspaceName={context.name}
       viewerName={context.viewer.name}
+      viewerEmail={context.viewer.email}
       reviewCount={reviewCount}
     >
       {children}

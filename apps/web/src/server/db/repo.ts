@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
-import { rawQuery, withWorkspace } from "./client";
+import { getDb, rawQuery, withWorkspace } from "./client";
+import { uuidv7 } from "./ids";
 import * as t from "./schema";
 
 export type WorkspaceRef = {
@@ -37,6 +38,45 @@ export async function getWorkspace(workspaceId: string) {
     const [workspace] = await tx.select().from(t.workspaces).limit(1);
     return workspace ?? null;
   });
+}
+
+/**
+ * Creates a workspace and its owner membership. Both tables are behind a
+ * `with check (id = app.workspace_id)` policy and the id is generated here, so
+ * the new workspace can be scoped before a single row exists.
+ */
+export async function createWorkspaceWithOwner(input: {
+  name: string;
+  slug: string;
+  ownerId: string;
+  ticketPrefix: string;
+}): Promise<string> {
+  const id = uuidv7();
+
+  await getDb().transaction(async (tx) => {
+    await tx.execute(sql`set local role prepo_app`);
+    await tx.execute(
+      sql`select set_config('app.workspace_id', ${id}, true)`,
+    );
+    await tx.insert(t.workspaces).values({
+      id,
+      name: input.name,
+      slug: input.slug,
+      settings: {
+        autonomy: "suggest",
+        followupTone: "neutral",
+        ticketPrefix: input.ticketPrefix,
+      },
+    });
+    await tx.insert(t.memberships).values({
+      id: uuidv7(),
+      workspaceId: id,
+      userId: input.ownerId,
+      role: "owner",
+    });
+  });
+
+  return id;
 }
 
 export type WorkspaceMember = {

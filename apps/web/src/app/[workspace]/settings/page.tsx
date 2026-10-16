@@ -1,6 +1,14 @@
 import { Card, PageHeader } from "@/components/app/page-header";
 import { AutonomySelect, ToneSelect } from "@/components/app/settings-controls";
+import {
+  SessionsPanel,
+  type SessionView,
+} from "@/components/auth/sessions-panel";
+import { requireUser } from "@/server/auth/dal";
+import { signOut } from "@/server/auth/actions";
+import { listSessionsForUser } from "@/server/auth/sessions";
 import { requireWorkspace } from "@/server/context";
+import { relativeTime } from "@/lib/workspace-data";
 
 const SECTIONS = [
   {
@@ -8,10 +16,6 @@ const SECTIONS = [
     body: "Name, avatar, timezone, notification preferences.",
   },
   { title: "Security", body: "Password, TOTP 2FA, passkeys, recovery codes." },
-  {
-    title: "Devices & sessions",
-    body: "Signed-in devices with revoke one or revoke all others.",
-  },
   { title: "Integrations", body: "Linear OAuth, team and project mapping." },
   {
     title: "API & webhooks",
@@ -42,7 +46,19 @@ export default async function SettingsPage({
 }) {
   const { workspace } = await params;
   const context = await requireWorkspace(workspace);
+  const session = await requireUser();
 
+  // Every sign-in is its own row, so this list *is* the device list (§9.1).
+  const sessions: SessionView[] = (
+    await listSessionsForUser(session.userId)
+  ).map((row) => ({
+    id: row.id,
+    deviceLabel: row.deviceLabel,
+    clientType: row.clientType,
+    ipPrefix: row.ipPrefix,
+    lastSeenLabel: relativeTime(row.lastSeenAt.toISOString()),
+    current: row.id === session.id,
+  }));
   return (
     <>
       <PageHeader
@@ -79,8 +95,8 @@ export default async function SettingsPage({
               </div>
             </dl>
             <p className="mt-4 text-xs text-text-subtle">
-              Authentication lands next; until then the session resolves to the
-              highest-privilege member of the workspace.
+              Signed in as {context.viewer.email}. Your role here decides what
+              you can change.
             </p>
           </Card>
 
@@ -125,6 +141,24 @@ export default async function SettingsPage({
                 </li>
               ))}
             </ul>
+          </Card>
+
+          <Card title="Devices & sessions">
+            <SessionsPanel workspace={context.slug} sessions={sessions} />
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+              <p className="max-w-[46ch] text-xs text-text-subtle">
+                Every sign-in creates its own session. Revoking one takes effect
+                on that device&rsquo;s next request.
+              </p>
+              <form action={signOut}>
+                <button
+                  type="submit"
+                  className="shrink-0 rounded-[8px] border border-border px-2.5 py-1 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text"
+                >
+                  Sign out
+                </button>
+              </form>
+            </div>
           </Card>
         </div>
 

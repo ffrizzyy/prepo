@@ -110,6 +110,11 @@ export const sessions = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    /**
+     * SHA-256 of the opaque session token. The token itself only ever exists in
+     * the cookie, so a database leak does not hand over live sessions.
+     */
+    tokenHash: text("token_hash").notNull().unique(),
     deviceLabel: text("device_label").notNull(),
     clientType: clientType("client_type").notNull().default("web"),
     userAgentHash: text("user_agent_hash").notNull(),
@@ -132,8 +137,16 @@ export const accounts = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     provider: text("provider").notNull(),
     providerAccountId: text("provider_account_id"),
+    /** argon2id PHC string; only ever written and verified on the server. */
+    passwordHash: text("password_hash"),
     /** Encrypted at rest with AES-256-GCM. Never read by the browser. */
     totpSecret: text("totp_secret"),
+    totpEnabledAt: timestamp("totp_enabled_at", { withTimezone: true }),
+    /** SHA-256 of each one-time recovery code, so the plaintext is shown once. */
+    totpRecoveryCodeHashes: text("totp_recovery_code_hashes")
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
     credentialId: text("credential_id"),
     publicKey: text("public_key"),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -141,6 +154,37 @@ export const accounts = pgTable(
       .defaultNow(),
   },
   (table) => [index("accounts_user_idx").on(table.userId)],
+);
+
+/**
+ * Append-only identity-plane audit log. `audit_logs` is workspace-scoped and
+ * behind RLS, and sign-in happens before a workspace is known (and sometimes
+ * against an address that has none), so authentication events live here.
+ */
+export const authEvents = pgTable(
+  "auth_events",
+  {
+    id: uuid("id").primaryKey(),
+    /** Null when the attempt named an address that has no account. */
+    userId: uuid("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    email: text("email"),
+    kind: text("kind").notNull(),
+    ipPrefix: text("ip_prefix"),
+    uaHash: text("ua_hash"),
+    detail: jsonb("detail")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("auth_events_email_created_idx").on(table.email, table.createdAt),
+    index("auth_events_user_created_idx").on(table.userId, table.createdAt),
+  ],
 );
 
 /* --------------------------------------------------------- tenant tables */

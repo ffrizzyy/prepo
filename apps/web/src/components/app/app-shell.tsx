@@ -16,9 +16,9 @@ import {
   type Icon,
 } from "@phosphor-icons/react";
 import { BRAND } from "@prepo/shared";
+import { AccountMenu } from "@/components/app/account-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
-import { getInitials } from "@/lib/workspace-data";
 
 type NavItem = {
   href: string;
@@ -46,12 +46,14 @@ export function AppShell({
   workspace,
   workspaceName,
   viewerName,
+  viewerEmail,
   reviewCount,
   children,
 }: {
   workspace: string;
   workspaceName: string;
   viewerName: string;
+  viewerEmail: string;
   reviewCount: number;
   children: React.ReactNode;
 }) {
@@ -91,6 +93,7 @@ export function AppShell({
           workspace={workspace}
           workspaceName={workspaceName}
           viewerName={viewerName}
+          viewerEmail={viewerEmail}
           reviewCount={reviewCount}
           onOpenPalette={() => setPaletteOpen(true)}
           onToggleSidebar={() => setCollapsed((value) => !value)}
@@ -225,6 +228,7 @@ function Topbar({
   workspace,
   workspaceName,
   viewerName,
+  viewerEmail,
   reviewCount,
   onOpenPalette,
   onToggleSidebar,
@@ -232,6 +236,7 @@ function Topbar({
   workspace: string;
   workspaceName: string;
   viewerName: string;
+  viewerEmail: string;
   reviewCount: number;
   onOpenPalette: () => void;
   onToggleSidebar: () => void;
@@ -288,12 +293,11 @@ function Topbar({
 
       <ThemeToggle />
 
-      <span
-        className="grid size-8 place-items-center rounded-full bg-ink text-[11px] font-medium text-white"
-        title={viewerName}
-      >
-        {getInitials(viewerName)}
-      </span>
+      <AccountMenu
+        name={viewerName}
+        email={viewerEmail}
+        workspace={workspace}
+      />
     </header>
   );
 }

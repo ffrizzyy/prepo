@@ -115,7 +115,7 @@ export function Navbar() {
               Sign in
             </a>
             <a
-              href="/northwind"
+              href="/demo"
               className={cn(buttonVariants({ size: "md" }), "mt-2 justify-center")}
             >
               Try demo

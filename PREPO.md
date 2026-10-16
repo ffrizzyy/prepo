@@ -89,7 +89,7 @@ The move from table discussion to field execution becomes instant. Every team me
 |---|---|
 | API | Next.js Route Handlers (REST, `/api/v1`) + Server Actions. OpenAPI generated from Zod |
 | ORM / migrations | Drizzle ORM + drizzle-kit |
-| Auth | Better Auth: email + password, magic link, Google/GitHub OAuth, passkeys (WebAuthn), TOTP 2FA, organizations/roles, per-device sessions |
+| Auth | Email + password (argon2id), per-device sessions with revoke, lockout + rate limits, organizations/roles. Implemented directly on the `users`/`accounts`/`sessions` tables in 4.5 rather than via Better Auth, so the identity model matches the documented schema and stays driver-agnostic (PGlite or Postgres). Magic link, Google/GitHub OAuth, passkeys (WebAuthn), TOTP 2FA, breached-password check and Turnstile are still to be added |
 | Background jobs | Inngest (durable workflows, cron, retries) for the audio → transcript → extraction → ticket pipeline and the follow-up scheduler |
 | Realtime | **Ably**, token auth with per-workspace capabilities. Events carry IDs only, clients refetch through the authorized API |
 | File / audio storage | Cloudflare R2 (S3-compatible), private bucket, presigned URLs, lifecycle auto-delete |
@@ -442,8 +442,8 @@ prepo/
 | Table | Key fields |
 |---|---|
 | `users` | id, email, name, timezone, avatar_url |
-| `sessions` | id, user_id, device_label, **client_type (`web/pwa/desktop`)**, user_agent_hash, ip_prefix, last_seen_at, expires_at, revoked_at |
-| `accounts` | provider links, passkeys, totp_secret (encrypted) |
+| `sessions` | id, user_id, **token_hash (the session secret is stored hashed, never verbatim — 9.3 A02)**, device_label, **client_type (`web/pwa/desktop`)**, user_agent_hash, ip_prefix, last_seen_at, expires_at, revoked_at |
+| `accounts` | provider links, **password_hash (argon2id PHC string)**, passkeys, totp_secret (encrypted), **totp_enabled_at, totp_recovery_code_hashes[]** |
 | `workspaces` | id, name, slug, settings (JSON: autonomy level, follow-up tone, quiet hours, audio retention) |
 | `memberships` | workspace_id, user_id, role, aliases[] (name variants for owner matching) |
 | `invitations` | token_hash, email, role, expires_at |
@@ -464,6 +464,7 @@ prepo/
 | `ai_runs` | purpose, model, tokens_in/out, cost, latency_ms, trace_id, eval_score |
 | `stt_runs` | audio_asset_id, provider, duration_s, cost, status |
 | `audit_logs` | workspace_id, actor, action, target, ip_prefix, ua_hash (append-only) |
+| `auth_events` | id, user_id?, email?, kind, ip_prefix, ua_hash, detail (JSON), created_at. Append-only identity-plane log: sign-in happens *before* a workspace is known (and sometimes against an address that has none), so these events cannot satisfy a `workspace_id`-scoped RLS policy |
 
 ---
 
