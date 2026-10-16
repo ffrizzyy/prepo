@@ -1,22 +1,48 @@
 "use client";
 
-import { useState } from "react";
-import { TICKET_STATUSES, type TicketStatusId } from "@prepo/shared";
+import { useOptimistic, useState, useTransition } from "react";
+import {
+  TICKET_STATUSES,
+  type Ticket,
+  type TicketStatusId,
+} from "@prepo/shared";
 import { formatShortDate, isOverdue } from "@/lib/workspace-data";
 import { cn } from "@/lib/utils";
+import { moveTicket } from "@/server/actions";
 import { PriorityBadge } from "./badges";
-import { useWorkspaceStore } from "./store";
 
-export function Board({ workspace }: { workspace: string }) {
-  const { tickets, moveTicket } = useWorkspaceStore();
+export function Board({
+  workspace,
+  tickets,
+}: {
+  workspace: string;
+  tickets: Ticket[];
+}) {
+  const [optimisticTickets, applyMove] = useOptimistic(
+    tickets,
+    (state, move: { id: string; status: TicketStatusId }) =>
+      state.map((ticket) =>
+        ticket.id === move.id ? { ...ticket, status: move.status } : ticket,
+      ),
+  );
+  const [, startTransition] = useTransition();
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<TicketStatusId | null>(null);
+
+  function move(id: string, status: TicketStatusId) {
+    startTransition(async () => {
+      applyMove({ id, status });
+      await moveTicket({ workspace, ticketId: id, status });
+    });
+  }
 
   return (
     <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
       <div className="grid min-w-[880px] grid-cols-5 gap-4">
         {TICKET_STATUSES.map((column) => {
-          const items = tickets.filter((ticket) => ticket.status === column.id);
+          const items = optimisticTickets.filter(
+            (ticket) => ticket.status === column.id,
+          );
           return (
             <section
               key={column.id}
@@ -24,11 +50,13 @@ export function Board({ workspace }: { workspace: string }) {
                 event.preventDefault();
                 setOver(column.id);
               }}
-              onDragLeave={() => setOver((value) => (value === column.id ? null : value))}
+              onDragLeave={() =>
+                setOver((value) => (value === column.id ? null : value))
+              }
               onDrop={(event) => {
                 event.preventDefault();
                 const id = event.dataTransfer.getData("text/plain") || dragging;
-                if (id) moveTicket(id, column.id);
+                if (id) move(id, column.id);
                 setDragging(null);
                 setOver(null);
               }}
@@ -94,7 +122,7 @@ export function Board({ workspace }: { workspace: string }) {
                       id={`move-${ticket.id}`}
                       value={ticket.status}
                       onChange={(event) =>
-                        moveTicket(ticket.id, event.target.value as TicketStatusId)
+                        move(ticket.id, event.target.value as TicketStatusId)
                       }
                       className="mt-2.5 w-full rounded-[8px] border border-border bg-surface-2 px-2 py-1 text-[11px]"
                     >

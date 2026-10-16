@@ -2,17 +2,21 @@
 
 import { useMemo, useState } from "react";
 import { ArrowsDownUp, MagnifyingGlass } from "@phosphor-icons/react";
-import { PRIORITIES, TICKET_STATUSES } from "@prepo/shared";
+import { PRIORITIES, TICKET_STATUSES, type Ticket } from "@prepo/shared";
 import { formatShortDate, isOverdue } from "@/lib/workspace-data";
 import { cn } from "@/lib/utils";
 import { OverdueBadge, PriorityBadge, StatusBadge } from "./badges";
 import { Card, EmptyState } from "./page-header";
-import { useWorkspaceStore } from "./store";
 
 type SortKey = "key" | "due" | "priority";
 
-export function TicketsTable({ workspace }: { workspace: string }) {
-  const { tickets } = useWorkspaceStore();
+export function TicketsTable({
+  workspace,
+  tickets,
+}: {
+  workspace: string;
+  tickets: Ticket[];
+}) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [priority, setPriority] = useState<string>("all");
@@ -22,7 +26,9 @@ export function TicketsTable({ workspace }: { workspace: string }) {
     const value = query.trim().toLowerCase();
     const filtered = tickets
       .filter((ticket) => (status === "all" ? true : ticket.status === status))
-      .filter((ticket) => (priority === "all" ? true : ticket.priority === priority))
+      .filter((ticket) =>
+        priority === "all" ? true : ticket.priority === priority,
+      )
       .filter(
         (ticket) =>
           ticket.title.toLowerCase().includes(value) ||

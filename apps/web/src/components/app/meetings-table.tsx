@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { MagnifyingGlass } from "@phosphor-icons/react";
-import { getMeetings, getActionItems, formatShortDate } from "@/lib/workspace-data";
+import { formatShortDate } from "@/lib/workspace-data";
 import { cn } from "@/lib/utils";
+import type { MeetingView } from "@/server/queries";
 import { Card, EmptyState } from "./page-header";
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -12,24 +13,21 @@ const SOURCE_LABEL: Record<string, string> = {
   paste: "Pasted",
 };
 
-export function MeetingsTable({ workspace }: { workspace: string }) {
+export function MeetingsTable({
+  workspace,
+  meetings,
+}: {
+  workspace: string;
+  meetings: MeetingView[];
+}) {
   const [query, setQuery] = useState("");
   const [source, setSource] = useState<string>("all");
-  const meetings = getMeetings();
 
   const rows = useMemo(() => {
     const value = query.trim().toLowerCase();
     return meetings
       .filter((meeting) => (source === "all" ? true : meeting.source === source))
-      .filter((meeting) => meeting.title.toLowerCase().includes(value))
-      .map((meeting) => {
-        const items = getActionItems(meeting.id);
-        return {
-          meeting,
-          proposed: items.length,
-          ticketed: items.filter((item) => item.status === "ticketed").length,
-        };
-      });
+      .filter((meeting) => meeting.title.toLowerCase().includes(value));
   }, [meetings, query, source]);
 
   return (
@@ -85,7 +83,7 @@ export function MeetingsTable({ workspace }: { workspace: string }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {rows.map(({ meeting, proposed, ticketed }) => (
+                {rows.map((meeting) => (
                   <tr key={meeting.id} className="hover:bg-surface-2/50">
                     <td className="px-5 py-3">
                       <a
@@ -108,7 +106,7 @@ export function MeetingsTable({ workspace }: { workspace: string }) {
                       <Score value={meeting.necessityScore} invert />
                     </td>
                     <td className="px-5 py-3 font-mono text-xs text-text-muted">
-                      {ticketed}/{proposed}
+                      {meeting.ticketedCount}/{meeting.proposedCount}
                     </td>
                   </tr>
                 ))}

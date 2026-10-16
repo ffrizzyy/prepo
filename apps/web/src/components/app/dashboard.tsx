@@ -1,37 +1,60 @@
 "use client";
 
-import { ArrowRight, ArrowUpRight } from "@phosphor-icons/react";
-import { TICKET_STATUSES, type TicketStatusId } from "@prepo/shared";
+import { useOptimistic, useTransition } from "react";
+import { ArrowRight, ArrowUpRight, Clock } from "@phosphor-icons/react";
 import {
-  formatShortDate,
-  getMeetings,
-  isOverdue,
-} from "@/lib/workspace-data";
+  TICKET_STATUSES,
+  type Meeting,
+  type Ticket,
+  type TicketStatusId,
+} from "@prepo/shared";
+import { formatShortDate, isOverdue } from "@/lib/workspace-data";
 import { cn } from "@/lib/utils";
+import { moveTicket } from "@/server/actions";
+import type { ActionItemView, FollowupView } from "@/server/queries";
 import { OverdueBadge, PriorityBadge } from "./badges";
 import { Card } from "./page-header";
 import { ReviewList } from "./review-list";
-import { useWorkspaceStore } from "./store";
 
-const WEEK = [
-  { day: "Mon", created: 5, completed: 3 },
-  { day: "Tue", created: 7, completed: 4 },
-  { day: "Wed", created: 4, completed: 6 },
-  { day: "Thu", created: 6, completed: 2 },
-  { day: "Fri", created: 3, completed: 5 },
-];
+export function Dashboard({
+  workspace,
+  tickets,
+  meetings,
+  actionItems,
+  followups,
+}: {
+  workspace: string;
+  tickets: Ticket[];
+  meetings: Meeting[];
+  actionItems: ActionItemView[];
+  followups: FollowupView[];
+}) {
+  const [optimisticTickets, applyMove] = useOptimistic(
+    tickets,
+    (state, move: { id: string; status: TicketStatusId }) =>
+      state.map((ticket) =>
+        ticket.id === move.id ? { ...ticket, status: move.status } : ticket,
+      ),
+  );
+  const [, startTransition] = useTransition();
 
-export function Dashboard({ workspace }: { workspace: string }) {
-  const { tickets, moveTicket } = useWorkspaceStore();
-  const meetings = getMeetings();
+  function move(id: string, status: TicketStatusId) {
+    startTransition(async () => {
+      applyMove({ id, status });
+      await moveTicket({ workspace, ticketId: id, status });
+    });
+  }
 
-  const open = tickets
+  const open = optimisticTickets
     .filter((ticket) => ticket.status !== "done")
     .sort((a, b) => (a.dueAt ?? "9999").localeCompare(b.dueAt ?? "9999"));
 
-  const doneCount = tickets.filter((ticket) => ticket.status === "done").length;
+  const doneCount = optimisticTickets.filter(
+    (ticket) => ticket.status === "done",
+  ).length;
   const overdueCount = open.filter((ticket) => isOverdue(ticket.dueAt)).length;
-  const maxBar = Math.max(...WEEK.flatMap((day) => [day.created, day.completed]));
+
+  const pending = followups.filter((entry) => entry.status === "scheduled");
 
   return (
     <div className="space-y-6">
@@ -100,9 +123,7 @@ export function Dashboard({ workspace }: { workspace: string }) {
                         <span className="font-mono text-[10px]">
                           {formatShortDate(ticket.dueAt)}
                         </span>
-                        {isOverdue(ticket.dueAt) && ticket.status !== "done" ? (
-                          <OverdueBadge />
-                        ) : null}
+                        {isOverdue(ticket.dueAt) ? <OverdueBadge /> : null}
                       </div>
                     </div>
                     <PriorityBadge priority={ticket.priority} />
@@ -113,7 +134,7 @@ export function Dashboard({ workspace }: { workspace: string }) {
                       id={`status-${ticket.id}`}
                       value={ticket.status}
                       onChange={(event) =>
-                        moveTicket(ticket.id, event.target.value as TicketStatusId)
+                        move(ticket.id, event.target.value as TicketStatusId)
                       }
                       className="rounded-[10px] border border-border bg-surface-2 px-2 py-1.5 text-xs"
                     >
@@ -141,43 +162,47 @@ export function Dashboard({ workspace }: { workspace: string }) {
               </a>
             }
           >
-            <ReviewList limit={3} showBulk />
+            <ReviewList workspace={workspace} items={actionItems} limit={3} showBulk />
           </Card>
         </div>
 
         <div className="space-y-6">
-          <Card title="Week at a glance">
-            <div className="flex items-end justify-between gap-3">
-              {WEEK.map((day) => (
-                <div key={day.day} className="flex flex-1 flex-col items-center gap-2">
-                  <div className="flex h-28 w-full items-end justify-center gap-1">
-                    <div
-                      className="w-2.5 rounded-t bg-accent"
-                      style={{ height: `${(day.created / maxBar) * 100}%` }}
-                      title={`${day.created} created`}
+          <Card
+            title="Follow-ups"
+            action={
+              <a
+                href={`/${workspace}/followups`}
+                className="inline-flex items-center gap-1 text-xs text-accent-ink hover:underline"
+              >
+                All
+                <ArrowRight size={13} weight="bold" />
+              </a>
+            }
+          >
+            {pending.length === 0 ? (
+              <p className="py-6 text-center text-sm text-text-subtle">
+                Nothing scheduled. Prepo only chases work that has a date.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {pending.slice(0, 4).map((entry) => (
+                  <li key={entry.id} className="flex items-start gap-3 py-3 first:pt-0">
+                    <Clock
+                      size={15}
+                      className="mt-0.5 shrink-0 text-accent-ink"
+                      aria-hidden
                     />
-                    <div
-                      className="w-2.5 rounded-t bg-text-subtle/40"
-                      style={{ height: `${(day.completed / maxBar) * 100}%` }}
-                      title={`${day.completed} completed`}
-                    />
-                  </div>
-                  <span className="font-mono text-[10px] text-text-subtle">
-                    {day.day}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 flex items-center gap-4 text-xs text-text-muted">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-accent" />
-                Created
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-text-subtle/40" />
-                Completed
-              </span>
-            </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm">{entry.ticketTitle}</p>
+                      <p className="mt-1 font-mono text-[10px] text-text-subtle">
+                        {entry.ticketKey} · {entry.assigneeName ?? "unassigned"} ·{" "}
+                        {formatShortDate(entry.scheduledFor)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
 
           <Card title="Recent meetings">

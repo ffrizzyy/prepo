@@ -18,7 +18,7 @@ import {
 import { BRAND } from "@prepo/shared";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
-import { CURRENT_USER, getInitials } from "@/lib/workspace-data";
+import { getInitials } from "@/lib/workspace-data";
 
 type NavItem = {
   href: string;
@@ -44,10 +44,14 @@ export function useWorkspaceNav(workspace: string) {
 
 export function AppShell({
   workspace,
+  workspaceName,
+  viewerName,
   reviewCount,
   children,
 }: {
   workspace: string;
+  workspaceName: string;
+  viewerName: string;
   reviewCount: number;
   children: React.ReactNode;
 }) {
@@ -85,6 +89,8 @@ export function AppShell({
       >
         <Topbar
           workspace={workspace}
+          workspaceName={workspaceName}
+          viewerName={viewerName}
           reviewCount={reviewCount}
           onOpenPalette={() => setPaletteOpen(true)}
           onToggleSidebar={() => setCollapsed((value) => !value)}
@@ -217,11 +223,15 @@ function NavLink({
 
 function Topbar({
   workspace,
+  workspaceName,
+  viewerName,
   reviewCount,
   onOpenPalette,
   onToggleSidebar,
 }: {
   workspace: string;
+  workspaceName: string;
+  viewerName: string;
   reviewCount: number;
   onOpenPalette: () => void;
   onToggleSidebar: () => void;
@@ -238,7 +248,7 @@ function Topbar({
       </button>
 
       <div className="flex min-w-0 items-center gap-2">
-        <span className="truncate text-sm font-medium">{workspace === "northwind" ? "Northwind Studio" : workspace}</span>
+        <span className="truncate text-sm font-medium">{workspaceName}</span>
         <span className="hidden font-mono text-[11px] text-text-subtle sm:inline">
           /{workspace}
         </span>
@@ -280,9 +290,9 @@ function Topbar({
 
       <span
         className="grid size-8 place-items-center rounded-full bg-ink text-[11px] font-medium text-white"
-        title={CURRENT_USER.name}
+        title={viewerName}
       >
-        {getInitials(CURRENT_USER.name)}
+        {getInitials(viewerName)}
       </span>
     </header>
   );

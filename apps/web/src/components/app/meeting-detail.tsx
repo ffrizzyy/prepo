@@ -2,53 +2,48 @@
 
 import { useState } from "react";
 import { Play, SpeakerHigh } from "@phosphor-icons/react";
-import { formatTimestamp } from "@prepo/shared";
-import {
-  formatDate,
-  getMeeting,
-  getSegments,
-} from "@/lib/workspace-data";
+import { formatTimestamp, type TranscriptSegment } from "@prepo/shared";
+import { formatDate } from "@/lib/workspace-data";
 import { cn } from "@/lib/utils";
+import type { ActionItemView, MeetingView } from "@/server/queries";
 import { ScoreMeter } from "./badges";
 import { Card, EmptyState } from "./page-header";
 import { ReviewList } from "./review-list";
-import { useWorkspaceStore } from "./store";
 
 const TABS = ["Summary", "Actions", "Transcript", "Activity"] as const;
 type Tab = (typeof TABS)[number];
 
 export function MeetingDetail({
   workspace,
-  meetingId,
+  meeting,
+  segments,
+  actionItems,
 }: {
   workspace: string;
-  meetingId: string;
+  meeting: MeetingView;
+  segments: TranscriptSegment[];
+  actionItems: ActionItemView[];
 }) {
   const [tab, setTab] = useState<Tab>("Summary");
   const [activeSegment, setActiveSegment] = useState<string | null>(null);
-  const meeting = getMeeting(meetingId);
-  const segments = getSegments(meetingId);
-  const { actionItems } = useWorkspaceStore();
 
-  if (!meeting) {
-    return (
-      <EmptyState
-        title="Meeting not found"
-        description="This meeting may have been deleted. Head back to the meetings list."
-        action={
-          <a
-            href={`/${workspace}/meetings`}
-            className="text-sm text-accent-ink hover:underline"
-          >
-            Back to meetings
-          </a>
-        }
-      />
-    );
-  }
-
-  const meetingItems = actionItems.filter((item) => item.meetingId === meetingId);
+  const meetingItems = actionItems.filter((item) => item.meetingId === meeting.id);
   const proposed = meetingItems.filter((item) => item.status === "proposed").length;
+
+  const activity = [
+    {
+      who: "prepo-agent",
+      what: segments.length
+        ? `Transcribed audio and linked ${segments.length} segments.`
+        : "Imported minutes — no audio to transcribe.",
+      when: formatDate(meeting.heldAt),
+    },
+    {
+      who: "prepo-agent",
+      what: `Extracted ${meetingItems.length} action items with source quotes.`,
+      when: formatDate(meeting.heldAt),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -97,7 +92,7 @@ export function MeetingDetail({
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
           <Card title="Summary">
             <p className="max-w-[65ch] text-sm leading-relaxed text-text-muted">
-              {meeting.summary}
+              {meeting.summary || "No summary was produced for this meeting."}
             </p>
             {meeting.keyDecisions.length > 0 ? (
               <>
@@ -158,7 +153,9 @@ export function MeetingDetail({
         </div>
       ) : null}
 
-      {tab === "Actions" ? <ReviewList meetingId={meetingId} showBulk /> : null}
+      {tab === "Actions" ? (
+        <ReviewList workspace={workspace} items={meetingItems} showBulk />
+      ) : null}
 
       {tab === "Transcript" ? (
         segments.length === 0 ? (
@@ -205,12 +202,7 @@ export function MeetingDetail({
       {tab === "Activity" ? (
         <Card title="Activity">
           <ol className="space-y-4">
-            {[
-              { who: "prepo-agent", what: "Transcribed audio and linked 13 segments.", when: "on upload" },
-              { who: "prepo-agent", what: "Extracted 7 action items with source quotes.", when: "after transcription" },
-              { who: "Lena Fischer", what: "Reviewed the extraction queue.", when: "this morning" },
-              { who: "Sam Rivera", what: "Approve · PRE-143 (in another session)", when: "yesterday" },
-            ].map((event) => (
+            {activity.map((event) => (
               <li key={event.what} className="flex gap-3">
                 <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent" />
                 <div>

@@ -1,53 +1,7 @@
-import {
-  SAMPLE_ACTION_ITEMS,
-  SAMPLE_MEETING,
-  SAMPLE_MEETING_LIST,
-  SAMPLE_ROSTER,
-  SAMPLE_SEGMENTS,
-  SAMPLE_TICKETS,
-  WORKSPACE,
-  type ActionItem,
-  type Meeting,
-  type Ticket,
-  type TranscriptSegment,
-} from "@prepo/shared";
-
-export type RosterMember = (typeof SAMPLE_ROSTER)[number];
-
-export const CURRENT_USER: RosterMember = SAMPLE_ROSTER[0]!;
-
-export function getWorkspace() {
-  return WORKSPACE;
-}
-
-export function getMeetings(): Meeting[] {
-  return SAMPLE_MEETING_LIST;
-}
-
-export function getMeeting(id: string): Meeting | undefined {
-  return SAMPLE_MEETING_LIST.find((meeting) => meeting.id === id);
-}
-
-export function getSegments(meetingId: string): TranscriptSegment[] {
-  return meetingId === SAMPLE_MEETING.id ? SAMPLE_SEGMENTS : [];
-}
-
-export function getActionItems(meetingId?: string): ActionItem[] {
-  if (!meetingId) return SAMPLE_ACTION_ITEMS;
-  return SAMPLE_ACTION_ITEMS.filter((item) => item.meetingId === meetingId);
-}
-
-export function getTickets(): Ticket[] {
-  return SAMPLE_TICKETS;
-}
-
-export function getTicket(key: string): Ticket | undefined {
-  return SAMPLE_TICKETS.find((ticket) => ticket.key === key);
-}
-
-export function getRoster(): RosterMember[] {
-  return SAMPLE_ROSTER;
-}
+/**
+ * Formatting helpers shared by the app views. Data now comes from Postgres via
+ * `@/server/queries`, so nothing here reaches for sample data any more.
+ */
 
 export function getInitials(name: string): string {
   return name
@@ -90,4 +44,18 @@ export function relativeDue(value: string | null): string {
 export function isOverdue(value: string | null): boolean {
   if (!value) return false;
   return new Date(value).getTime() < Date.now();
+}
+
+/** "2 days ago" / "just now", for comment and activity timestamps. */
+export function relativeTime(value: string): string {
+  const delta = Date.now() - new Date(value).getTime();
+  const minutes = Math.round(delta / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days} days ago`;
+  return formatDate(value);
 }

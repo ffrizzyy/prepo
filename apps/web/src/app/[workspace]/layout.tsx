@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/app/app-shell";
-import { WorkspaceStoreProvider } from "@/components/app/store";
-import { getActionItems, getTickets } from "@/lib/workspace-data";
+import { requireWorkspace } from "@/server/context";
+import { listActionItemsView } from "@/server/queries";
 
 export default async function WorkspaceLayout({
   children,
@@ -10,17 +10,22 @@ export default async function WorkspaceLayout({
   params: Promise<{ workspace: string }>;
 }) {
   const { workspace } = await params;
-  const actionItems = getActionItems();
-  const reviewCount = actionItems.filter((item) => item.status === "proposed").length;
+
+  // Unknown slugs 404 here rather than rendering a shell over empty data.
+  const context = await requireWorkspace(workspace);
+  const actionItems = await listActionItemsView(context.id);
+  const reviewCount = actionItems.filter(
+    (item) => item.status === "proposed",
+  ).length;
 
   return (
-    <WorkspaceStoreProvider
-      initialTickets={getTickets()}
-      initialActionItems={actionItems}
+    <AppShell
+      workspace={context.slug}
+      workspaceName={context.name}
+      viewerName={context.viewer.name}
+      reviewCount={reviewCount}
     >
-      <AppShell workspace={workspace} reviewCount={reviewCount}>
-        {children}
-      </AppShell>
-    </WorkspaceStoreProvider>
+      {children}
+    </AppShell>
   );
 }

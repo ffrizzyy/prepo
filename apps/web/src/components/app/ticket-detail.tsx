@@ -1,57 +1,65 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { ArrowSquareOut, PaperPlaneTilt, Robot } from "@phosphor-icons/react";
-import { TICKET_STATUSES, type TicketStatusId } from "@prepo/shared";
-import { formatDate, getMeeting, isOverdue } from "@/lib/workspace-data";
+import {
+  TICKET_STATUSES,
+  type Meeting,
+  type Ticket,
+  type TicketStatusId,
+} from "@prepo/shared";
+import { formatDate, isOverdue, relativeTime } from "@/lib/workspace-data";
+import { addComment, moveTicket } from "@/server/actions";
+import type { TicketCommentView, TicketEventView } from "@/server/queries";
 import { PriorityBadge, StatusBadge } from "./badges";
 import { Card, EmptyState } from "./page-header";
-import { useWorkspaceStore } from "./store";
-
-type Comment = { id: string; author: string; body: string; when: string };
 
 export function TicketDetail({
   workspace,
-  ticketKey,
+  ticket,
+  meeting,
+  comments,
+  events,
+  viewerName,
 }: {
   workspace: string;
-  ticketKey: string;
+  ticket: Ticket;
+  meeting: Meeting | null;
+  comments: TicketCommentView[];
+  events: TicketEventView[];
+  viewerName: string;
 }) {
-  const { tickets, moveTicket } = useWorkspaceStore();
-  const [comments, setComments] = useState<Comment[]>([
-    {
-      id: "c1",
-      author: "Prepo",
-      body: "Ticket created from the Q4 Launch sync. Source quote attached below.",
-      when: "2 days ago",
-    },
-    {
-      id: "c2",
-      author: "Lena Fischer",
-      body: "This is the launch blocker — keep it at p0 until the retries survive a slow downstream.",
-      when: "yesterday",
-    },
-  ]);
+  const [optimisticStatus, applyStatus] = useOptimistic(
+    ticket.status,
+    (_state, next: TicketStatusId) => next,
+  );
+  const [optimisticComments, applyComment] = useOptimistic(
+    comments,
+    (state, body: string) => [
+      ...state,
+      {
+        id: `optimistic-${state.length}`,
+        author: viewerName,
+        body,
+        createdAt: new Date().toISOString(),
+      },
+    ],
+  );
+  const [, startTransition] = useTransition();
   const [draft, setDraft] = useState("");
 
-  const ticket = tickets.find((item) => item.key === ticketKey);
-  const meeting = ticket?.meetingId ? getMeeting(ticket.meetingId) : undefined;
+  function changeStatus(status: TicketStatusId) {
+    startTransition(async () => {
+      applyStatus(status);
+      await moveTicket({ workspace, ticketId: ticket.id, status });
+    });
+  }
 
-  if (!ticket) {
-    return (
-      <EmptyState
-        title={`Ticket ${ticketKey} not found`}
-        description="It may have been deleted, or the link is out of date."
-        action={
-          <a
-            href={`/${workspace}/tickets`}
-            className="text-sm text-accent-ink hover:underline"
-          >
-            Back to tickets
-          </a>
-        }
-      />
-    );
+  function submitComment(body: string) {
+    startTransition(async () => {
+      applyComment(body);
+      await addComment({ workspace, ticketKey: ticket.key, body });
+    });
   }
 
   return (
@@ -76,9 +84,9 @@ export function TicketDetail({
             </label>
             <select
               id="ticket-status"
-              value={ticket.status}
+              value={optimisticStatus}
               onChange={(event) =>
-                moveTicket(ticket.id, event.target.value as TicketStatusId)
+                changeStatus(event.target.value as TicketStatusId)
               }
               className="h-9 rounded-[10px] border border-border bg-surface px-3 text-sm"
             >
@@ -126,51 +134,51 @@ export function TicketDetail({
             )}
           </Card>
 
-          <Card title={`Comments (${comments.length})`}>
-            <ul className="space-y-4">
-              {comments.map((comment) => (
-                <li key={comment.id} className="flex gap-3">
-                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-surface-2 text-[10px] font-medium">
-                    {comment.author === "Prepo" ? (
-                      <Robot size={14} className="text-accent-ink" aria-hidden />
-                    ) : (
-                      comment.author
-                        .split(" ")
-                        .map((part) => part[0])
-                        .join("")
-                        .slice(0, 2)
-                    )}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium">
-                      {comment.author}
-                      <span className="ml-2 font-mono text-[10px] font-normal text-text-subtle">
-                        {comment.when}
-                      </span>
-                    </p>
-                    <p className="mt-1 text-sm leading-relaxed text-text-muted">
-                      {comment.body}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+          <Card title={`Comments (${optimisticComments.length})`}>
+            {optimisticComments.length === 0 ? (
+              <p className="py-4 text-sm text-text-subtle">
+                No comments yet. Ask for a status update and Prepo will nudge the
+                owner.
+              </p>
+            ) : (
+              <ul className="space-y-4">
+                {optimisticComments.map((comment) => (
+                  <li key={comment.id} className="flex gap-3">
+                    <span className="grid size-7 shrink-0 place-items-center rounded-full bg-surface-2 text-[10px] font-medium">
+                      {comment.author === "Prepo" || comment.author === null ? (
+                        <Robot size={14} className="text-accent-ink" aria-hidden />
+                      ) : (
+                        comment.author
+                          .split(" ")
+                          .map((part) => part[0])
+                          .join("")
+                          .slice(0, 2)
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium">
+                        {comment.author ?? "Prepo"}
+                        <span className="ml-2 font-mono text-[10px] font-normal text-text-subtle">
+                          {relativeTime(comment.createdAt)}
+                        </span>
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-text-muted">
+                        {comment.body}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
 
             <form
               className="mt-5 flex gap-2"
               onSubmit={(event) => {
                 event.preventDefault();
-                if (!draft.trim()) return;
-                setComments((current) => [
-                  ...current,
-                  {
-                    id: `c${current.length + 1}`,
-                    author: "You",
-                    body: draft.trim(),
-                    when: "just now",
-                  },
-                ]);
+                const body = draft.trim();
+                if (!body) return;
                 setDraft("");
+                submitComment(body);
               }}
             >
               <input
@@ -195,18 +203,16 @@ export function TicketDetail({
           <Card title="Details">
             <dl className="space-y-3 text-sm">
               <Row label="Status">
-                <StatusBadge status={ticket.status} />
+                <StatusBadge status={optimisticStatus} />
               </Row>
               <Row label="Priority">
                 <PriorityBadge priority={ticket.priority} />
               </Row>
-              <Row label="Assignee">
-                {ticket.assigneeName ?? "Unassigned"}
-              </Row>
+              <Row label="Assignee">{ticket.assigneeName ?? "Unassigned"}</Row>
               <Row label="Due">
                 <span
                   className={
-                    isOverdue(ticket.dueAt) && ticket.status !== "done"
+                    isOverdue(ticket.dueAt) && optimisticStatus !== "done"
                       ? "text-[#b91c1c] dark:text-[#f87171]"
                       : undefined
                   }
@@ -216,6 +222,9 @@ export function TicketDetail({
               </Row>
               <Row label="Labels">
                 <span className="flex flex-wrap gap-1.5">
+                  {ticket.labels.length === 0 ? (
+                    <span className="text-text-subtle">None</span>
+                  ) : null}
                   {ticket.labels.map((label) => (
                     <span
                       key={label}
@@ -255,29 +264,50 @@ export function TicketDetail({
           </Card>
 
           <Card title="Activity">
-            <ol className="space-y-3">
-              {[
-                { what: "Prepo created this ticket from an approved item.", when: "2 days ago" },
-                { what: "Priority set to " + ticket.priority.toUpperCase() + ".", when: "2 days ago" },
-                { what: "Assigned to " + (ticket.assigneeName ?? "nobody") + ".", when: "2 days ago" },
-                { what: "Follow-up scheduled 24h before due.", when: "2 days ago" },
-              ].map((event, index) => (
-                <li key={index} className="flex gap-2.5 text-xs">
-                  <span className="mt-1 size-1.5 shrink-0 rounded-full bg-accent" />
-                  <div>
-                    <p className="text-text-muted">{event.what}</p>
-                    <p className="mt-0.5 font-mono text-[10px] text-text-subtle">
-                      prepo-agent · {event.when}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ol>
+            {events.length === 0 ? (
+              <EmptyState
+                title="No activity yet"
+                description="Changes to this ticket will be recorded here."
+              />
+            ) : (
+              <ol className="space-y-3">
+                {events.map((event) => (
+                  <li key={event.id} className="flex gap-2.5 text-xs">
+                    <span className="mt-1 size-1.5 shrink-0 rounded-full bg-accent" />
+                    <div>
+                      <p className="text-text-muted">{describeEvent(event)}</p>
+                      <p className="mt-0.5 font-mono text-[10px] text-text-subtle">
+                        {event.actorName ?? "prepo-agent"} ·{" "}
+                        {relativeTime(event.createdAt)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
           </Card>
         </div>
       </div>
     </div>
   );
+}
+
+function describeEvent(event: TicketEventView): string {
+  if (event.type === "created") {
+    if (event.payload.source === "meeting") {
+      return "Created from an approved action item.";
+    }
+    if (event.payload.source === "seed") {
+      return "Imported from your existing tracker.";
+    }
+    return "Ticket created.";
+  }
+  if (event.type === "status_changed") {
+    const from = String(event.payload.from ?? "?");
+    const to = String(event.payload.to ?? "?");
+    return `Status moved ${from.replace(/_/g, " ")} → ${to.replace(/_/g, " ")}.`;
+  }
+  return event.type.replace(/_/g, " ");
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {

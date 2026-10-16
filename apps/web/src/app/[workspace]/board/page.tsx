@@ -1,5 +1,7 @@
 import { Board } from "@/components/app/board";
 import { PageHeader } from "@/components/app/page-header";
+import { requireWorkspace } from "@/server/context";
+import { listTicketsView } from "@/server/queries";
 
 export default async function BoardPage({
   params,
@@ -7,6 +9,8 @@ export default async function BoardPage({
   params: Promise<{ workspace: string }>;
 }) {
   const { workspace } = await params;
+  const context = await requireWorkspace(workspace);
+  const tickets = await listTicketsView(context.id);
 
   return (
     <>
@@ -14,7 +18,7 @@ export default async function BoardPage({
         title="Board"
         description="Drag a ticket between columns, or use the menu on each card."
       />
-      <Board workspace={workspace} />
+      <Board workspace={context.slug} tickets={tickets} />
     </>
   );
 }

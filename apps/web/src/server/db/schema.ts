@@ -153,6 +153,8 @@ export const workspaces = pgTable("workspaces", {
     .$type<{
       autonomy?: string;
       followupTone?: string;
+      /** Display prefix for ticket keys, e.g. "PRE" in PRE-118. */
+      ticketPrefix?: string;
       quietHours?: { from: string; to: string };
       audioRetentionDays?: number;
     }>()
@@ -621,3 +623,11 @@ export type FollowupStatus = (typeof followupStatus.enumValues)[number];
 export type IntegrationProvider = (typeof integrationProvider.enumValues)[number];
 export type IntegrationStatus = (typeof integrationStatus.enumValues)[number];
 export type SavedViewScope = (typeof savedViewScope.enumValues)[number];
+
+/* ------------------------------------------------------- inferred rows */
+
+export type Workspace = typeof workspaces.$inferSelect;
+export type WorkspaceSettings = Workspace["settings"];
+export type MeetingRow = typeof meetings.$inferSelect;
+export type ActionItemRow = typeof actionItems.$inferSelect;
+export type TicketRow = typeof tickets.$inferSelect;

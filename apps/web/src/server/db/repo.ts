@@ -39,6 +39,32 @@ export async function getWorkspace(workspaceId: string) {
   });
 }
 
+export type WorkspaceMember = {
+  userId: string;
+  name: string;
+  email: string;
+  role: t.MembershipRole;
+  aliases: string[];
+};
+
+export async function getWorkspaceMembers(
+  workspaceId: string,
+): Promise<WorkspaceMember[]> {
+  return withWorkspace(workspaceId, (tx) =>
+    tx
+      .select({
+        userId: t.users.id,
+        name: t.users.name,
+        email: t.users.email,
+        role: t.memberships.role,
+        aliases: t.memberships.aliases,
+      })
+      .from(t.memberships)
+      .innerJoin(t.users, eq(t.users.id, t.memberships.userId))
+      .orderBy(asc(t.memberships.createdAt)),
+  );
+}
+
 /* ------------------------------------------------------------- meetings */
 
 export async function listMeetings(workspaceId: string) {

@@ -79,6 +79,7 @@ export async function seed(): Promise<SeedSummary> {
       settings: {
         autonomy: "suggest",
         followupTone: "neutral",
+        ticketPrefix: "PRE",
         quietHours: { from: "18:00", to: "09:00" },
         audioRetentionDays: 30,
       },
@@ -87,7 +88,7 @@ export async function seed(): Promise<SeedSummary> {
       id: WORKSPACE_IDS.globex,
       name: "Globex",
       slug: "globex",
-      settings: { autonomy: "ask_every_time", followupTone: "gentle" },
+      settings: { autonomy: "assist", followupTone: "gentle", ticketPrefix: "GLO" },
     },
   ]);
 
@@ -201,6 +202,10 @@ export async function seed(): Promise<SeedSummary> {
   });
 
   /* ------------------------------------------------------ action items */
+  // The Q4 sync re-raised the enterprise legal review, which duplicates the
+  // existing PRE-118. That stays a `possible_duplicate` flag for a human to
+  // resolve in review — linking the old ticket to this meeting would claim the
+  // meeting created it, which is not true.
   const actionItemRows = SAMPLE_ACTION_ITEMS.map((item) => ({
     id: uuidv7(),
     workspaceId: WORKSPACE_IDS.northwind,
@@ -227,6 +232,8 @@ export async function seed(): Promise<SeedSummary> {
     id: uuidv7(),
     workspaceId: WORKSPACE_IDS.northwind,
     key: ticket.key,
+    // Every seeded ticket already existed; only approving an action item links a
+    // ticket back to the item and the meeting it came from.
     actionItemId: null,
     title: ticket.title,
     description: ticket.description ?? null,
@@ -296,27 +303,55 @@ export async function seed(): Promise<SeedSummary> {
   );
 
   const dupTicket = ticketRows.find((ticket) => ticket.key === "PRE-118")!;
-  await db.insert(t.followups).values([
+  await db.insert(t.comments).values([
     {
       id: uuidv7(),
       workspaceId: WORKSPACE_IDS.northwind,
       ticketId: dupTicket.id,
-      kind: "reminder",
-      channel: "email",
-      scheduledFor: new Date("2026-10-17T09:00:00.000Z"),
-      status: "scheduled",
+      userId: userIdByName.get("Dana Okafor")!,
+      body: "Raised again in the Q4 sync. Still waiting on the enterprise terms from counsel.",
+      createdAt: new Date("2026-10-13T11:00:00.000Z"),
     },
     {
       id: uuidv7(),
       workspaceId: WORKSPACE_IDS.northwind,
       ticketId: dupTicket.id,
-      kind: "digest",
-      channel: "in_app",
-      scheduledFor: new Date("2026-10-15T08:00:00.000Z"),
-      sentAt: new Date("2026-10-15T08:00:04.000Z"),
-      status: "sent",
+      userId: userIdByName.get("Lena Fischer")!,
+      body: "Noted — keep it here so we do not open a second ticket for the same thing.",
+      createdAt: new Date("2026-10-13T11:04:00.000Z"),
     },
   ]);
+
+  // A reminder 24h before each open ticket's due date is the first rung of the
+  // escalation ladder, so the follow-ups page reflects real rows.
+  const followupRows: (typeof t.followups.$inferInsert)[] = [];
+  for (const ticket of ticketRows) {
+    if (ticket.workspaceId !== WORKSPACE_IDS.northwind) continue;
+    if (ticket.status === "done" || !ticket.dueAt) continue;
+    followupRows.push({
+      id: uuidv7(),
+      workspaceId: WORKSPACE_IDS.northwind,
+      ticketId: ticket.id,
+      kind: "reminder",
+      channel: "email",
+      scheduledFor: new Date(ticket.dueAt.getTime() - 24 * 60 * 60 * 1000),
+      status: "scheduled",
+    });
+  }
+
+  const overduedTicket = ticketRows.find((ticket) => ticket.key === "PRE-139")!;
+  followupRows.push({
+    id: uuidv7(),
+    workspaceId: WORKSPACE_IDS.northwind,
+    ticketId: overduedTicket.id,
+    kind: "nudge",
+    channel: "in_app",
+    scheduledFor: new Date("2026-10-15T09:00:00.000Z"),
+    sentAt: new Date("2026-10-15T09:00:03.000Z"),
+    status: "sent",
+  });
+
+  await db.insert(t.followups).values(followupRows);
 
   await db.insert(t.notifications).values({
     id: uuidv7(),

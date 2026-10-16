@@ -1,0 +1,399 @@
+import { asc, desc, eq, inArray, sql } from "drizzle-orm";
+import type {
+  ActionItem,
+  Meeting,
+  Ticket,
+  TranscriptSegment,
+} from "@prepo/shared";
+import { withWorkspace, type Db } from "./db/client";
+import * as t from "./db/schema";
+
+/**
+ * Read models. The database stores ids and the UI renders names, so every query
+ * here joins or resolves what the components need and hands back the shapes the
+ * interface already speaks (the `@prepo/shared` view types).
+ */
+
+export type ActionItemView = ActionItem & {
+  /** The transcript line the item was extracted from — the evidence shown in review. */
+  sourceQuote: string | null;
+  sourceQuoteAtMs: number | null;
+};
+
+export type MeetingView = Meeting & {
+  segmentCount: number;
+  proposedCount: number;
+  ticketedCount: number;
+};
+
+export type TicketCommentView = {
+  id: string;
+  author: string | null;
+  body: string;
+  createdAt: string;
+};
+
+function iso(value: Date | null): string | null {
+  return value ? value.toISOString() : null;
+}
+
+function num(value: string | null): number {
+  return value === null ? 0 : Number(value);
+}
+
+function toMeeting(row: t.MeetingRow): Meeting {
+  return {
+    id: row.id,
+    title: row.title,
+    heldAt: row.heldAt.toISOString(),
+    source: row.source,
+    status: row.status,
+    clarityScore: row.clarityScore ?? 0,
+    necessityScore: row.necessityScore ?? 0,
+    summary: row.summary ?? "",
+    keyDecisions: row.keyDecisions,
+    openQuestions: row.openQuestions,
+  };
+}
+
+/* ------------------------------------------------------------- meetings */
+
+export async function listMeetingsView(
+  workspaceId: string,
+): Promise<MeetingView[]> {
+  return withWorkspace(workspaceId, async (tx) => {
+    const [meetings, itemCounts, segmentCounts, ticketCounts] =
+      await Promise.all([
+        tx.select().from(t.meetings).orderBy(desc(t.meetings.heldAt)),
+        tx
+          .select({
+            meetingId: t.actionItems.meetingId,
+            proposed: sql<number>`count(*)::int`,
+            ticketed: sql<number>`count(*) filter (where ${t.actionItems.status} = 'ticketed')::int`,
+          })
+          .from(t.actionItems)
+          .groupBy(t.actionItems.meetingId),
+        tx
+          .select({
+            meetingId: t.transcriptSegments.meetingId,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(t.transcriptSegments)
+          .groupBy(t.transcriptSegments.meetingId),
+        tx
+          .select({
+            meetingId: t.actionItems.meetingId,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(t.tickets)
+          .innerJoin(t.actionItems, eq(t.actionItems.id, t.tickets.actionItemId))
+          .groupBy(t.actionItems.meetingId),
+      ]);
+
+    const items = new Map(itemCounts.map((row) => [row.meetingId, row]));
+    const segments = new Map(segmentCounts.map((row) => [row.meetingId, row.count]));
+    const tickets = new Map(ticketCounts.map((row) => [row.meetingId, row.count]));
+
+    return meetings.map((row) => ({
+      ...toMeeting(row),
+      segmentCount: segments.get(row.id) ?? 0,
+      proposedCount: items.get(row.id)?.proposed ?? 0,
+      ticketedCount: tickets.get(row.id) ?? items.get(row.id)?.ticketed ?? 0,
+    }));
+  });
+}
+
+export async function getMeetingView(
+  workspaceId: string,
+  meetingId: string,
+): Promise<MeetingView | null> {
+  const all = await listMeetingsView(workspaceId);
+  return all.find((meeting) => meeting.id === meetingId) ?? null;
+}
+
+export async function listSegmentsView(
+  workspaceId: string,
+  meetingId: string,
+): Promise<TranscriptSegment[]> {
+  return withWorkspace(workspaceId, async (tx) => {
+    const rows = await tx
+      .select({
+        segment: t.transcriptSegments,
+        speakerName: t.users.name,
+      })
+      .from(t.transcriptSegments)
+      .leftJoin(t.users, eq(t.users.id, t.transcriptSegments.speakerUserId))
+      .where(eq(t.transcriptSegments.meetingId, meetingId))
+      .orderBy(asc(t.transcriptSegments.idx));
+
+    return rows.map(({ segment, speakerName }) => ({
+      id: segment.id,
+      idx: segment.idx,
+      speakerLabel: segment.speakerLabel,
+      speakerName: speakerName ?? null,
+      startMs: segment.startMs,
+      endMs: segment.endMs,
+      text: segment.text,
+    }));
+  });
+}
+
+/**
+ * Resolves the transcript lines referenced by a set of action items, so the UI
+ * can show the quote an item was extracted from.
+ */
+async function quotesFor(
+  tx: Db,
+  segmentIds: string[],
+): Promise<Map<string, { text: string; startMs: number }>> {
+  if (segmentIds.length === 0) return new Map();
+
+  const rows = await tx
+    .select({
+      id: t.transcriptSegments.id,
+      text: t.transcriptSegments.text,
+      startMs: t.transcriptSegments.startMs,
+    })
+    .from(t.transcriptSegments)
+    .where(inArray(t.transcriptSegments.id, segmentIds));
+
+  return new Map(rows.map((row) => [row.id, { text: row.text, startMs: row.startMs }]));
+}
+
+/* -------------------------------------------------------- action items */
+
+export async function listActionItemsView(
+  workspaceId: string,
+  meetingId?: string,
+): Promise<ActionItemView[]> {
+  return withWorkspace(workspaceId, async (tx) => {
+    const rows = await tx
+      .select({ item: t.actionItems, ownerName: t.users.name })
+      .from(t.actionItems)
+      .leftJoin(t.users, eq(t.users.id, t.actionItems.ownerId))
+      .where(meetingId ? eq(t.actionItems.meetingId, meetingId) : undefined)
+      .orderBy(asc(t.actionItems.createdAt));
+
+    const segmentIds = [
+      ...new Set(rows.flatMap((row) => row.item.sourceSegmentIds)),
+    ];
+    const quotes = await quotesFor(tx, segmentIds);
+
+    return rows.map(({ item, ownerName }) => {
+      const quoteId = item.sourceSegmentIds[0];
+      const quote = quoteId ? quotes.get(quoteId) : undefined;
+      return {
+        id: item.id,
+        meetingId: item.meetingId,
+        title: item.title,
+        description: item.description ?? undefined,
+        ownerRaw: item.ownerRaw,
+        ownerName: ownerName ?? null,
+        ownerConfidence: num(item.ownerConfidence),
+        dueAt: iso(item.dueAt),
+        priority: item.priority,
+        confidence: num(item.confidence),
+        sourceSegmentIds: item.sourceSegmentIds,
+        flags: item.flags as ActionItemView["flags"],
+        status: item.status,
+        sourceQuote: quote?.text ?? null,
+        sourceQuoteAtMs: quote?.startMs ?? null,
+      } satisfies ActionItemView;
+    });
+  });
+}
+
+/* -------------------------------------------------------------- tickets */
+
+export async function listTicketsView(workspaceId: string): Promise<Ticket[]> {
+  return withWorkspace(workspaceId, async (tx) => {
+    const rows = await tx
+      .select({ ticket: t.tickets, assigneeName: t.users.name })
+      .from(t.tickets)
+      .leftJoin(t.users, eq(t.users.id, t.tickets.assigneeId))
+      .orderBy(asc(t.tickets.position), asc(t.tickets.key));
+
+    const actionItemIds = rows
+      .map((row) => row.ticket.actionItemId)
+      .filter((id): id is string => id !== null);
+
+    const originItems = actionItemIds.length
+      ? await tx
+          .select()
+          .from(t.actionItems)
+          .where(inArray(t.actionItems.id, actionItemIds))
+      : [];
+    const originById = new Map(originItems.map((item) => [item.id, item]));
+
+    const quotes = await quotesFor(
+      tx,
+      originItems.flatMap((item) => item.sourceSegmentIds[0] ?? []),
+    );
+
+    return rows.map(({ ticket, assigneeName }) => {
+      const origin = ticket.actionItemId
+        ? originById.get(ticket.actionItemId)
+        : undefined;
+      const quoteId = origin?.sourceSegmentIds[0];
+      return {
+        id: ticket.id,
+        key: ticket.key,
+        actionItemId: ticket.actionItemId,
+        title: ticket.title,
+        description: ticket.description ?? undefined,
+        assigneeName: assigneeName ?? null,
+        status: ticket.status,
+        priority: ticket.priority,
+        dueAt: iso(ticket.dueAt),
+        labels: ticket.labels,
+        linearUrl: ticket.linearUrl,
+        meetingId: origin?.meetingId ?? null,
+        sourceQuote: quoteId ? (quotes.get(quoteId)?.text ?? null) : null,
+        createdAt: ticket.createdAt.toISOString(),
+      } satisfies Ticket;
+    });
+  });
+}
+
+export async function getTicketView(
+  workspaceId: string,
+  key: string,
+): Promise<Ticket | null> {
+  const all = await listTicketsView(workspaceId);
+  return all.find((ticket) => ticket.key === key) ?? null;
+}
+
+export async function listTicketComments(
+  workspaceId: string,
+  ticketId: string,
+): Promise<TicketCommentView[]> {
+  return withWorkspace(workspaceId, async (tx) => {
+    const rows = await tx
+      .select({ comment: t.comments, author: t.users.name })
+      .from(t.comments)
+      .leftJoin(t.users, eq(t.users.id, t.comments.userId))
+      .where(eq(t.comments.ticketId, ticketId))
+      .orderBy(asc(t.comments.createdAt));
+
+    return rows.map(({ comment, author }) => ({
+      id: comment.id,
+      author: author ?? null,
+      body: comment.body,
+      createdAt: comment.createdAt.toISOString(),
+    }));
+  });
+}
+
+export async function getTicketIdByKey(
+  workspaceId: string,
+  key: string,
+): Promise<string | null> {
+  return withWorkspace(workspaceId, async (tx) => {
+    const [row] = await tx
+      .select({ id: t.tickets.id })
+      .from(t.tickets)
+      .where(eq(t.tickets.key, key));
+    return row?.id ?? null;
+  });
+}
+
+export type TicketEventView = {
+  id: string;
+  type: string;
+  payload: Record<string, unknown>;
+  actorName: string | null;
+  createdAt: string;
+};
+
+export async function listTicketEvents(
+  workspaceId: string,
+  ticketId: string,
+): Promise<TicketEventView[]> {
+  return withWorkspace(workspaceId, async (tx) => {
+    const rows = await tx
+      .select({ event: t.ticketEvents, actorName: t.users.name })
+      .from(t.ticketEvents)
+      .leftJoin(t.users, eq(t.users.id, t.ticketEvents.actorId))
+      .where(eq(t.ticketEvents.ticketId, ticketId))
+      .orderBy(desc(t.ticketEvents.createdAt));
+
+    return rows.map(({ event, actorName }) => ({
+      id: event.id,
+      type: event.type,
+      payload: (event.payload ?? {}) as Record<string, unknown>,
+      actorName: actorName ?? null,
+      createdAt: event.createdAt.toISOString(),
+    }));
+  });
+}
+
+/* ------------------------------------------------------------ followups */
+
+export type FollowupView = {
+  id: string;
+  ticketKey: string;
+  ticketTitle: string;
+  assigneeName: string | null;
+  kind: string;
+  channel: string;
+  scheduledFor: string;
+  sentAt: string | null;
+  status: string;
+};
+
+export async function listFollowupsView(
+  workspaceId: string,
+): Promise<FollowupView[]> {
+  return withWorkspace(workspaceId, (tx) =>
+    tx
+      .select({
+        id: t.followups.id,
+        ticketKey: t.tickets.key,
+        ticketTitle: t.tickets.title,
+        assigneeName: t.users.name,
+        kind: t.followups.kind,
+        channel: t.followups.channel,
+        scheduledFor: t.followups.scheduledFor,
+        sentAt: t.followups.sentAt,
+        status: t.followups.status,
+      })
+      .from(t.followups)
+      .innerJoin(t.tickets, eq(t.tickets.id, t.followups.ticketId))
+      .leftJoin(t.users, eq(t.users.id, t.tickets.assigneeId))
+      .orderBy(asc(t.followups.scheduledFor))
+      .then((rows) =>
+        rows.map((row) => ({
+          ...row,
+          scheduledFor: row.scheduledFor.toISOString(),
+          sentAt: iso(row.sentAt),
+        })),
+      ),
+  );
+}
+
+/* -------------------------------------------------------------- insights */
+
+export async function getStatusCounts(
+  workspaceId: string,
+): Promise<Record<string, number>> {
+  const rows = await withWorkspace(workspaceId, (tx) =>
+    tx
+      .select({ status: t.tickets.status, count: sql<number>`count(*)::int` })
+      .from(t.tickets)
+      .groupBy(t.tickets.status),
+  );
+
+  return Object.fromEntries(rows.map((row) => [row.status, row.count]));
+}
+
+export async function listMeetingLoad(
+  workspaceId: string,
+): Promise<{ heldAt: string; clarityScore: number }[]> {
+  const meetings = await listMeetingsView(workspaceId);
+  return meetings
+    .map((meeting) => ({
+      heldAt: meeting.heldAt,
+      clarityScore: meeting.clarityScore,
+    }))
+    .sort((a, b) => a.heldAt.localeCompare(b.heldAt));
+}

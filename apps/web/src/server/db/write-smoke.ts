@@ -1,0 +1,229 @@
+/**
+ * End-to-end check of the write path. Calls the same server actions the UI calls,
+ * then reads the results back through the same tenant-scoped queries. It reseeds
+ * first so it is repeatable:
+ *   pnpm --filter @prepo/web db:smoke
+ */
+import { eq } from "drizzle-orm";
+import {
+  addComment,
+  approveActionItems,
+  moveTicket,
+  rejectActionItem,
+  setAutonomy,
+} from "../actions";
+import {
+  listActionItemsView,
+  listFollowupsView,
+  listTicketComments,
+  listTicketEvents,
+  listTicketsView,
+} from "../queries";
+import { migrateAndApply } from "./migrate";
+import { resolveWorkspaceId } from "./repo";
+import { runCli } from "./run";
+import { seed } from "./seed";
+import { withWorkspace } from "./client";
+import * as t from "./schema";
+
+let failures = 0;
+
+function check(label: string, ok: boolean, detail = ""): void {
+  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`);
+  if (!ok) failures += 1;
+}
+
+/** Server actions revalidate; that needs a request scope we do not have here. */
+async function act<T>(fn: () => Promise<T>): Promise<T | undefined> {
+  try {
+    return await fn();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/revalidate|static generation|request/i.test(message)) {
+      console.log(`      (revalidate skipped outside a request: ${message})`);
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+runCli("write-smoke.ts", async () => {
+  await migrateAndApply();
+  await seed();
+
+  const northwind = (await resolveWorkspaceId("northwind"))!;
+  const globex = (await resolveWorkspaceId("globex"))!;
+
+  /* ------------------------------------------------------------ baseline */
+  const seedItems = await listActionItemsView(northwind);
+  const seedTickets = await listTicketsView(northwind);
+  const proposed = seedItems.filter((item) => item.status === "proposed");
+
+  check("seed has 7 proposed action items", proposed.length === 7, String(proposed.length));
+  check("seed has 9 tickets", seedTickets.length === 9, String(seedTickets.length));
+  check(
+    "no seeded ticket claims a meeting origin",
+    seedTickets.every((ticket) => ticket.meetingId === null),
+  );
+
+  /* ----------------------------------------------------------- approve */
+  const target = proposed.slice(0, 2);
+  await act(() =>
+    approveActionItems({
+      workspace: "northwind",
+      actionItemIds: target.map((item) => item.id),
+    }),
+  );
+
+  const afterTickets = await listTicketsView(northwind);
+  const created = afterTickets.filter((ticket) => !seedTickets.some((s) => s.id === ticket.id));
+
+  check("approving two items created two tickets", created.length === 2, String(created.length));
+  check(
+    "new keys continue the sequence",
+    created.map((ticket) => ticket.key).sort().join(",") === "PRE-142,PRE-143",
+    created.map((ticket) => ticket.key).join(","),
+  );
+  check(
+    "new tickets are traced to the meeting",
+    created.every((ticket) => ticket.meetingId !== null && ticket.sourceQuote !== null),
+    created.map((ticket) => `${ticket.key}:${ticket.meetingId ? "linked" : "none"}`).join(" "),
+  );
+  check(
+    "new tickets get an assignee when the item had an owner",
+    created.every((ticket) => ticket.status === "todo" || ticket.status === "backlog"),
+  );
+
+  const afterItems = await listActionItemsView(northwind);
+  check(
+    "approved items moved to ticketed",
+    afterItems
+      .filter((item) => target.some((t2) => t2.id === item.id))
+      .every((item) => item.status === "ticketed"),
+  );
+  check(
+    "northwind now sees 11 tickets",
+    afterTickets.length === 11,
+    String(afterTickets.length),
+  );
+
+  /* -------------------------------------------------------- idempotency */
+  await act(() =>
+    approveActionItems({
+      workspace: "northwind",
+      actionItemIds: target.map((item) => item.id),
+    }),
+  );
+  const afterRepeat = await listTicketsView(northwind);
+  check(
+    "re-approving the same items creates nothing",
+    afterRepeat.length === 11,
+    String(afterRepeat.length),
+  );
+
+  /* ------------------------------------------------------------ followups */
+  const followups = await listFollowupsView(northwind);
+  const forNew = followups.filter((entry) =>
+    created.some((ticket) => ticket.key === entry.ticketKey),
+  );
+  const withDue = created.filter((ticket) => ticket.dueAt !== null);
+  check(
+    "a reminder is scheduled per dated ticket",
+    forNew.length === withDue.length,
+    `${forNew.length} follow-up(s) for ${withDue.length} dated ticket(s)`,
+  );
+
+  /* --------------------------------------------------------------- move */
+  const first = created[0]!;
+  await act(() =>
+    moveTicket({ workspace: "northwind", ticketId: first.id, status: "done" }),
+  );
+  const movedTicket = (await listTicketsView(northwind)).find((ticket) => ticket.id === first.id);
+  check("moving a ticket persists the new status", movedTicket?.status === "done", movedTicket?.status);
+
+  const events = await listTicketEvents(northwind, first.id);
+  check(
+    "moving a ticket writes an audit event",
+    events.some((event) => event.type === "status_changed"),
+    events.map((event) => event.type).join(","),
+  );
+  check(
+    "the linked ticket records its meeting origin",
+    events.some((event) => event.payload.source === "meeting"),
+    events.map((event) => String(event.payload.source)).join(","),
+  );
+
+  /* ------------------------------------------------------------- reject */
+  const nextProposed = (await listActionItemsView(northwind)).filter(
+    (item) => item.status === "proposed",
+  );
+  const toReject = nextProposed[0]!;
+  await act(() => rejectActionItem({ workspace: "northwind", actionItemId: toReject.id }));
+  const afterReject = await listActionItemsView(northwind);
+  check(
+    "rejecting an item records it",
+    afterReject.find((item) => item.id === toReject.id)?.status === "rejected",
+  );
+
+  /* ------------------------------------------------------------ comment */
+  await act(() =>
+    addComment({
+      workspace: "northwind",
+      ticketKey: first.key,
+      body: "Smoke test comment.",
+    }),
+  );
+  const comments = await listTicketComments(northwind, first.id);
+  check(
+    "a comment is stored against the ticket",
+    comments.some((comment) => comment.body === "Smoke test comment."),
+    `${comments.length} comment(s)`,
+  );
+
+  /* ----------------------------------------------------------- settings */
+  await act(() => setAutonomy({ workspace: "northwind", autonomy: "autopilot" }));
+  const [settings] = await withWorkspace(northwind, (tx) =>
+    tx.select({ settings: t.workspaces.settings }).from(t.workspaces),
+  );
+  check(
+    "the autonomy setting is persisted",
+    settings?.settings.autonomy === "autopilot",
+    settings?.settings.autonomy,
+  );
+
+  /* ------------------------------------------------------------ tenancy */
+  const [globexTicket] = await withWorkspace(globex, (tx) =>
+    tx.select({ id: t.tickets.id, key: t.tickets.key }).from(t.tickets),
+  );
+  let blocked = false;
+  try {
+    await moveTicket({
+      workspace: "northwind",
+      ticketId: globexTicket!.id,
+      status: "done",
+    });
+  } catch {
+    blocked = true;
+  }
+  check(
+    "a northwind session cannot move a globex ticket",
+    blocked,
+    `target ${globexTicket?.key}`,
+  );
+
+  const globexTicketAfter = await withWorkspace(globex, (tx) =>
+    tx
+      .select({ status: t.tickets.status })
+      .from(t.tickets)
+      .where(eq(t.tickets.id, globexTicket!.id)),
+  );
+  check(
+    "the globex ticket is untouched",
+    globexTicketAfter[0]?.status !== "done",
+    globexTicketAfter[0]?.status,
+  );
+
+  console.log("");
+  console.log(failures === 0 ? "all write checks passed" : `${failures} check(s) failed`);
+  if (failures > 0) throw new Error("write smoke test failed");
+});

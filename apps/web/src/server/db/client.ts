@@ -7,35 +7,45 @@ import * as schema from "./schema";
 
 export type Db = PgliteDatabase<typeof schema>;
 
-let db: Db | null = null;
-let pglite: PGlite | null = null;
-let pool: Pool | null = null;
+type Cache = { db: Db | null; pglite: PGlite | null; pool: Pool | null };
+
+/**
+ * Cached on globalThis rather than in module scope: the dev server re-evaluates
+ * modules on every hot reload, and two PGlite instances pointed at the same data
+ * directory would fight over it.
+ */
+const CACHE_KEY = "__prepo_db_cache__";
+const globalScope = globalThis as unknown as Record<string, Cache | undefined>;
+const cache: Cache = (globalScope[CACHE_KEY] ??= {
+  db: null,
+  pglite: null,
+  pool: null,
+});
 
 function databaseUrl(): string | undefined {
   return process.env.DATABASE_URL || undefined;
 }
 
 /**
- * Local development and tests run on PGlite — real Postgres compiled to WASM —
- * so there is no container to start. Setting DATABASE_URL swaps in a real
- * Postgres (Neon in production); the schema, migrations and queries are identical.
+ * Local development runs on PGlite — real Postgres compiled to WASM — so there
+ * is no container to start. Setting DATABASE_URL swaps in a real Postgres (Neon
+ * in production); the schema, migrations and queries are identical.
  */
 export function getPglite(): PGlite {
-  if (!pglite) pglite = new PGlite(process.env.PGLITE_DIR ?? ".pglite");
-  return pglite;
+  cache.pglite ??= new PGlite(process.env.PGLITE_DIR ?? ".pglite");
+  return cache.pglite;
 }
 
 export function getPool(): Pool {
-  if (!pool) pool = new Pool({ connectionString: databaseUrl() });
-  return pool;
+  cache.pool ??= new Pool({ connectionString: databaseUrl() });
+  return cache.pool;
 }
 
 export function getDb(): Db {
-  if (db) return db;
-  db = databaseUrl()
+  cache.db ??= databaseUrl()
     ? (nodeDrizzle(getPool(), { schema }) as unknown as Db)
     : pgliteDrizzle(getPglite(), { schema });
-  return db;
+  return cache.db;
 }
 
 /** Minimal single-connection handle, so `set local` scoping is guaranteed. */
@@ -103,9 +113,9 @@ export async function rawQuery<R>(
 }
 
 /**
- * Runs application queries as the non-owner `prepo_app` role. RLS does not
- * apply to a table's owner or to a superuser, so role switching is what makes
- * the policies enforceable.
+ * Runs application queries as the non-owner `prepo_app` role. RLS does not apply
+ * to a table's owner or to a superuser, so role switching is what makes the
+ * policies enforceable.
  */
 export async function asApp<T>(fn: (tx: Db) => Promise<T>): Promise<T> {
   return getDb().transaction(async (tx) => {
