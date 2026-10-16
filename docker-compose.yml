@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: prepo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: prepo
+      POSTGRES_PASSWORD: prepo
+      POSTGRES_DB: prepo
+    ports:
+      - "5432:5432"
+    volumes:
+      - prepo-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prepo -d prepo"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  prepo-pgdata:

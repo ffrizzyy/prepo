@@ -6,15 +6,23 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/server/db/migrate.ts",
+    "db:seed": "tsx src/server/db/seed.ts",
+    "db:verify": "tsx src/server/db/verify.ts",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@electric-sql/pglite": "0.5.10",
     "@phosphor-icons/react": "2.1.10",
     "@prepo/shared": "workspace:*",
     "clsx": "2.1.1",
+    "drizzle-orm": "0.45.4",
     "geist": "1.8.1",
     "motion": "14.3.0",
     "next": "16.4.2",
+    "pg": "8.23.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "tailwind-merge": "3.7.0",
@@ -24,9 +32,12 @@
     "@prepo/config": "workspace:*",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "^24",
+    "@types/pg": "8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "0.31.11",
     "tailwindcss": "4.3.3",
+    "tsx": "4.23.15",
     "typescript": "^5"
   }
 }

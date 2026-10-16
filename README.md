@@ -10,7 +10,9 @@ This repository is being built against the specification in [`PREPO.md`](./PREPO
 
 ## Status
 
-**Milestone 2 — Application shell on seeded data.** Complete and building clean.
+**Milestone 3 — durable data layer.** The schema, migrations, tenant isolation and seed
+data are complete, and verified against two engines. The UI still reads from the in-memory
+client store; wiring it to the repository layer is the next step.
 
 | Area | State |
 |---|---|
@@ -23,18 +25,23 @@ This repository is being built against the specification in [`PREPO.md`](./PREPO
 | App shell: sidebar, mobile bottom nav, command palette | Done |
 | Dashboard, Meetings (+detail, transcript), Board, Tickets (+detail) | Done |
 | Follow-ups, Insights, Settings, New meeting | Done |
-| Database, auth, real AI + integrations | Not started (client store is in-memory) |
+| Postgres schema — 23 tables, Drizzle migrations | Done |
+| Row-Level Security, cross-tenant isolation verified | Done |
+| Seed (two workspaces) and the repository read layer | Done |
+| Wiring the UI to the database | Next |
+| Auth, real AI + integrations | Not started |
 | Desktop (Tauri) shell | Not started — requires Rust, absent on the build machine |
 
 The app runs at **`/northwind`** on the seeded "Northwind Studio" workspace. Approving an
 action item creates a ticket live; the board, tables, and dashboard read from one shared
-client store, so a change in one place shows up everywhere. State is in memory only and
-resets on reload — that is Milestone 3's job to make durable.
+client store, so a change in one place shows up everywhere. That store is still in memory
+and resets on reload — the Postgres layer below is what replaces it.
 
 ## Requirements
 
 - Node.js ≥ 22 (developed on 24)
 - pnpm 10+ (`npm i -g pnpm`)
+- Docker *(optional)* — only for a real Postgres; the default embedded database needs nothing
 
 ## Getting started
 
@@ -51,6 +58,47 @@ pnpm start        # serve the production build
 pnpm typecheck    # typecheck every workspace package
 ```
 
+## Database
+
+Postgres is the source of truth (`PREPO.md` §4.5). The schema, policies and queries are
+driver-agnostic, so the app runs on either engine with no code change:
+
+| Mode | How to enable | Use |
+|---|---|---|
+| **PGlite** (default) | nothing to configure | local dev, tests, CI |
+| **Postgres** | set `DATABASE_URL` | docker-compose below, or Neon in production |
+
+```bash
+docker compose up -d postgres                    # optional real Postgres on :5432
+export DATABASE_URL=postgres://prepo:prepo@localhost:5432/prepo
+
+pnpm --filter @prepo/web db:generate   # emit SQL from the Drizzle schema
+pnpm --filter @prepo/web db:migrate    # apply migrations, then RLS policies and grants
+pnpm --filter @prepo/web db:seed       # load two seeded workspaces
+pnpm --filter @prepo/web db:verify     # prove tenant isolation
+pnpm --filter @prepo/web db:studio     # browse the data
+```
+
+`db:verify` migrates, seeds, then asserts the tenant boundary at the database level: each
+workspace sees only its own rows, an unscoped session sees nothing, a cross-tenant read by
+explicit id returns nothing, and a cross-tenant **write** is rejected by RLS. All ten checks
+pass on both PGlite and Postgres.
+
+Search is Postgres-native rather than embedding-based (`PREPO.md` §1.3): a trigger maintains
+a `tsvector` on every transcript segment, with a GIN index for ranking and a `pg_trgm` index
+for typos.
+
+### Tenant isolation
+
+Every tenant table carries `workspace_id` with RLS enabled **and forced**. Policies compare
+against `nullif(current_setting('app.workspace_id', true), '')::uuid`, so an unset scope
+denies by default. RLS never applies to a superuser and does not apply to a table's owner
+unless forced, so the application never queries as the owner: `withWorkspace()` opens a
+transaction, switches to the dedicated non-owner `prepo_app` role, and sets the scope with
+`set local` — a pooled connection therefore cannot leak tenancy into the next request. Two
+`SECURITY DEFINER` helpers bridge the single bootstrap gap: resolving a slug to a workspace
+id before a workspace is known.
+
 ## Repository layout
 
 ```
@@ -62,10 +110,13 @@ prepo/
 │     ├─ src/components/ui/    # primitives (Button, Section, Container)
 │     ├─ src/components/marketing/  # landing sections
 │     ├─ src/components/app/   # shell, store, badges, tables, board, detail views
-│     └─ src/lib/              # utilities (cn) and the seeded workspace data layer
+│     ├─ src/lib/              # utilities (cn) and the seeded workspace data layer
+│     ├─ src/server/db/        # Drizzle schema, client, migrations, seed, verify, repo
+│     └─ drizzle/              # generated migrations + hand-written RLS/policy SQL
 ├─ packages/
 │  ├─ shared/                  # Zod schemas, constants, sample meeting data
 │  └─ config/                  # shared tsconfig bases
+├─ docker-compose.yml          # optional Postgres 17 for the DATABASE_URL path
 └─ PREPO.md                    # the specification
 ```
 
@@ -95,7 +146,7 @@ Milestones follow section 12 of `PREPO.md`:
 
 1. ✅ Foundation, design system, landing page
 2. ✅ App shell on seeded data (sidebar, dashboard, meetings, board, tickets)
-3. Database, auth, and the durable core loop (Drizzle, Postgres, RLS)
+3. 🟡 Database and tenant isolation — schema, migrations, RLS and seed done and verified; wiring the UI next
 4. Audio and transcription
 5. Follow-up engine
 6. Linear two-way sync
