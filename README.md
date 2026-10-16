@@ -10,8 +10,7 @@ This repository is being built against the specification in [`PREPO.md`](./PREPO
 
 ## Status
 
-**Milestone 1 — Foundation, design system, and the marketing site.** Complete and building
-clean.
+**Milestone 2 — Application shell on seeded data.** Complete and building clean.
 
 | Area | State |
 |---|---|
@@ -21,8 +20,16 @@ clean.
 | Interactive hero preview (approve → ticket) | Done |
 | Sample-data layer shared with the app | Done |
 | SEO (`robots.txt`, `sitemap.xml`, metadata) | Done |
-| Authenticated app, database, auth, AI, integrations | Not started |
+| App shell: sidebar, mobile bottom nav, command palette | Done |
+| Dashboard, Meetings (+detail, transcript), Board, Tickets (+detail) | Done |
+| Follow-ups, Insights, Settings, New meeting | Done |
+| Database, auth, real AI + integrations | Not started (client store is in-memory) |
 | Desktop (Tauri) shell | Not started — requires Rust, absent on the build machine |
+
+The app runs at **`/northwind`** on the seeded "Northwind Studio" workspace. Approving an
+action item creates a ticket live; the board, tables, and dashboard read from one shared
+client store, so a change in one place shows up everywhere. State is in memory only and
+resets on reload — that is Milestone 3's job to make durable.
 
 ## Requirements
 
@@ -49,11 +56,13 @@ pnpm typecheck    # typecheck every workspace package
 ```
 prepo/
 ├─ apps/
-│  └─ web/                     # Next.js 16 (App Router) — landing page + future app
-│     ├─ src/app/              # routes, layout, globals.css (design tokens)
+│  └─ web/                     # Next.js 16 (App Router) — landing page + app
+│     ├─ src/app/              # marketing page, globals.css (design tokens)
+│     ├─ src/app/[workspace]/  # app shell: dashboard, meetings, board, tickets…
 │     ├─ src/components/ui/    # primitives (Button, Section, Container)
 │     ├─ src/components/marketing/  # landing sections
-│     └─ src/lib/              # utilities (cn)
+│     ├─ src/components/app/   # shell, store, badges, tables, board, detail views
+│     └─ src/lib/              # utilities (cn) and the seeded workspace data layer
 ├─ packages/
 │  ├─ shared/                  # Zod schemas, constants, sample meeting data
 │  └─ config/                  # shared tsconfig bases
@@ -85,8 +94,8 @@ and the future app share one source of truth.
 Milestones follow section 12 of `PREPO.md`:
 
 1. ✅ Foundation, design system, landing page
-2. App shell + data model (Drizzle, Postgres, RLS)
-3. Core loop: ingest → extraction → review → tickets → board
+2. ✅ App shell on seeded data (sidebar, dashboard, meetings, board, tickets)
+3. Database, auth, and the durable core loop (Drizzle, Postgres, RLS)
 4. Audio and transcription
 5. Follow-up engine
 6. Linear two-way sync

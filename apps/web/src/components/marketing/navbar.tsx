@@ -64,7 +64,7 @@ export function Navbar() {
             Sign in
           </a>
           <a
-            href="/demo"
+            href="/northwind"
             className={cn(buttonVariants({ size: "sm" }), "hidden sm:inline-flex")}
           >
             Try demo
@@ -115,7 +115,7 @@ export function Navbar() {
               Sign in
             </a>
             <a
-              href="/demo"
+              href="/northwind"
               className={cn(buttonVariants({ size: "md" }), "mt-2 justify-center")}
             >
               Try demo

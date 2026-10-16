@@ -18,7 +18,7 @@ export function Hero() {
             {BRAND.description}
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <a href="/demo" className={cn(buttonVariants({ size: "lg" }))}>
+            <a href="/northwind" className={cn(buttonVariants({ size: "lg" }))}>
               Try demo
               <ArrowRight size={16} weight="bold" />
             </a>

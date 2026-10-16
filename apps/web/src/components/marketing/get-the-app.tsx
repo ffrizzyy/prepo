@@ -23,7 +23,7 @@ const TILES: Tile[] = [
     icon: Browser,
     title: "Open in the browser",
     body: "No install, no signup to look around. The demo workspace is seeded and read-only.",
-    cta: { label: "Try demo", href: "/demo", variant: "outline" },
+    cta: { label: "Try demo", href: "/northwind", variant: "outline" },
   },
   {
     icon: DeviceMobile,

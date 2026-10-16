@@ -20,7 +20,7 @@ export function FinalCta() {
           <h2 className="max-w-xl text-3xl leading-tight tracking-tighter md:text-4xl">
             Stop chasing people after every meeting.
           </h2>
-          <a href="/demo" className={cn(buttonVariants({ size: "lg" }), "shrink-0")}>
+          <a href="/northwind" className={cn(buttonVariants({ size: "lg" }), "shrink-0")}>
             Try demo
             <ArrowRight size={16} weight="bold" />
           </a>
