@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-2: #f4f4f5;
+  --border: #e4e4e7;
+  --border-strong: #d4d4d8;
+  --text: #09090b;
+  --text-muted: #52525b;
+  --text-subtle: #71717a;
+  --ink: #0b0b0c;
+  --accent: #ff6b6b;
+  --accent-fg: #09090b;
+  --accent-ink: #c2272d;
+  --accent-soft: #ffe9e9;
+  --accent-note: #ffb3b3;
+  --ring: #ff6b6b;
+  --hairline: 0 0 0;
+}
+
+.dark {
+  --bg: #09090b;
+  --surface: #111113;
+  --surface-2: #18181b;
+  --border: #27272a;
+  --border-strong: #3f3f46;
+  --text: #fafafa;
+  --text-muted: #a1a1aa;
+  --text-subtle: #8b8b94;
+  --ink: #0b0b0c;
+  --accent: #ff7a7a;
+  --accent-fg: #09090b;
+  --accent-ink: #ff9a9a;
+  --accent-soft: #2a1415;
+  --accent-note: #5a2427;
+  --ring: #ff7a7a;
+  --hairline: 0 0 0;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
+  --color-ink: var(--ink);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-note: var(--accent-note);
+  --color-ring: var(--ring);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .dot-grid {
+    background-image: radial-gradient(currentColor 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+}

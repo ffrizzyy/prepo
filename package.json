@@ -1,0 +1,12 @@
+{
+  "name": "prepo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@12.11.2",
+  "scripts": {
+    "dev": "pnpm --filter @prepo/web dev",
+    "build": "pnpm --filter @prepo/web build",
+    "start": "pnpm --filter @prepo/web start",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

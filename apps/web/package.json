@@ -1,0 +1,32 @@
+{
+  "name": "@prepo/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@phosphor-icons/react": "2.1.10",
+    "@prepo/shared": "workspace:*",
+    "clsx": "2.1.1",
+    "geist": "1.8.1",
+    "motion": "14.3.0",
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "tailwind-merge": "3.7.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@prepo/config": "workspace:*",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "^24",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "4.3.3",
+    "typescript": "^5"
+  }
+}
