@@ -224,6 +224,13 @@ export const workspaces = pgTable("workspaces", {
       ticketPrefix?: string;
       quietHours?: { from: string; to: string };
       audioRetentionDays?: number;
+      /**
+       * Which day the weekly digest goes out (0 = Sunday). The ladder the UI
+       * shows says Monday, which is 1.
+       */
+      digestWeekday?: number;
+      /** "off" stops the automatic ladder for the whole workspace. */
+      followups?: "on" | "off";
     }>()
     .notNull()
     .default({}),
@@ -472,20 +479,38 @@ export const followups = pgTable(
     workspaceId: uuid("workspace_id")
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
-    ticketId: uuid("ticket_id")
-      .notNull()
-      .references(() => tickets.id, { onDelete: "cascade" }),
+    /**
+     * Null for a workspace-level rung — the weekly digest is about the whole
+     * workspace, not one ticket.
+     */
+    ticketId: uuid("ticket_id").references(() => tickets.id, {
+      onDelete: "cascade",
+    }),
     kind: followupKind("kind").notNull(),
     channel: followupChannel("channel").notNull(),
+    /**
+     * Who this one message is for. The rungs differ: reminders chase the
+     * assignee, the escalation goes to the meeting organizer, the digest to the
+     * owners.
+     */
+    recipientId: uuid("recipient_id").references(() => users.id, {
+      onDelete: "cascade",
+    }),
     scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
+    /**
+     * When the engine handled it. For a `failed` row this is the attempt time,
+     * and `detail` says why it did not go out.
+     */
     sentAt: timestamp("sent_at", { withTimezone: true }),
     status: followupStatus("status").notNull().default("scheduled"),
+    detail: text("detail"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
     index("followups_ws_sched_idx").on(table.workspaceId, table.scheduledFor),
+    index("followups_due_idx").on(table.status, table.scheduledFor),
   ],
 );
 

@@ -159,10 +159,37 @@ runCli("write-smoke.ts", async () => {
     created.some((ticket) => ticket.key === entry.ticketKey),
   );
   const withDue = created.filter((ticket) => ticket.dueAt !== null);
+  const rungsFor = (key: string) =>
+    followups.filter((entry) => entry.ticketKey === key);
+
+  // Approving an action item schedules the whole ladder from the due date, not
+  // one reminder, so the check is about the shape rather than a row count: a
+  // dated ticket gets rungs ending in the escalation, an undated one gets none.
   check(
-    "a reminder is scheduled per dated ticket",
-    forNew.length === withDue.length,
+    "a ladder is scheduled per dated ticket",
+    withDue.every((ticket) => {
+      const rows = rungsFor(ticket.key);
+      return (
+        rows.length >= 3 &&
+        rows.some((entry) => entry.kind === "escalation") &&
+        rows.some((entry) => entry.channel === "in_app")
+      );
+    }),
     `${forNew.length} follow-up(s) for ${withDue.length} dated ticket(s)`,
+  );
+  check(
+    "an undated ticket is not chased",
+    created
+      .filter((ticket) => ticket.dueAt === null)
+      .every((ticket) => rungsFor(ticket.key).length === 0),
+  );
+  check(
+    "every ladder starts no later than its due date",
+    withDue.every((ticket) => {
+      const rows = rungsFor(ticket.key);
+      const due = new Date(ticket.dueAt!).getTime();
+      return rows.every((entry) => new Date(entry.scheduledFor).getTime() <= due + 72 * 60 * 60 * 1000);
+    }),
   );
 
   /* --------------------------------------------------------------- move */
@@ -193,6 +220,12 @@ runCli("write-smoke.ts", async () => {
     "the linked ticket records its meeting origin",
     events.some((event) => event.payload.source === "meeting"),
     events.map((event) => String(event.payload.source)).join(","),
+  );
+  check(
+    "finishing a ticket cancels what was left of its ladder",
+    (await listFollowupsView(northwind)).every(
+      (entry) => entry.ticketKey !== first.key || entry.status !== "scheduled",
+    ),
   );
 
   /* ------------------------------------------------------------- reject */

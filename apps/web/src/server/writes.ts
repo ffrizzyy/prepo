@@ -1,8 +1,9 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { withWorkspace, type Db } from "./db/client";
 import { uuidv7 } from "./db/ids";
 import * as t from "./db/schema";
 import type { WorkspaceSettings } from "./db/schema";
+import { cancelPendingFollowups, scheduleTicketLadder } from "./followups/engine";
 
 /**
  * The write path, with the tenant, the acting user and the settings all passed
@@ -46,6 +47,16 @@ export async function moveTicket(input: {
       .set({ status: input.status, version: ticket.version + 1 })
       .where(eq(t.tickets.id, ticket.id));
 
+    // Finishing the work stops the chaser. Anything still pending is cancelled
+    // rather than left to fire against a ticket nobody needs to hear about.
+    if (input.status === "done") {
+      await cancelPendingFollowups(
+        tx,
+        ticket.id,
+        "The work was marked done, so there is nothing left to chase.",
+      );
+    }
+
     await tx.insert(t.ticketEvents).values({
       id: uuidv7(),
       workspaceId: input.workspaceId,
@@ -71,6 +82,7 @@ export async function approveActionItems(input: {
   actionItemIds: string[];
 }): Promise<{ created: number }> {
   let created = 0;
+  const now = new Date();
 
   await withWorkspace(input.workspaceId, async (tx) => {
     const items = await tx
@@ -128,17 +140,16 @@ export async function approveActionItems(input: {
         },
       });
 
-      // The follow-up engine is milestone 5; scheduling the first reminder here
-      // keeps the follow-ups page honest about what the product will do.
+      // The whole ladder, from the due date: reminders before and on the day, a
+      // nudge when it slips, and an escalation to whoever ran the meeting.
       if (item.dueAt) {
-        await tx.insert(t.followups).values({
-          id: uuidv7(),
+        await scheduleTicketLadder(tx, {
           workspaceId: input.workspaceId,
           ticketId,
-          kind: "reminder",
-          channel: "email",
-          scheduledFor: new Date(item.dueAt.getTime() - 24 * 60 * 60 * 1000),
-          status: "scheduled",
+          dueAt: item.dueAt,
+          ownerId: item.ownerId,
+          meetingId: item.meetingId,
+          now,
         });
       }
 
@@ -212,7 +223,11 @@ export async function updateSettings(input: {
 
 /* ------------------------------------------- ingest: audio and transcripts */
 
-async function audit(
+/**
+ * Exported because the follow-up engine writes audit entries too: an escalation
+ * and a failed send are exactly what the log is for.
+ */
+export async function audit(
   tx: Db,
   input: {
     workspaceId: string;
@@ -486,7 +501,8 @@ export async function findAudioAsset(input: {
   });
 }
 
-/** Marks the asset deleted; the caller removes the bytes. */export async function markAudioDeleted(input: {
+/** Marks the asset deleted; the caller removes the bytes. */
+export async function markAudioDeleted(input: {
   workspaceId: string;
   actorId: string;
   assetId: string;
@@ -512,5 +528,203 @@ export async function findAudioAsset(input: {
     });
 
     return { storageKey: asset.r2Key };
+  });
+}
+
+/* -------------------------------------------------------------- follow-ups */
+
+/**
+ * Cancels one pending message. Returns false when the row is not in this
+ * workspace, which is the same statement as "it does not exist here".
+ */
+export async function cancelFollowup(input: {
+  workspaceId: string;
+  actorId: string;
+  followupId: string;
+  reason?: string;
+}): Promise<boolean> {
+  return withWorkspace(input.workspaceId, async (tx) => {
+    const [row] = await tx
+      .select({ id: t.followups.id, status: t.followups.status })
+      .from(t.followups)
+      .where(eq(t.followups.id, input.followupId));
+
+    if (!row) return false;
+    if (row.status !== "scheduled") return true;
+
+    await tx
+      .update(t.followups)
+      .set({
+        status: "cancelled",
+        detail: input.reason ?? "Cancelled by a person before it went out.",
+      })
+      .where(eq(t.followups.id, input.followupId));
+
+    await audit(tx, {
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      action: "followup.cancelled",
+      target: input.followupId,
+    });
+
+    return true;
+  });
+}
+
+/** Moves one pending message to a new time. Only future times are accepted. */
+export async function rescheduleFollowup(input: {
+  workspaceId: string;
+  actorId: string;
+  followupId: string;
+  scheduledFor: Date;
+}): Promise<boolean> {
+  return withWorkspace(input.workspaceId, async (tx) => {
+    const [row] = await tx
+      .select({ id: t.followups.id, status: t.followups.status })
+      .from(t.followups)
+      .where(eq(t.followups.id, input.followupId));
+
+    if (!row || row.status !== "scheduled") return false;
+
+    await tx
+      .update(t.followups)
+      .set({
+        scheduledFor: input.scheduledFor,
+        detail: `Moved to ${input.scheduledFor.toISOString()} by hand.`,
+      })
+      .where(eq(t.followups.id, input.followupId));
+
+    await audit(tx, {
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      action: "followup.rescheduled",
+      target: `${input.followupId} → ${input.scheduledFor.toISOString()}`,
+    });
+
+    return true;
+  });
+}
+
+/** "Stop chasing this ticket": cancels everything still pending for it. */
+export async function stopChasing(input: {
+  workspaceId: string;
+  actorId: string;
+  ticketId: string;
+}): Promise<number> {
+  return withWorkspace(input.workspaceId, async (tx) => {
+    const cancelled = await cancelPendingFollowups(
+      tx,
+      input.ticketId,
+      "Chasing stopped by a person.",
+    );
+
+    if (cancelled > 0) {
+      await audit(tx, {
+        workspaceId: input.workspaceId,
+        actorId: input.actorId,
+        action: "followup.stopped",
+        target: input.ticketId,
+      });
+    }
+
+    return cancelled;
+  });
+}
+
+/** The workspace-wide switch, in Settings. */
+export async function setFollowupsEnabled(input: {
+  workspaceId: string;
+  actorId: string;
+  enabled: boolean;
+}): Promise<void> {
+  await withWorkspace(input.workspaceId, async (tx) => {
+    const [row] = await tx
+      .select({ settings: t.workspaces.settings })
+      .from(t.workspaces);
+
+    const settings: WorkspaceSettings = {
+      ...(row?.settings ?? {}),
+      followups: input.enabled ? "on" : "off",
+    };
+
+    await tx.update(t.workspaces).set({ settings }).where(
+      eq(t.workspaces.id, input.workspaceId),
+    );
+
+    await audit(tx, {
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      action: "settings.changed",
+      target: `followups=${settings.followups}`,
+    });
+
+    // Turning it off cancels what is pending, so "off" means off rather than
+    // "stop scheduling new ones while these still fire".
+    if (!input.enabled) {
+      await tx
+        .update(t.followups)
+        .set({
+          status: "cancelled",
+          detail: "Automatic chasing was switched off for the workspace.",
+        })
+        .where(eq(t.followups.status, "scheduled"));
+    }
+  });
+}
+
+export async function setDigestWeekday(input: {
+  workspaceId: string;
+  actorId: string;
+  weekday: number;
+}): Promise<void> {
+  await withWorkspace(input.workspaceId, async (tx) => {
+    const [row] = await tx
+      .select({ settings: t.workspaces.settings })
+      .from(t.workspaces);
+
+    const settings: WorkspaceSettings = {
+      ...(row?.settings ?? {}),
+      digestWeekday: input.weekday,
+    };
+
+    await tx
+      .update(t.workspaces)
+      .set({ settings })
+      .where(eq(t.workspaces.id, input.workspaceId));
+
+    await audit(tx, {
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      action: "settings.changed",
+      target: `digestWeekday=${input.weekday}`,
+    });
+  });
+}
+
+/** Marks one notification read, or all of them when no id is given. */
+export async function markNotificationsRead(input: {
+  workspaceId: string;
+  userId: string;
+  notificationId?: string;
+}): Promise<number> {
+  return withWorkspace(input.workspaceId, async (tx) => {
+    const read = await tx
+      .update(t.notifications)
+      .set({ readAt: new Date() })
+      .where(
+        input.notificationId
+          ? and(
+              eq(t.notifications.id, input.notificationId),
+              eq(t.notifications.userId, input.userId),
+              isNull(t.notifications.readAt),
+            )
+          : and(
+              eq(t.notifications.userId, input.userId),
+              isNull(t.notifications.readAt),
+            ),
+      )
+      .returning({ id: t.notifications.id });
+
+    return read.length;
   });
 }

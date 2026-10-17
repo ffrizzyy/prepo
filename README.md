@@ -10,19 +10,27 @@ This repository is being built against the specification in [`PREPO.md`](./PREPO
 
 ## Status
 
-**Milestone 4 — audio and transcription.** The schema, migrations, tenant isolation and seed are
+**Milestone 5 — the follow-up engine.** The schema, migrations, tenant isolation and seed are
 complete and verified against two engines; the app reads and writes Postgres; authentication is
 real — password sign-in, per-device sessions with revoke, throttling, and TOTP two-factor with
-single-use recovery codes. **Milestone 4 adds the audio path**: record in the app (or upload a
-file), import a transcript, paste minutes, map speakers to people, play the recording against the
-transcript with byte ranges, and delete the audio on a retention clock while the transcript stays.
+single-use recovery codes; and the audio path (milestone 4) records, uploads and transcribes.
+**Milestone 5 makes the agent chase.** Approving an action item now schedules a real escalation
+ladder off the ticket's due date, a job works the queue and delivers it, a notification centre
+carries the in-app half per person, and every pending message can be moved, cancelled, snoozed or
+stopped before it sends.
 
-Two things about milestone 4 are deliberately **not** finished, and the UI says so rather than
-implying otherwise. There is no `DEEPGRAM_API_KEY` on this machine, so **nothing is sent anywhere**
-— a recording is stored, its transcript must come from an upload or a paste, and Settings reports
-speech-to-text as *not configured*; set the key and the same code path transcribes. And turning a
-meeting into tickets is the **extraction** step (milestone 7), which needs a language model, so a
-new import is stored as `ready` with a complete transcript and no invented summary or action items.
+The follow-up engine is honest about what it can and cannot deliver here. There is no
+`RESEND_API_KEY` on this machine, so an email is **attempted, then recorded as failed with the
+reason** — never quietly marked sent — while the in-app half is delivered to the notification
+centre, and Settings and the follow-ups page both say email is not configured. Push is listed on
+the nudge rung because the ladder advertises it, but **no push row is ever queued**: that needs an
+installed app with a subscription and there is no service worker. Quiet hours **defer** a message
+until the window ends, in the recipient's own timezone, rather than dropping it.
+
+Two older gaps stay as they were, and the UI still says so: there is no `DEEPGRAM_API_KEY`, so
+nothing is sent anywhere for speech-to-text; and turning a meeting into tickets is the
+**extraction** step (milestone 7), which needs a language model, so a new import is stored as
+`ready` with a complete transcript and no invented summary or action items.
 
 The links under the landing page are real routes now — `/security`, `/privacy`, `/terms` and
 `/download` — and so are the 404 and 500 states. [`SECURITY.md`](./SECURITY.md) records what is
@@ -40,7 +48,7 @@ implemented next to the OWASP gaps that are still open, so nothing has to be tak
 | SEO (`robots.txt`, `sitemap.xml`, metadata) | Done |
 | App shell: sidebar, mobile bottom nav, command palette | Done |
 | Dashboard, Meetings (+detail, transcript), Board, Tickets (+detail) | Done |
-| Follow-ups, Insights, Settings, New meeting | Done |
+| Follow-ups (real timeline, cancel/reschedule), Notifications, Insights, Settings | Done |
 | Postgres schema - 25 tables, Drizzle migrations | Done |
 | Row-Level Security, cross-tenant isolation verified | Done |
 | Seed (two workspaces) and the repository read layer | Done |
@@ -56,17 +64,24 @@ implemented next to the OWASP gaps that are still open, so nothing has to be tak
 | Transcript + audio player: click to seek, speed, `206` byte ranges | Done |
 | Private storage driver, no publicly addressable audio URLs | Done |
 | Retention setting, delete-audio-now, and the sweep job | Done |
+| Escalation ladder: reminders, overdue nudge, escalation to the organizer | Done |
+| Follow-up job: quiet hours per person, digest, cancellation on completion | Done |
+| Notification centre, per-person unread count, mark one / mark all read | Done |
+| Ticket controls: chase now, snooze, stop chasing | Done |
 | Speech-to-text provider (Deepgram) | Wired, **unconfigured without a key** |
 | Extraction of summary / decisions / action items (meeting → tickets) | Not started (milestone 7) |
 | Tab-audio capture (`getDisplayMedia`), `.docx`/`.pdf` transcripts | Not implemented — recorder is mic-only; transcripts are parsed as text |
-| Follow-up engine, Linear, Ask Prepo, insights | Not started |
+| Email delivery (Resend) | Wired, **unconfigured without a key** — failures are recorded with the reason |
+| Push notifications | Not implemented — no service worker, so no push row is ever queued |
+| Linear, Ask Prepo, insights | Not started |
 | Desktop (Tauri) shell | Not started — requires Rust, absent on the build machine |
 | Docs — `PREPO.md`, `SECURITY.md` (posture + OWASP gaps) | Done |
 
 The app runs at **`/northwind`** on the seeded "Northwind Studio" workspace. Sign in
 (see below) and everything you see is read from Postgres. Approving an action item writes a
-real ticket, schedules its first reminder, and moves the item to `ticketed`; moving a ticket
-on the board records an audit event. Mutations are server actions, so the UI updates
+real ticket, schedules its whole escalation ladder, and moves the item to `ticketed`; moving a
+ticket on the board records an audit event and, when it reaches `done`, cancels what was left of
+that ladder. Mutations are server actions, so the UI updates
 optimistically and the fresh row arrives on the revalidated render. Writes run as the
 non-owner `prepo_app` role inside a workspace-scoped transaction, so the tenant boundary is
 enforced by the database rather than by application code.
@@ -150,6 +165,60 @@ uploads and recordings never transcribed after 90 days.
 > the seeded meeting, so the player and byte ranges can be exercised against real bytes. It is a
 > tone, not a recording of the meeting, and the script says so.
 
+## Follow-ups
+
+The agent's whole job is the chase, so the ladder is arithmetic rather than a cron somewhere:
+`src/server/followups/ladder.ts` is a pure function of the due date, and everything else consumes
+it. Four rungs, as the UI has always advertised:
+
+| Rung | When | To | Channels |
+|---|---|---|---|
+| Reminder | 24h before the due date | the assignee | in-app + email |
+| Reminder | on the due day | the assignee | in-app + email |
+| Overdue nudge | +1 day | the assignee | in-app + email + push |
+| Escalation | +3 days | whoever ran the meeting | email |
+
+Rungs whose moment has already passed are **not** scheduled when a ladder is built. A ticket with
+no due date is never chased; an unassigned ticket gets only the escalation, because there is no
+owner to remind. The escalation's recipient is `meetings.created_by`, falling back to the
+workspace owner — "organizer" is a role the schema does not have, and both the code and the page
+say which it used.
+
+**The job.** `runFollowups()` is what a scheduler calls, exposed as
+`pnpm --filter @prepo/web db:followups`, with `--at <ISO>` to run it at a chosen moment. Each run
+considers every message whose time has come and decides one of four things: deliver it, fail it
+with a reason, defer it for quiet hours, or cancel it because it no longer makes sense. It prints
+that decision per row, so a scheduler log is readable rather than a shrug.
+
+- **Cancelled, not sent.** A message is cancelled when the ticket was finished after the message
+  was queued, when its due date moved so the rung's moment no longer exists, when chasing was
+  turned off for the workspace, or when a person cancelled, snoozed or replaced it. A row a person
+  or the engine has already moved carries a note in `detail` and is left where it is — only an
+  untouched rung is re-checked against the due date, which is what stops a quiet-hours deferral
+  from being cancelled by its own move.
+- **Quiet hours defer.** The window from Settings (`18:00`–`09:00` by default) is read in the
+  recipient's own timezone, using `Intl`, which is also where the workspace's `Europe/Berlin`
+  members and `America/New_York` members part ways. An unknown timezone falls back to UTC instead
+  of throwing. A held message keeps its place in the queue and says it was held.
+- **Email is attempted, then judged.** The Resend sender is a plain `fetch`; with no key the row
+  is marked `failed` with `Not sent, because no email provider is configured (set
+  RESEND_API_KEY)`, and the in-app half of the same rung still goes out. Only a 2xx response marks
+  a message `sent`. Set the key and the same code path delivers.
+- **Push is never queued.** The nudge rung lists push because that is the ladder the product
+  advertises, but `pushAvailable` is false until a device is actually subscribed, and there is no
+  service worker in this build — so no push row is ever written, and the page says that instead of
+  implying a notification you would never receive.
+- **The digest.** Owners and admins get a weekly summary — what is late, what is due in the next
+  week, and how much is waiting for review — on a weekday you choose, at 09:00 in each person's own
+  zone. It is `in_app` + `email` rows with no ticket, so it appears in the same timeline, and a
+  pending digest is never placed twice.
+
+**Per person, not per workspace.** A reminder about your own work and the digest land in
+`/northwind/notifications`, and the header bell carries that count. Two members of the same
+workspace see different inboxes; marking one message read, or all of them, only touches your own
+rows. The ticket page has `Chase now`, `Snooze 3 days` and `Stop chasing`, and the follow-ups page
+lets you move or cancel any pending message individually.
+
 ## Requirements
 
 - Node.js ≥ 22 (developed on 24)
@@ -196,6 +265,8 @@ pnpm --filter @prepo/web db:audio      # exercise parsing, sniffing, storage, re
 pnpm --filter @prepo/web db:totp-fixture  # add a test account with 2FA on (see Authentication)
 pnpm --filter @prepo/web db:audio-fixture # give the seeded meeting real audio bytes (a tone)
 pnpm --filter @prepo/web db:retention  # run the retention sweep (scheduler entry point)
+pnpm --filter @prepo/web db:followups  # work the follow-up queue (scheduler entry point)
+pnpm --filter @prepo/web db:followup-smoke    # exercise the ladder, quiet hours and the engine
 pnpm --filter @prepo/web db:studio     # browse the data
 ```
 
@@ -244,6 +315,26 @@ pnpm --filter @prepo/web db:retention
 
 It reports what it reclaimed, what had already gone, what was abandoned, and how many unfinished
 uploads it cleared, so a scheduler run leaves a log that can be read.
+
+`db:followups` is the other scheduler entry point, and the only way a message is ever sent:
+
+```bash
+pnpm --filter @prepo/web db:followups -- --at 2026-11-02T09:00:00Z
+# considered 30 due message(s) · 12 sent · 18 failed · 0 deferred for quiet hours ·
+# 0 cancelled · 12 notification(s) written · 6 digest row(s) placed
+```
+
+`db:followup-smoke` is the test for it — ninety-two checks. The ladder, the quiet-hours clock, the
+digest placement and the message wording are pure functions and are asserted directly, including
+the awkward cases: a rung that fires exactly on the boundary, an unassigned ticket, an invalid
+timezone, a window that wraps midnight, a digest slot that has already passed today, and a due date
+that moved behind the app's back. The engine is then run against the seeded workspace at a fixed
+moment (Monday 19 October 2026, 10:00 UTC) and the outcomes are read back: the in-app half
+delivered, the email half failed **with the reason**, the deferred message still queued and saying
+why, the second pass finding nothing to do, the digest placed once and only once, and — with no
+email key anywhere — nothing marked `sent` that was not. It finishes by cancelling a real ladder
+through completion, a snooze and a stop-chasing, and by checking that a globex action cannot touch a
+northwind row. It reseeds at the end, so the demo database is left as a demo wants it.
 
 Search is Postgres-native rather than embedding-based (`PREPO.md` §1.3): a trigger maintains
 a `tsvector` on every transcript segment, with a GIN index for ranking and a `pg_trgm` index
@@ -374,7 +465,11 @@ Milestones follow section 12 of `PREPO.md`:
 4. ✅ Audio and transcription — recorder, uploads, transcript import, speaker mapping, private
    storage and streaming, prompt-free provider seam, retention and the sweep. The provider is
    unconfigured without a key, and extraction stays in milestone 7 where its model lives
-5. Follow-up engine
+5. ✅ Follow-up engine — the ladder, the job, quiet hours and the digest, cancellation on
+   completion, the notification centre and the per-ticket controls. Email is wired but
+   unconfigured without a key: failures are recorded with the reason rather than faked, and push
+   is not queued because there is no service worker
+6. Linear two-way sync
 6. Linear two-way sync
 7. Ask Prepo, scores, insights, evals
 8. Desktop app (Tauri)

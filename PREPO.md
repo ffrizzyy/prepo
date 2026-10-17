@@ -90,13 +90,13 @@ The move from table discussion to field execution becomes instant. Every team me
 | API | Next.js Route Handlers (REST, `/api/v1`) + Server Actions. OpenAPI generated from Zod |
 | ORM / migrations | Drizzle ORM + drizzle-kit |
 | Auth | Email + password (argon2id), **TOTP 2FA with recovery codes**, per-device sessions with revoke, lockout + rate limits, organizations/roles. Implemented directly on the `users`/`accounts`/`sessions` tables in 4.5 rather than via Better Auth, so the identity model matches the documented schema and stays driver-agnostic (PGlite or Postgres). Magic link, Google/GitHub OAuth, passkeys (WebAuthn), breached-password check and Turnstile are still to be added |
-| Background jobs | Inngest (durable workflows, cron, retries) for the audio → transcript → extraction → ticket pipeline and the follow-up scheduler. **As built:** not wired yet. Audio ingest runs inline in the route handler that received the bytes, and retention is the `db:retention` script, written to be called from any scheduler |
+| Background jobs | Inngest (durable workflows, cron, retries) for the audio → transcript → extraction → ticket pipeline and the follow-up scheduler. **As built:** not wired yet. Audio ingest runs inline in the route handler that received the bytes; retention is the `db:retention` script and the follow-up chaser is `db:followups`, both written to be called from any scheduler and both printing a per-row decision line |
 | Realtime | **Ably**, token auth with per-workspace capabilities. Events carry IDs only, clients refetch through the authorized API |
 | File / audio storage | Cloudflare R2 (S3-compatible), private bucket, presigned URLs, lifecycle auto-delete. **As built:** a local filesystem driver behind a `StorageDriver` interface, because there is no R2 account on the build machine. The interface deliberately has **no presign method**, so audio is never publicly addressable — playback is an authorization-checked route that streams byte ranges |
 | Speech-to-text | **Deepgram** (speaker diarization + word timestamps), behind a `TranscriptionProvider` interface so OpenAI or others can be swapped in. **As built:** the interface is `transcribe(bytes, opts)` rather than `transcribe(audioUrl, opts)` — bytes keep a user-supplied URL from ever becoming an outbound request. The provider is unconfigured without `DEEPGRAM_API_KEY` |
 | Linear | `@linear/sdk` (OAuth 2.0 app, GraphQL, signed webhooks) |
-| Email | Resend + React Email |
-| Web Push | `web-push` with self-generated VAPID keys (no third-party service) |
+| Email | Resend + React Email. **As built:** Resend, called from the chaser with a key read from the environment. With no `RESEND_API_KEY` the row is marked `failed` with the reason instead of being marked sent, and the in-app half of the same rung is still delivered |
+| Web Push | `web-push` with self-generated VAPID keys (no third-party service). **As built:** not implemented — no subscription table, no VAPID keys, no service worker. The ladder still lists push on the nudge rung, and the engine refuses to write a push row while no device is subscribed, so nothing is pretended |
 | Rate limiting | Upstash Redis + `@upstash/ratelimit` |
 | Document parsing | `mammoth` (.docx), `pdf-parse` (.pdf), native parsers for `.txt .md .vtt .srt`. **As built:** the native parsers only. `.docx` and `.pdf` are refused with a reason ("paste the text instead") rather than parsed, so no document parser is installed and there is no parser to attack |
 | Bot protection | Cloudflare Turnstile on auth and public endpoints |
@@ -444,7 +444,7 @@ prepo/
 | `users` | id, email, name, timezone, avatar_url |
 | `sessions` | id, user_id, **token_hash (the session secret is stored hashed, never verbatim — 9.3 A02)**, device_label, **client_type (`web/pwa/desktop`)**, user_agent_hash, ip_prefix, last_seen_at, expires_at, revoked_at |
 | `accounts` | provider links, **password_hash (argon2id PHC string)**, passkeys, totp_secret (encrypted), **totp_enabled_at, totp_recovery_code_hashes[]** |
-| `workspaces` | id, name, slug, settings (JSON: autonomy level, follow-up tone, quiet hours, audio retention) |
+| `workspaces` | id, name, slug, settings (JSON: autonomy level, follow-up tone, quiet hours, audio retention, chasing on/off, digest weekday) |
 | `memberships` | workspace_id, user_id, role, aliases[] (name variants for owner matching) |
 | `invitations` | token_hash, email, role, expires_at |
 | `meetings` | id, title, held_at, source (`paste/upload/recording`), status, clarity_score, necessity_score |
@@ -454,7 +454,7 @@ prepo/
 | `tickets` | id, key (`PRE-142`), action_item_id, title, description, assignee_id, status, priority, due_at, labels[], position, version, **linear_issue_id, linear_url, linear_synced_at** |
 | `ticket_events` | ticket_id, actor (user or `prepo-agent`), type, payload |
 | `comments` | ticket_id, user_id, body (sanitized) |
-| `followups` | ticket_id, kind (`reminder/nudge/escalation/digest`), channel (`email/in_app/push`), scheduled_for, sent_at, status |
+| `followups` | ticket_id (**null for a workspace-level digest**), recipient_id, kind (`reminder/nudge/escalation/digest`), channel (`email/in_app/push`), scheduled_for, sent_at, status (`scheduled/sent/failed/cancelled`), detail (why a send failed, or why a row was moved) |
 | `notifications` | user_id, type, payload, read_at |
 | `push_subscriptions` | user_id, session_id, endpoint, keys (encrypted), created_at |
 | `integrations` | workspace_id, provider (`linear`), encrypted_token, team_id, mapping (JSON), status |
@@ -777,6 +777,36 @@ These routes are top-level (not under `/{workspace-slug}/…`).
 - Channels: **email** and **in-app** (notification center). Installed apps additionally deliver in-app notifications as push or native notifications, controlled per user.
 - Every message is generated with ticket context and linked back to the ticket.
 
+**As built (milestone 5).** The four rungs are the same, as a pure function of the due date in
+`followups/ladder.ts`, and a rung whose moment has already passed is not scheduled at all. The
+ladder is scheduled when a ticket is created from an approved action item, and rebuilt whenever
+its due date moves; a ticket with no date is never chased, and an unassigned ticket gets only the
+escalation. "Meeting organizer" is `meetings.created_by`, falling back to the workspace owner —
+there is no organizer column, and the page says which was used.
+
+The chaser is `runFollowups()`, exposed as `db:followups` for a scheduler, with `--at <ISO>` to
+run it at a chosen moment. Each due message is delivered, failed with a reason, deferred for quiet
+hours, or cancelled — because the ticket was finished, because the due date moved so its rung no
+longer exists, because chasing is off for the workspace, or because a person cancelled, moved or
+snoozed it. A row that a person or the engine has already moved is left alone; only an untouched
+rung is re-checked against the due date, which is what stops a quiet-hours deferral from being
+cancelled by its own move. Quiet hours defer in the recipient's own IANA timezone (unknown zones
+fall back to UTC) rather than dropping the message. It is a script rather than a durable workflow:
+there is no queue, no retry with backoff, and no exactly-once guarantee — a failed message stays
+failed.
+
+Email goes through Resend; **no key is configured on this deployment**, so every email rung is
+attempted and then stored as `failed` with `set RESEND_API_KEY` in the reason, while the in-app
+half of the same rung is delivered to the notification centre. Only a 2xx marks a row `sent`.
+Push is listed on the nudge rung but **never queued**: there is no service worker and no
+subscription table, and the engine refuses to write a push row while no device is subscribed. The
+weekly digest is per owner/admin recipient, on a chosen weekday at 09:00 in their own zone, as
+`in_app` + `email` rows with no ticket, and a pending digest is never placed twice.
+
+The ticket page carries `Chase now` (queues the same owner message immediately), `Snooze 3 days`
+and `Stop chasing`; the timeline lets any pending message be moved or cancelled. Every one of
+those is an audit event.
+
 ### 8.8 Ask Prepo (`/ask` + side panel)
 
 - Chat grounded in the workspace's meetings and tickets via full-text retrieval, streamed answers with **citations that open the source transcript line (and audio moment)**.
@@ -789,7 +819,7 @@ These routes are top-level (not under `/{workspace-slug}/…`).
 | Section | Features |
 |---|---|
 | Profile | Name, avatar, timezone, notification preferences (email / in-app / push) |
-| Workspace | Name, slug, **AI autonomy level**, follow-up tone, quiet hours, **audio retention**, transcription minutes usage |
+| Workspace | Name, slug, **AI autonomy level**, follow-up tone, quiet hours, **audio retention**, chasing on/off with a digest weekday, transcription minutes usage |
 | **AI autonomy levels** | **Suggest** (everything needs approval) · **Assist** (auto-ticket only high-confidence items with owner and date) · **Autopilot** (auto-ticket + auto-follow-up; external side effects logged and reversible) |
 | Security | Password, TOTP 2FA with recovery codes (live), passkeys (planned) |
 | **Devices & sessions** | Signed-in devices (label, type: web / installed app / desktop, approx. location, last active), **revoke one / revoke all others**, "this device" marker |
@@ -850,6 +880,16 @@ Deny-by-default. Every route and action checks the caller's role; RLS enforces `
 | Security event (new device, revoke) | email | Cannot be muted |
 
 Each user overrides channels per event in Profile settings (8.9). Push requires an installed app; quiet hours defer everything except security events.
+
+**As built (milestone 5).** The matrix above is implemented as the ladder in 8.7 for the four
+follow-up rows, on `in_app` + `email` (plus `push` on the nudge rung, never queued here). The
+weekly digest is `in_app` + `email`. "Action item awaiting review" and "transcript ready" are
+in-app rows written when the event happens; invitations and security-event email do not exist yet
+because there is no mail provider configured and no invitation flow built. Per-event channel
+overrides are **not** built: quiet hours are per person, but channel choice is not, and every row
+in this deployment that needs email is marked failed with the reason. The notification centre at
+`/[workspace]/notifications` is per person — `/northwind/notifications` is one member's inbox, not
+the workspace's — and the header bell shows that person's unread count.
 
 ### 8.12 Failure and empty states
 
@@ -1023,7 +1063,7 @@ All endpoints: Zod-validated, rate-limited, role-authorized, consistent error en
 | **1: Foundation** | Monorepo, CI, design tokens, auth (password + OAuth + passkey + 2FA), workspaces, RLS, security headers | Secure shell |
 | **2: Core loop** | Text ingest → extraction → review → tickets → board | Three core capabilities working |
 | **3: Audio** | R2 uploads, in-app recorder, Deepgram pipeline, speaker mapping, synced player, retention — ✅ **built** with the local storage driver instead of R2, the recorder mic-only, and the provider unconfigured without a key | Recordings become transcripts |
-| **4: Follow-up engine** | Scheduler, escalation ladder, email, in-app notifications, realtime sync (Ably), device management | The agent chases for you |
+| **4: Follow-up engine** | Scheduler, escalation ladder, email, in-app notifications, realtime sync (Ably), device management — ✅ **built** with the chaser as a scheduler-invoked script (`db:followups`) instead of Inngest, email wired but unconfigured without a key (failures recorded with the reason), push not queued at all, and the notification centre per person; **Ably realtime sync is not built** | The agent chases for you |
 | **5: Landing + demo + PWA** | Full landing, `/demo`, public recap, SEO, manifest, service worker, offline, install prompt, push | Shareable and installable |
 | **6: Linear** | OAuth, issue creation, mapping, two-way sync, failure handling | Work lands where teams already track it |
 | **7: Intelligence** | Ask Prepo, Necessity / Clarity scores, insights, evals in CI | The "wow" layer |

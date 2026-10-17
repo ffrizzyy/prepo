@@ -128,7 +128,8 @@ export function ToneSelect({
 }: {
   workspace: string;
   value: string;
-}) {  const [optimistic, apply] = useOptimistic(value, (_state, next: string) => next);
+}) {
+  const [optimistic, apply] = useOptimistic(value, (_state, next: string) => next);
   const [, startTransition] = useTransition();
 
   function choose(next: string) {

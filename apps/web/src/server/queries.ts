@@ -333,44 +333,160 @@ export async function listTicketEvents(
 
 export type FollowupView = {
   id: string;
-  ticketKey: string;
-  ticketTitle: string;
-  assigneeName: string | null;
+  ticketKey: string | null;
+  ticketTitle: string | null;
+  ticketId: string | null;
+  /** The ticket's due date, so the page can name the rung in the ladder. */
+  ticketDueAt: string | null;
+  /** The person this one message is for. */
+  recipientName: string | null;
   kind: string;
   channel: string;
   scheduledFor: string;
   sentAt: string | null;
   status: string;
+  detail: string | null;
 };
 
+const followupSelection = {
+  id: t.followups.id,
+  ticketId: t.followups.ticketId,
+  ticketKey: t.tickets.key,
+  ticketTitle: t.tickets.title,
+  ticketDueAt: t.tickets.dueAt,
+  recipientName: t.users.name,
+  kind: t.followups.kind,
+  channel: t.followups.channel,
+  scheduledFor: t.followups.scheduledFor,
+  sentAt: t.followups.sentAt,
+  status: t.followups.status,
+  detail: t.followups.detail,
+};
+
+/**
+ * The whole timeline, newest history first: the page shows what is pending and
+ * what already happened, and both are real rows the engine or a person wrote.
+ */
 export async function listFollowupsView(
   workspaceId: string,
 ): Promise<FollowupView[]> {
   return withWorkspace(workspaceId, (tx) =>
     tx
-      .select({
-        id: t.followups.id,
-        ticketKey: t.tickets.key,
-        ticketTitle: t.tickets.title,
-        assigneeName: t.users.name,
-        kind: t.followups.kind,
-        channel: t.followups.channel,
-        scheduledFor: t.followups.scheduledFor,
-        sentAt: t.followups.sentAt,
-        status: t.followups.status,
-      })
+      .select(followupSelection)
       .from(t.followups)
-      .innerJoin(t.tickets, eq(t.tickets.id, t.followups.ticketId))
-      .leftJoin(t.users, eq(t.users.id, t.tickets.assigneeId))
+      // The digest belongs to the workspace, not a ticket, so this join has to be
+      // a left join — an inner one would hide every digest.
+      .leftJoin(t.tickets, eq(t.tickets.id, t.followups.ticketId))
+      .leftJoin(t.users, eq(t.users.id, t.followups.recipientId))
       .orderBy(asc(t.followups.scheduledFor))
       .then((rows) =>
         rows.map((row) => ({
           ...row,
+          ticketDueAt: iso(row.ticketDueAt),
           scheduledFor: row.scheduledFor.toISOString(),
           sentAt: iso(row.sentAt),
         })),
       ),
   );
+}
+
+export async function listTicketFollowups(
+  workspaceId: string,
+  ticketId: string,
+): Promise<FollowupView[]> {
+  return withWorkspace(workspaceId, (tx) =>
+    tx
+      .select(followupSelection)
+      .from(t.followups)
+      .leftJoin(t.tickets, eq(t.tickets.id, t.followups.ticketId))
+      .leftJoin(t.users, eq(t.users.id, t.followups.recipientId))
+      .where(eq(t.followups.ticketId, ticketId))
+      .orderBy(asc(t.followups.scheduledFor))
+      .then((rows) =>
+        rows.map((row) => ({
+          ...row,
+          ticketDueAt: iso(row.ticketDueAt),
+          scheduledFor: row.scheduledFor.toISOString(),
+          sentAt: iso(row.sentAt),
+        })),
+      ),
+  );
+}
+
+/* -------------------------------------------------------- notifications */
+
+export type NotificationView = {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  href: string | null;
+  readAt: string | null;
+  createdAt: string;
+};
+
+/**
+ * The notification centre is per person, not per workspace: two members of the
+ * same workspace see different inboxes, which is the point of the matrix in
+ * PREPO.md §8.11.2.
+ */
+export async function listNotifications(
+  workspaceId: string,
+  userId: string,
+  limit = 30,
+): Promise<NotificationView[]> {
+  return withWorkspace(workspaceId, (tx) =>
+    tx
+      .select({
+        id: t.notifications.id,
+        type: t.notifications.type,
+        payload: t.notifications.payload,
+        readAt: t.notifications.readAt,
+        createdAt: t.notifications.createdAt,
+      })
+      .from(t.notifications)
+      .where(eq(t.notifications.userId, userId))
+      .orderBy(desc(t.notifications.createdAt))
+      .limit(limit)
+      .then((rows) =>
+        rows.map((row) => {
+          const payload = (row.payload ?? {}) as Record<string, unknown>;
+          return {
+            id: row.id,
+            type: row.type,
+            title:
+              typeof payload.title === "string"
+                ? payload.title
+                : typeof payload.subject === "string"
+                  ? payload.subject
+                  : row.type,
+            body: typeof payload.body === "string" ? payload.body : "",
+            href: typeof payload.href === "string" ? payload.href : null,
+            readAt: iso(row.readAt),
+            createdAt: row.createdAt.toISOString(),
+          };
+        }),
+      ),
+  );
+}
+
+export async function countUnreadNotifications(
+  workspaceId: string,
+  userId: string,
+): Promise<number> {
+  const [row] = await withWorkspace(workspaceId, (tx) =>
+    tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(t.notifications)
+      .where(
+        and(
+          eq(t.notifications.userId, userId),
+          sql`${t.notifications.readAt} is null`,
+        ),
+      ),
+  );
+
+  return row?.count ?? 0;
 }
 
 /* ------------------------------------------------------------------ audio */

@@ -1,5 +1,9 @@
 import { Card, PageHeader } from "@/components/app/page-header";
 import {
+  DigestWeekdaySelect,
+  FollowupsToggle,
+} from "@/components/app/followup-controls";
+import {
   AutonomySelect,
   RetentionSelect,
   ToneSelect,
@@ -21,6 +25,7 @@ import { signOut } from "@/server/auth/actions";
 import { getSecurityAccount } from "@/server/auth/accounts";
 import { listSessionsForUser } from "@/server/auth/sessions";
 import { requireWorkspace } from "@/server/context";
+import { emailSender } from "@/server/followups/channels";
 import { getTranscriptionUsage } from "@/server/queries";
 import { relativeTime } from "@/lib/workspace-data";
 
@@ -71,6 +76,12 @@ export default async function SettingsPage({
     await getTranscriptionUsage(context.id),
     transcriptionProvider(),
   ];
+
+  // Settings reports delivery channels the same way it reports speech-to-text:
+  // by name when configured, and plainly "not configured" when not.
+  const sender = emailSender();
+  const emailConfigured = sender !== null;
+  const emailSenderName = sender?.name ?? "not configured";
 
   // Every sign-in is its own row, so this list *is* the device list (§9.1).
   const sessions: SessionView[] = (
@@ -143,6 +154,47 @@ export default async function SettingsPage({
                 : "off"}
               .
             </p>
+          </Card>
+
+          <Card title="Follow-ups">
+            <FollowupsToggle
+              workspace={context.slug}
+              enabled={context.settings.followups !== "off"}
+            />
+            <div className="mt-5 border-t border-border pt-4">
+              <p className="text-sm font-medium">Weekly digest</p>
+              <p className="mt-0.5 text-xs text-text-muted">
+                To owners and admins, at 09:00 in each person&apos;s own timezone.
+              </p>
+              <div className="mt-3">
+                <DigestWeekdaySelect
+                  workspace={context.slug}
+                  value={context.settings.digestWeekday ?? 1}
+                />
+              </div>
+            </div>
+            <dl className="mt-5 space-y-3 border-t border-border pt-4 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-text-muted">Email</dt>
+                <dd className="text-xs">
+                  {emailConfigured ? (
+                    <span className="font-mono">{emailSenderName}</span>
+                  ) : (
+                    <span className="text-text-subtle">not configured</span>
+                  )}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-text-muted">In-app</dt>
+                <dd className="font-mono text-xs">notification centre</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-text-muted">Push</dt>
+                <dd className="text-xs text-text-subtle">
+                  needs an installed app
+                </dd>
+              </div>
+            </dl>
           </Card>
 
           <Card title="Audio & transcription">

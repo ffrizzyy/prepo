@@ -48,6 +48,7 @@ export function AppShell({
   viewerName,
   viewerEmail,
   reviewCount,
+  unreadCount,
   children,
 }: {
   workspace: string;
@@ -55,6 +56,7 @@ export function AppShell({
   viewerName: string;
   viewerEmail: string;
   reviewCount: number;
+  unreadCount: number;
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -94,7 +96,7 @@ export function AppShell({
           workspaceName={workspaceName}
           viewerName={viewerName}
           viewerEmail={viewerEmail}
-          reviewCount={reviewCount}
+          unreadCount={unreadCount}
           onOpenPalette={() => setPaletteOpen(true)}
           onToggleSidebar={() => setCollapsed((value) => !value)}
         />
@@ -229,7 +231,7 @@ function Topbar({
   workspaceName,
   viewerName,
   viewerEmail,
-  reviewCount,
+  unreadCount,
   onOpenPalette,
   onToggleSidebar,
 }: {
@@ -237,7 +239,7 @@ function Topbar({
   workspaceName: string;
   viewerName: string;
   viewerEmail: string;
-  reviewCount: number;
+  unreadCount: number;
   onOpenPalette: () => void;
   onToggleSidebar: () => void;
 }) {
@@ -281,13 +283,19 @@ function Topbar({
       </button>
 
       <a
-        href={`/${workspace}/tickets`}
+        href={`/${workspace}/notifications`}
         className="relative inline-flex size-9 items-center justify-center rounded-[10px] text-text-muted hover:bg-surface-2 hover:text-text"
-        aria-label={`Notifications, ${reviewCount} needing review`}
+        aria-label={
+          unreadCount > 0
+            ? `Notifications, ${unreadCount} unread`
+            : "Notifications"
+        }
       >
         <Bell size={18} />
-        {reviewCount > 0 ? (
-          <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-accent" />
+        {unreadCount > 0 ? (
+          <span className="absolute right-0.5 top-0.5 grid min-w-[16px] place-items-center rounded-full bg-accent px-1 font-mono text-[10px] font-medium text-white">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
         ) : null}
       </a>
 

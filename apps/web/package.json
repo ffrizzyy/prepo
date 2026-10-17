@@ -15,6 +15,8 @@
     "db:auth": "tsx src/server/db/auth-smoke.ts",
     "db:audio": "tsx src/server/db/audio-smoke.ts",
     "db:retention": "tsx src/server/db/retention.ts",
+    "db:followups": "tsx src/server/db/followups.ts",
+    "db:followup-smoke": "tsx src/server/db/followup-smoke.ts",
     "db:audio-fixture": "tsx src/server/db/audio-fixture.ts",
     "db:totp-fixture": "tsx src/server/db/totp-fixture.ts",
     "db:studio": "drizzle-kit studio"

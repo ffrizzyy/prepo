@@ -10,8 +10,13 @@ import {
 } from "@prepo/shared";
 import { formatDate, isOverdue, relativeTime } from "@/lib/workspace-data";
 import { addComment, moveTicket } from "@/server/actions";
-import type { TicketCommentView, TicketEventView } from "@/server/queries";
+import type {
+  FollowupView,
+  TicketCommentView,
+  TicketEventView,
+} from "@/server/queries";
 import { PriorityBadge, StatusBadge } from "./badges";
+import { TicketChase } from "./followup-controls";
 import { Card, EmptyState } from "./page-header";
 
 export function TicketDetail({
@@ -20,6 +25,7 @@ export function TicketDetail({
   meeting,
   comments,
   events,
+  followups,
   viewerName,
 }: {
   workspace: string;
@@ -27,6 +33,7 @@ export function TicketDetail({
   meeting: Meeting | null;
   comments: TicketCommentView[];
   events: TicketEventView[];
+  followups: FollowupView[];
   viewerName: string;
 }) {
   const [optimisticStatus, applyStatus] = useOptimistic(
@@ -236,6 +243,47 @@ export function TicketDetail({
                 </span>
               </Row>
             </dl>
+          </Card>
+
+          <Card title="Follow-ups">
+            <TicketChase
+              workspace={workspace}
+              ticketId={ticket.id}
+              pendingCount={
+                followups.filter((entry) => entry.status === "scheduled").length
+              }
+              done={optimisticStatus === "done"}
+            />
+
+            {followups.length > 0 ? (
+              <ul className="mt-4 divide-y divide-border border-t border-border pt-1">
+                {followups.slice(-6).map((entry) => (
+                  <li key={entry.id} className="flex gap-2.5 py-2 text-xs">
+                    <span
+                      className={
+                        entry.status === "scheduled"
+                          ? "mt-1 size-1.5 shrink-0 rounded-full bg-accent"
+                          : "mt-1 size-1.5 shrink-0 rounded-full bg-border-strong"
+                      }
+                    />
+                    <div className="min-w-0">
+                      <p className="text-text-muted">
+                        {entry.kind} · {entry.channel} · {entry.status}
+                      </p>
+                      <p className="mt-0.5 font-mono text-[10px] text-text-subtle">
+                        {formatDate(entry.sentAt ?? entry.scheduledFor)}
+                        {entry.recipientName ? ` · to ${entry.recipientName}` : ""}
+                      </p>
+                      {entry.detail ? (
+                        <p className="mt-0.5 text-[11px] text-text-muted">
+                          {entry.detail}
+                        </p>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </Card>
 
           <Card title="Linear">

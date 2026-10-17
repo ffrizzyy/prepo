@@ -4,12 +4,15 @@ Prepo is a portfolio project, not a product with a support contract. It holds me
 by design, so it is built as though it holds yours — and this file records what is actually in
 place, what is not, and how to report a problem.
 
-**Status: milestone 4.** Authentication (password + TOTP two-factor), tenant isolation, the
-writable core loop, and the audio path — recording, upload, transcript import, speaker mapping,
-retention — are implemented and tested. The speech-to-text *provider* is wired but unconfigured
-on this deployment (no `DEEPGRAM_API_KEY`), so recordings are stored and never sent anywhere;
-the provider response mapping is pinned by a fixture instead. Extraction, integrations and the
-desktop shell are not built yet; where the table below mentions them, it says so.
+**Status: milestone 5.** Authentication (password + TOTP two-factor), tenant isolation, the
+writable core loop, the audio path (recording, upload, transcript import, speaker mapping,
+retention) and the follow-up engine (escalation ladder, job, quiet hours, digest, notification
+centre) are implemented and tested. Two providers are wired but **unconfigured on this
+deployment** — speech-to-text (no `DEEPGRAM_API_KEY`) and email (no `RESEND_API_KEY`) — so
+recordings are stored and never sent anywhere, and an email is attempted, then recorded as
+**failed with the reason** rather than quietly marked sent. Push is never queued, because there is
+no service worker. Extraction, integrations and the desktop shell are not built yet; where the
+table below mentions them, it says so.
 
 ## Reporting a vulnerability
 
@@ -43,6 +46,10 @@ there is no payment to offer — only a fix and credit in the commit if you want
 | Chunked uploads | Pieces are staged on disk and assembled only on the final piece; the row is never written unless assembly succeeds. Staging older than an hour is reclaimed, and an unfinished upload with no retention date is reclaimed after 90 days |
 | Retention | The delete date is set when the audio is stored and recomputed when it is transcribed, so "delete as soon as it is transcribed" means exactly that. The sweep deletes bytes and marks the row; the transcript and everything derived from it stay |
 | Provider egress | The transcription provider is handed **bytes, not a URL**, so there is no user-controlled outbound request and no SSRF surface. The only host contacted is the provider's fixed endpoint, and only when a key is configured |
+| Follow-up delivery | A message is only ever sent by the job, never inline in a request. Email goes to Resend's fixed endpoint from server-side code with a key read from the environment; only a 2xx marks a message `sent`, and anything else is stored as `failed` **with the reason**. With no key configured, every email rung fails loudly and the in-app half is still delivered — nothing is marked sent that was not. A person with a workspace read scope can cancel, move, snooze or stop any pending message in their own workspace, and each of those is an audit event |
+| Follow-up content | The message is generated from the ticket row, so it carries the key, title, due date and lateness — the same facts for every tone. No user-supplied text is interpolated into a subject line, and the link is built from the workspace slug and ticket key rather than from stored input |
+| Notification centre | Notifications are read per person (`user_id`), and marking one read or all read is scoped by the caller's own user id, so one member cannot read or clear another's inbox. The unread count is a `count` query, not a cached number |
+| Quiet hours | The window is evaluated in the recipient's own IANA timezone via `Intl`; an unknown zone falls back to UTC instead of throwing. A held message is **deferred and kept**, never dropped, and the row records that it was held and why |
 
 ## What is **not** implemented
 
@@ -56,8 +63,10 @@ remain. None of them are secret; the goal of this list is that nobody has to gue
 | **A06** Vulnerable components | No Dependabot, CodeQL or SBOM job in CI yet; `pnpm audit` is not wired into the pipeline |
 | **A07** Auth failures | No passkeys, OAuth or magic links; no email verification, password reset, or breached-password check (no mail provider); no CAPTCHA/bot challenge; no replay protection within a single TOTP step; no session invalidation on password change |
 | **A08** Data integrity | No webhook signature verification (there are no webhooks yet) and no signed desktop updates (no desktop build) |
-| **A09** Logging & monitoring | No Sentry or alerting; `auth_events` and `audit_logs` are append-only but there is no anomaly detection, no "impossible travel" alert, and logs are not shipped anywhere |
-| **A10** SSRF | The transcription call is a fixed host with a body of bytes, so there is nothing to steer. When extraction (milestone 7) adds a second provider, the same rule applies: no user-supplied URLs, and no fetching a meeting's "source link" |
+| **A09** Logging & monitoring | No Sentry or alerting; `auth_events` and `audit_logs` are append-only but there is no anomaly detection, no "impossible travel" alert, and logs are not shipped anywhere. The follow-up job prints a per-row decision line, but there is no metric or alert on a run that fails wholesale |
+| **A10** SSRF | The transcription call is a fixed host with a body of bytes, and the email sender is a fixed host with a server-built body, so there is nothing to steer. When extraction (milestone 7) adds a second provider, the same rule applies: no user-supplied URLs, and no fetching a meeting's "source link" |
+| Follow-up delivery | There is no email provider key on this machine, so **no email has ever actually been delivered** by this build — the failure path is what is tested. There is no bounce or complaint handling, no unsubscribe link, no per-recipient send rate limit beyond the ladder itself, and no retry with backoff: a failed message stays failed. The job is a script meant for a scheduler; there is no queue, no worker, no exactly-once guarantee and no scheduled-job auth, so whoever can run it can send |
+| Push notifications | Not implemented at all: no service worker, no subscription table, no Web Push keys. The ladder lists push on the nudge rung, and the code refuses to write a push row while no device is subscribed, so nothing is pretended |
 | Object storage | The R2 presigned-PUT flow in the spec is not implemented — there is no Cloudflare account on this machine, so audio uses a local filesystem driver behind the same `StorageDriver` interface. The interface has no presign method at all, which is why the "no publicly addressable URLs" claim holds here; moving to R2 would need the access route re-reviewed |
 | Antivirus / content scanning | Uploaded audio is validated by format and size, not scanned. Transcripts are parsed as text only — `.docx` and `.pdf` are refused rather than parsed, so there is no document parser to attack |
 | ASVS L2 | Not formally reviewed. The specification's checklist is tracked in `PREPO.md` §9.4 and is mostly unchecked, because most of it depends on features that do not exist yet |
@@ -72,6 +81,7 @@ pnpm --filter @prepo/web db:smoke    # the write path, including a cross-tenant 
 pnpm --filter @prepo/web db:auth     # hashing, throttling, sessions, TOTP against RFC vectors
 pnpm --filter @prepo/web db:audio    # parsing, sniffing, chunk assembly, retention, tenant boundary
 pnpm --filter @prepo/web db:retention  # the retention job, runnable from a scheduler
+pnpm --filter @prepo/web db:followup-smoke  # the ladder, quiet hours, digest and the job
 ```
 
 `db:verify` and `db:smoke` run against the embedded engine and a real Postgres (set
@@ -82,8 +92,21 @@ recorded-shape payload, the storage driver (including a key trying to escape the
 chunked assembly and its refusal of an out-of-order piece, the retention clock and the sweep, the
 ingest writes, speaker mapping, and the cross-tenant attempts. Ninety checks pass.
 
+`db:followup-smoke` covers the security-relevant half of the chaser directly: that an unconfigured
+email is recorded `failed` **with the reason** and never as `sent`; that the in-app half of the
+same rung is still delivered; that quiet hours defer rather than drop, in the recipient's own zone,
+with an unknown zone falling back instead of throwing; that a message a person moved is not
+re-cancelled by its own move, while a rung left behind by a due-date change is; that a finished
+ticket cancels what was pending; that a digest is never placed twice; that marking an inbox read
+touches only the caller's own rows; and that a cancellation in one tenant cannot reach another.
+Ninety-two checks pass.
+
 On top of the committed suites, the flows were exercised end-to-end over HTTP against the
-production build: 46 sign-in checks and 23 two-factor checks while milestone 3 was built, and 73
+production build: 46 sign-in checks and 23 two-factor checks while milestone 3 was built, 73
 audio checks while milestone 4 was — including refusal of a renamed file and of an upload without
 consent, the 25 MB cap, a three-piece chunked upload, `206`/`416` byte ranges, and another
-tenant's owner getting `404` on both the stream route and the speaker mapping.
+tenant's owner getting `404` on both the stream route and the speaker mapping — and 42 follow-up
+checks while milestone 5 was, including the unread count on the bell matching the inbox, the
+email-is-not-configured notice naming the variable to set, push admitted to be unqueued, a
+failure's reason rendered on its own row, and another tenant's owner getting `404` on both the
+timeline and the inbox.

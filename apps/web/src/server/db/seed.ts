@@ -12,6 +12,7 @@ import * as t from "./schema";
 import { runCli } from "./run";
 import { DEMO } from "../auth/demo";
 import { hashPassword } from "../auth/password";
+import { scheduleLadder } from "../followups/ladder";
 
 /** Fixed ids so verification and deep links can rely on them. */
 export const WORKSPACE_IDS = {
@@ -340,21 +341,26 @@ export async function seed(): Promise<SeedSummary> {
     },
   ]);
 
-  // A reminder 24h before each open ticket's due date is the first rung of the
-  // escalation ladder, so the follow-ups page reflects real rows.
+  // Open tickets carry the real escalation ladder, built from the same pure
+  // function the app uses when it approves an action item, so the follow-ups page
+  // and the chaser show the schedule the product would actually keep. Rungs whose
+  // moment has already passed are left out rather than fired on the first run.
+  const organizerId = userIdByName.get("Lena Fischer")!;
   const followupRows: (typeof t.followups.$inferInsert)[] = [];
   for (const ticket of ticketRows) {
     if (ticket.workspaceId !== WORKSPACE_IDS.northwind) continue;
     if (ticket.status === "done" || !ticket.dueAt) continue;
-    followupRows.push({
-      id: uuidv7(),
-      workspaceId: WORKSPACE_IDS.northwind,
-      ticketId: ticket.id,
-      kind: "reminder",
-      channel: "email",
-      scheduledFor: new Date(ticket.dueAt.getTime() - 24 * 60 * 60 * 1000),
-      status: "scheduled",
-    });
+    followupRows.push(
+      ...scheduleLadder({
+        workspaceId: WORKSPACE_IDS.northwind,
+        ticketId: ticket.id,
+        dueAt: ticket.dueAt,
+        ownerId: ticket.assigneeId ?? null,
+        organizerId,
+        now: new Date(),
+        pushAvailable: false,
+      }),
+    );
   }
 
   const overduedTicket = ticketRows.find((ticket) => ticket.key === "PRE-139")!;
@@ -364,9 +370,11 @@ export async function seed(): Promise<SeedSummary> {
     ticketId: overduedTicket.id,
     kind: "nudge",
     channel: "in_app",
+    recipientId: overduedTicket.assigneeId ?? null,
     scheduledFor: new Date("2026-10-15T09:00:00.000Z"),
     sentAt: new Date("2026-10-15T09:00:03.000Z"),
     status: "sent",
+    detail: "Delivered to the notification centre.",
   });
 
   await db.insert(t.followups).values(followupRows);
@@ -380,6 +388,8 @@ export async function seed(): Promise<SeedSummary> {
       meetingId: mainMeetingId,
       count: SAMPLE_ACTION_ITEMS.length,
       title: SAMPLE_MEETING.title,
+      body: `${SAMPLE_ACTION_ITEMS.length} action items were found in this meeting and are waiting for review.`,
+      href: `/${DEMO.workspace}/meetings/${mainMeetingId}`,
     },
   });
 

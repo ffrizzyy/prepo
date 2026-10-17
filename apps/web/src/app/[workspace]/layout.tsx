@@ -1,6 +1,9 @@
 import { AppShell } from "@/components/app/app-shell";
 import { requireWorkspace } from "@/server/context";
-import { listActionItemsView } from "@/server/queries";
+import {
+  countUnreadNotifications,
+  listActionItemsView,
+} from "@/server/queries";
 
 export default async function WorkspaceLayout({
   children,
@@ -13,7 +16,10 @@ export default async function WorkspaceLayout({
 
   // Unknown slugs 404 here rather than rendering a shell over empty data.
   const context = await requireWorkspace(workspace);
-  const actionItems = await listActionItemsView(context.id);
+  const [actionItems, unreadCount] = await Promise.all([
+    listActionItemsView(context.id),
+    countUnreadNotifications(context.id, context.viewer.userId),
+  ]);
   const reviewCount = actionItems.filter(
     (item) => item.status === "proposed",
   ).length;
@@ -25,6 +31,7 @@ export default async function WorkspaceLayout({
       viewerName={context.viewer.name}
       viewerEmail={context.viewer.email}
       reviewCount={reviewCount}
+      unreadCount={unreadCount}
     >
       {children}
     </AppShell>

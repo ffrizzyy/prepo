@@ -6,6 +6,7 @@ import {
   getTicketView,
   listTicketComments,
   listTicketEvents,
+  listTicketFollowups,
 } from "@/server/queries";
 
 export default async function TicketDetailPage({
@@ -34,10 +35,11 @@ export default async function TicketDetailPage({
     );
   }
 
-  const [meeting, comments, events] = await Promise.all([
+  const [meeting, comments, events, followups] = await Promise.all([
     ticket.meetingId ? getMeetingView(context.id, ticket.meetingId) : null,
     listTicketComments(context.id, ticket.id),
     listTicketEvents(context.id, ticket.id),
+    listTicketFollowups(context.id, ticket.id),
   ]);
 
   return (
@@ -47,6 +49,7 @@ export default async function TicketDetailPage({
       meeting={meeting}
       comments={comments}
       events={events}
+      followups={followups}
       viewerName={context.viewer.name}
     />
   );

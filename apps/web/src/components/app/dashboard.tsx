@@ -195,7 +195,7 @@ export function Dashboard({
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm">{entry.ticketTitle}</p>
                       <p className="mt-1 font-mono text-[10px] text-text-subtle">
-                        {entry.ticketKey} · {entry.assigneeName ?? "unassigned"} ·{" "}
+                        {entry.ticketKey} · {entry.recipientName ?? "unassigned"} ·{" "}
                         {formatShortDate(entry.scheduledFor)}
                       </p>
                     </div>
