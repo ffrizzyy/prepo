@@ -267,6 +267,7 @@ pnpm --filter @prepo/web db:audio-fixture # give the seeded meeting real audio b
 pnpm --filter @prepo/web db:retention  # run the retention sweep (scheduler entry point)
 pnpm --filter @prepo/web db:followups  # work the follow-up queue (scheduler entry point)
 pnpm --filter @prepo/web db:followup-smoke    # exercise the ladder, quiet hours and the engine
+pnpm --filter @prepo/web db:providers        # which keys are set, and whether they work
 pnpm --filter @prepo/web db:studio     # browse the data
 ```
 

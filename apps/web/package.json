@@ -19,6 +19,7 @@
     "db:followup-smoke": "tsx src/server/db/followup-smoke.ts",
     "db:audio-fixture": "tsx src/server/db/audio-fixture.ts",
     "db:totp-fixture": "tsx src/server/db/totp-fixture.ts",
+    "db:providers": "tsx src/server/db/providers.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
