@@ -883,7 +883,9 @@ Each user overrides channels per event in Profile settings (8.9). Push requires 
 
 **As built (milestone 5).** The matrix above is implemented as the ladder in 8.7 for the four
 follow-up rows, on `in_app` + `email` (plus `push` on the nudge rung, never queued here). The
-weekly digest is `in_app` + `email`. "Action item awaiting review" and "transcript ready" are
+weekly digest is `in_app` + `email` — and its default day is **Monday**, not the Sunday this table
+says, because a Monday digest summarises the week that just started; the day is a workspace setting
+either way. "Action item awaiting review" and "transcript ready" are
 in-app rows written when the event happens; invitations and security-event email do not exist yet
 because there is no mail provider configured and no invitation flow built. Per-event channel
 overrides are **not** built: quiet hours are per person, but channel choice is not, and every row
