@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { motion, useMotionValueEvent, useScroll } from "motion/react";
 import { ArrowRight, GithubLogo, List, X } from "@phosphor-icons/react";
-import { BRAND, NAV_LINKS } from "@prepo/shared";
+import { BRAND, NAV_LINKS, REPO_URL } from "@prepo/shared";
 import { buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
-export function Navbar() {
+export function Navbar({ home = true }: { home?: boolean }) {
   const { scrollY } = useScroll();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -16,6 +16,10 @@ export function Navbar() {
   useMotionValueEvent(scrollY, "change", (latest) => {
     setScrolled(latest > 8);
   });
+
+  // The section anchors only exist on the landing page, so anywhere else they
+  // have to point back at it.
+  const anchor = (href: string) => (home ? href : `/${href}`);
 
   return (
     <header
@@ -27,7 +31,7 @@ export function Navbar() {
       )}
     >
       <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <a href="#" className="flex items-center gap-2">
+        <a href={home ? "#" : "/"} className="flex items-center gap-2">
           <span className="grid size-7 place-items-center rounded-[8px] bg-accent text-sm font-semibold text-accent-fg">
             P
           </span>
@@ -38,14 +42,14 @@ export function Navbar() {
           {NAV_LINKS.map((link) => (
             <a
               key={link.href}
-              href={link.href}
+              href={anchor(link.href)}
               className="rounded-[10px] px-3 py-2 text-sm text-text-muted transition-colors hover:text-text"
             >
               {link.label}
             </a>
           ))}
           <a
-            href="https://github.com"
+            href={REPO_URL}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1.5 rounded-[10px] px-3 py-2 text-sm text-text-muted transition-colors hover:text-text"
@@ -64,7 +68,7 @@ export function Navbar() {
             Sign in
           </a>
           <a
-            href="/northwind"
+            href="/demo"
             className={cn(buttonVariants({ size: "sm" }), "hidden sm:inline-flex")}
           >
             Try demo
@@ -92,7 +96,7 @@ export function Navbar() {
             {NAV_LINKS.map((link) => (
               <a
                 key={link.href}
-                href={link.href}
+                href={anchor(link.href)}
                 onClick={() => setOpen(false)}
                 className="rounded-[10px] px-3 py-2.5 text-sm text-text-muted hover:bg-surface-2 hover:text-text"
               >
@@ -100,7 +104,7 @@ export function Navbar() {
               </a>
             ))}
             <a
-              href="https://github.com"
+              href={REPO_URL}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 rounded-[10px] px-3 py-2.5 text-sm text-text-muted hover:bg-surface-2 hover:text-text"

@@ -12,6 +12,9 @@ export const NAV_LINKS = [
   { label: "Download", href: "#download" },
 ] as const;
 
+/** The public repository — the source of truth for what is actually built. */
+export const REPO_URL = "https://github.com/ffrizzyy/prepo";
+
 export const WORKSPACE = {
   name: "Northwind Studio",
   slug: "northwind",
@@ -84,11 +87,11 @@ export const PIPELINE_STAGES = [
 export const SECURITY_PILLARS = [
   {
     title: "Access",
-    body: "Passkeys, TOTP 2FA, and per-device sessions you can revoke instantly.",
+    body: "TOTP 2FA with single-use recovery codes, and per-device sessions you can revoke instantly. Passkeys are next.",
   },
   {
     title: "Data",
-    body: "Workspace isolation with Postgres RLS, encryption at rest, and audio that deletes itself.",
+    body: "Workspace isolation enforced by Postgres RLS, secrets stored hashed, and audio that deletes itself.",
   },
   {
     title: "AI",

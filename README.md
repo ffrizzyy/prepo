@@ -17,18 +17,24 @@ throttling, and TOTP two-factor with single-use recovery codes. Passkeys, OAuth,
 links, a breached-password check and Turnstile are the parts of the spec's auth line still
 outstanding.
 
+The links under the landing page are real routes now — `/security`, `/privacy`, `/terms` and
+`/download` — and so are the 404 and 500 states. [`SECURITY.md`](./SECURITY.md) records what is
+implemented next to the OWASP gaps that are still open, so nothing has to be taken on trust.
+
 | Area | State |
 |---|---|
 | pnpm monorepo (`apps/web`, `packages/shared`, `packages/config`) | Done |
 | Design tokens (coral + near-black, light/dark) | Done |
 | Landing page, all 11 sections | Done |
+| Static pages — `/security`, `/privacy`, `/terms`, `/download` | Done |
+| Designed states — 404 (`not-found.tsx`) and 500 (`error.tsx`, `global-error.tsx`) | Done |
 | Interactive hero preview (approve → ticket) | Done |
 | Sample-data layer shared with the app | Done |
 | SEO (`robots.txt`, `sitemap.xml`, metadata) | Done |
 | App shell: sidebar, mobile bottom nav, command palette | Done |
 | Dashboard, Meetings (+detail, transcript), Board, Tickets (+detail) | Done |
 | Follow-ups, Insights, Settings, New meeting | Done |
-| Postgres schema — 24 tables, Drizzle migrations | Done |
+| Postgres schema - 25 tables, Drizzle migrations | Done |
 | Row-Level Security, cross-tenant isolation verified | Done |
 | Seed (two workspaces) and the repository read layer | Done |
 | UI wired to Postgres — server-component reads, server-action writes | Done |
@@ -39,6 +45,7 @@ outstanding.
 | Passkeys, magic link, OAuth, breach check, Turnstile | Not started |
 | Real AI + integrations | Not started |
 | Desktop (Tauri) shell | Not started — requires Rust, absent on the build machine |
+| Docs — `PREPO.md`, `SECURITY.md` (posture + OWASP gaps) | Done |
 
 The app runs at **`/northwind`** on the seeded "Northwind Studio" workspace. Sign in
 (see below) and everything you see is read from Postgres. Approving an action item writes a

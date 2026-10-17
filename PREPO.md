@@ -135,7 +135,7 @@ The move from table discussion to field execution becomes instant. Every team me
 | Hosting | Vercel (app) + Neon (DB) + Upstash (Redis) + Inngest Cloud + Cloudflare R2 + Ably |
 | Containers | `Dockerfile` + `docker-compose.yml` (app, Postgres, Redis, MinIO as local R2 stand-in) |
 | Monitoring | Sentry, PostHog, Vercel Analytics |
-| Docs | `README.md`, `ARCHITECTURE.md` (Mermaid), `SECURITY.md`, ADRs |
+| Docs | `README.md`, `SECURITY.md` (repository root, as GitHub expects), `ARCHITECTURE.md` (Mermaid), ADRs |
 
 ### 1.6 Packages to install (reality anchor)
 
@@ -503,7 +503,7 @@ prepo/
 - Nav border appears on scroll via `useScroll`, never a scroll listener. Theme persists via cookie (no flash).
 - Performance: LCP < 2.5s, INP < 200ms, CLS < 0.1, Lighthouse ≥ 95, hero preloaded, heavy modules lazy-loaded.
 - SEO: metadata API, dynamic OG image, `sitemap.xml`, `robots.txt`, JSON-LD (`SoftwareApplication` with `operatingSystem` list).
-- `/download` page: OS detection, install steps per platform, checksums, release notes, "unsigned build" notice if applicable.
+- `/download` page: install steps per platform (browser install and PWA) plus how to run the repository locally. When the desktop milestone lands this gains OS detection, installer downloads, checksums, release notes and an "unsigned build" notice.
 
 ### 5.4 Visual asset plan
 
@@ -707,9 +707,9 @@ These routes are top-level (not under `/{workspace-slug}/…`).
 | `/invite/[token]` | Accept invite, role preview |
 | `/demo` | **Instant read-only demo workspace**, no signup, seeded with a realistic meeting (including a sample recording and transcript), resets on schedule |
 | `/r/[token]` | **Public meeting recap**: signed, expiring, revocable; approved summary and action items only, never audio |
-| `/download` | Installers and install instructions |
-| `/privacy`, `/terms`, `/security` | Static pages |
-| `404`, `500`, `403`, **`/offline`** | Designed states, each with a clear way back |
+| `/download` | **Live.** Install instructions per platform (browser install + PWA) and how to run it locally; it says plainly that no installers exist yet. Installers, checksums and release notes arrive with the desktop milestone |
+| `/privacy`, `/terms`, `/security` | **Live, static.** `/security` is the long-form version of the landing-page pillars and links `SECURITY.md`; `/privacy` states the demo's actual storage and retention; `/terms` states the as-is position and the licence status |
+| `404`, `500`, `403`, **`/offline`** | **404 (`not-found.tsx`) and 500 (`error.tsx` + `global-error.tsx`) are live**, each with a clear way back. There is no 403 page by design: non-member and cross-tenant requests return 404 so the app never confirms that another workspace exists. `/offline` arrives with the PWA work |
 
 ### 8.2 Onboarding (3 steps, skippable)
 

@@ -1,5 +1,5 @@
 import { ArrowRight } from "@phosphor-icons/react/dist/ssr";
-import { BRAND } from "@prepo/shared";
+import { BRAND, REPO_URL } from "@prepo/shared";
 import { buttonVariants } from "@/components/ui/button";
 import { Container } from "@/components/ui/section";
 import { cn } from "@/lib/utils";
@@ -8,9 +8,9 @@ const FOOTER_LINKS = [
   { label: "Privacy", href: "/privacy" },
   { label: "Terms", href: "/terms" },
   { label: "Security", href: "/security" },
-  { label: "GitHub", href: "https://github.com" },
+  { label: "GitHub", href: REPO_URL, external: true },
   { label: "Download", href: "/download" },
-];
+] as const;
 
 export function FinalCta() {
   return (
@@ -44,6 +44,9 @@ export function FinalCta() {
               <a
                 key={link.label}
                 href={link.href}
+                {...("external" in link && link.external
+                  ? { target: "_blank", rel: "noreferrer" }
+                  : {})}
                 className="text-sm text-white/60 transition-colors hover:text-white"
               >
                 {link.label}
