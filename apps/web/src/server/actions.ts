@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { AUDIO_RETENTION_CHOICES } from "./audio/retention";
 import { requireWorkspace } from "./context";
 import * as t from "./db/schema";
 import {
@@ -159,6 +160,37 @@ export async function setFollowupTone(input: {
   await updateSettings({
     workspaceId: context.id,
     settings: { ...context.settings, followupTone: parsed.tone },
+  });
+
+  revalidateWorkspace(parsed.workspace);
+}
+
+/**
+ * Audio retention is a workspace setting (PREPO.md §6.2), and "delete as soon as
+ * it is transcribed" is one of the choices rather than an afterthought.
+ */
+export async function setAudioRetention(input: {
+  workspace: string;
+  days: number;
+}): Promise<void> {
+  const parsed = z
+    .object({
+      workspace: slug,
+      days: z
+        .number()
+        .int()
+        .refine(
+          (value) => (AUDIO_RETENTION_CHOICES as readonly number[]).includes(value),
+          "Not a retention choice",
+        ),
+    })
+    .parse(input);
+
+  const context = await requireWorkspace(parsed.workspace);
+
+  await updateSettings({
+    workspaceId: context.id,
+    settings: { ...context.settings, audioRetentionDays: parsed.days },
   });
 
   revalidateWorkspace(parsed.workspace);

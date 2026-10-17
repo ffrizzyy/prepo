@@ -1,46 +1,90 @@
 "use client";
 
 import { useState } from "react";
-import { Play, SpeakerHigh } from "@phosphor-icons/react";
-import { formatTimestamp, type TranscriptSegment } from "@prepo/shared";
+import { useRouter } from "next/navigation";
+import { SpeakerHigh } from "@phosphor-icons/react";
+import type { TranscriptSegment } from "@prepo/shared";
 import { formatDate } from "@/lib/workspace-data";
 import { cn } from "@/lib/utils";
-import type { ActionItemView, MeetingView } from "@/server/queries";
+import type {
+  ActionItemView,
+  MeetingAudioView,
+  MeetingView,
+  SpeakerLabelView,
+} from "@/server/queries";
 import { ScoreMeter } from "./badges";
-import { Card, EmptyState } from "./page-header";
+import { Card } from "./page-header";
 import { ReviewList } from "./review-list";
+import { TranscriptPanel } from "./transcript-panel";
 
 const TABS = ["Summary", "Actions", "Transcript", "Activity"] as const;
-type Tab = (typeof TABS)[number];
+export type MeetingTab = (typeof TABS)[number];
+
+/**
+ * The tab lives in the URL, so a redirect back from the speaker form (or from a
+ * retry) can land on the transcript instead of resetting to the summary.
+ */
+function tabToParam(tab: MeetingTab): string {
+  return tab.toLowerCase();
+}
 
 export function MeetingDetail({
   workspace,
   meeting,
   segments,
   actionItems,
+  audio,
+  speakers,
+  members,
+  initialTab = "Summary",
+  notice,
+  retention,
 }: {
   workspace: string;
   meeting: MeetingView;
   segments: TranscriptSegment[];
   actionItems: ActionItemView[];
+  audio: MeetingAudioView | null;
+  speakers: SpeakerLabelView[];
+  members: { userId: string; name: string }[];
+  initialTab?: MeetingTab;
+  notice?: string;
+  retention: string;
 }) {
-  const [tab, setTab] = useState<Tab>("Summary");
-  const [activeSegment, setActiveSegment] = useState<string | null>(null);
+  const router = useRouter();
+  const [tab, setTab] = useState<MeetingTab>(initialTab);
 
   const meetingItems = actionItems.filter((item) => item.meetingId === meeting.id);
   const proposed = meetingItems.filter((item) => item.status === "proposed").length;
 
+  function chooseTab(next: MeetingTab) {
+    setTab(next);
+    router.replace(`/${workspace}/meetings/${meeting.id}?tab=${tabToParam(next)}`, {
+      scroll: false,
+    });
+  }
+
   const activity = [
     {
-      who: "prepo-agent",
-      what: segments.length
-        ? `Transcribed audio and linked ${segments.length} segments.`
-        : "Imported minutes — no audio to transcribe.",
+      who: "prepo",
+      what: audio
+        ? audio.status === "transcribed"
+          ? `Stored the recording and attached ${segments.length} speaker-labelled segments.`
+          : audio.status === "deleted"
+            ? "Deleted the audio on request. The transcript and everything derived from it remain."
+            : segments.length
+              ? `Stored the recording and attached ${segments.length} segments from an imported transcript.`
+              : "Stored the recording."
+        : segments.length
+          ? `Imported ${segments.length} segments from a transcript or minutes.`
+          : "Imported minutes — no transcript segments were stored.",
       when: formatDate(meeting.heldAt),
     },
     {
-      who: "prepo-agent",
-      what: `Extracted ${meetingItems.length} action items with source quotes.`,
+      who: "prepo",
+      what: meetingItems.length
+        ? `Extracted ${meetingItems.length} action items with source quotes.`
+        : "No action items were extracted for this meeting.",
       when: formatDate(meeting.heldAt),
     },
   ];
@@ -48,10 +92,7 @@ export function MeetingDetail({
   return (
     <div className="space-y-6">
       <div>
-        <a
-          href={`/${workspace}/meetings`}
-          className="text-xs text-text-subtle hover:text-text"
-        >
+        <a href={`/${workspace}/meetings`} className="text-xs text-text-subtle hover:text-text">
           ← Meetings
         </a>
         <h1 className="mt-2 text-2xl font-medium tracking-tight">{meeting.title}</h1>
@@ -59,6 +100,12 @@ export function MeetingDetail({
           {formatDate(meeting.heldAt)} · {meeting.source} · {segments.length} segments
         </p>
       </div>
+
+      {notice ? (
+        <p className="rounded-2xl border border-border bg-surface p-4 text-sm leading-relaxed text-text-muted">
+          {notice}
+        </p>
+      ) : null}
 
       <div
         role="tablist"
@@ -70,7 +117,7 @@ export function MeetingDetail({
             key={item}
             role="tab"
             aria-selected={tab === item}
-            onClick={() => setTab(item)}
+            onClick={() => chooseTab(item)}
             className={cn(
               "-mb-px border-b-2 px-3 py-2 text-sm transition-colors",
               tab === item
@@ -91,9 +138,17 @@ export function MeetingDetail({
       {tab === "Summary" ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
           <Card title="Summary">
-            <p className="max-w-[65ch] text-sm leading-relaxed text-text-muted">
-              {meeting.summary || "No summary was produced for this meeting."}
-            </p>
+            {meeting.summary ? (
+              <p className="max-w-[65ch] text-sm leading-relaxed text-text-muted">
+                {meeting.summary}
+              </p>
+            ) : (
+              <p className="max-w-[65ch] text-sm leading-relaxed text-text-muted">
+                No summary was produced for this meeting. Summaries come from the extraction step,
+                which needs a language model and is not configured on this deployment — the
+                transcript on the next tab is complete and quotable.
+              </p>
+            )}
             {meeting.keyDecisions.length > 0 ? (
               <>
                 <h3 className="mt-6 text-sm font-medium">Key decisions</h3>
@@ -139,64 +194,27 @@ export function MeetingDetail({
             </Card>
             <Card title="Recap">
               <p className="text-sm text-text-muted">
-                Share a signed, expiring read-only recap of the approved summary and
-                actions. Audio is never included.
+                Share a signed, expiring read-only recap of the approved summary and actions. Audio
+                is never included. Public recap links are not built yet — this is the milestone
+                that adds them.
               </p>
-              <button
-                type="button"
-                className="mt-4 w-full rounded-[10px] border border-border-strong bg-surface px-4 py-2 text-sm hover:bg-surface-2"
-              >
-                Create recap link
-              </button>
             </Card>
           </div>
         </div>
       ) : null}
 
-      {tab === "Actions" ? (
-        <ReviewList workspace={workspace} items={meetingItems} showBulk />
-      ) : null}
+      {tab === "Actions" ? <ReviewList workspace={workspace} items={meetingItems} showBulk /> : null}
 
       {tab === "Transcript" ? (
-        segments.length === 0 ? (
-          <EmptyState
-            title="No transcript stored"
-            description="This meeting was imported as minutes, so there is no speaker-labelled transcript. The summary and actions are still available."
-          />
-        ) : (
-          <Card title="Transcript">
-            <ol className="space-y-1">
-              {segments.map((segment) => (
-                <li key={segment.id}>
-                  <button
-                    type="button"
-                    onClick={() => setActiveSegment(segment.id)}
-                    aria-current={activeSegment === segment.id}
-                    className={cn(
-                      "flex w-full gap-3 rounded-[10px] px-3 py-2.5 text-left transition-colors",
-                      activeSegment === segment.id
-                        ? "bg-accent-soft"
-                        : "hover:bg-surface-2",
-                    )}
-                  >
-                    <span className="w-24 shrink-0">
-                      <span className="block text-xs font-medium">
-                        {segment.speakerName ?? segment.speakerLabel}
-                      </span>
-                      <span className="mt-0.5 flex items-center gap-1 font-mono text-[10px] text-text-subtle">
-                        <Play size={9} weight="fill" aria-hidden />
-                        {formatTimestamp(segment.startMs)}
-                      </span>
-                    </span>
-                    <span className="text-sm leading-relaxed text-text-muted">
-                      {segment.text}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          </Card>
-        )
+        <TranscriptPanel
+          workspace={workspace}
+          meetingId={meeting.id}
+          audio={audio}
+          segments={segments}
+          speakers={speakers}
+          members={members}
+          retention={retention}
+        />
       ) : null}
 
       {tab === "Activity" ? (
@@ -216,7 +234,7 @@ export function MeetingDetail({
           </ol>
           <p className="mt-6 flex items-center gap-2 text-xs text-text-subtle">
             <SpeakerHigh size={14} aria-hidden />
-            Audio is deleted 30 days after transcription by default.
+            {retention}
           </p>
         </Card>
       ) : null}

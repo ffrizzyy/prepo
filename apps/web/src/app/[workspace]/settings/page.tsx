@@ -1,15 +1,27 @@
 import { Card, PageHeader } from "@/components/app/page-header";
-import { AutonomySelect, ToneSelect } from "@/components/app/settings-controls";
+import {
+  AutonomySelect,
+  RetentionSelect,
+  ToneSelect,
+} from "@/components/app/settings-controls";
 import {
   SessionsPanel,
   type SessionView,
 } from "@/components/auth/sessions-panel";
 import { TwoFactorPanel } from "@/components/auth/two-factor-panel";
+import {
+  DEFAULT_AUDIO_RETENTION_DAYS,
+} from "@/server/audio/retention";
+import {
+  DEFAULT_TRANSCRIPTION_MINUTES_CAP,
+} from "@/server/audio/ingest";
+import { transcriptionProvider } from "@/server/audio/transcribe";
 import { requireUser } from "@/server/auth/dal";
 import { signOut } from "@/server/auth/actions";
 import { getSecurityAccount } from "@/server/auth/accounts";
 import { listSessionsForUser } from "@/server/auth/sessions";
 import { requireWorkspace } from "@/server/context";
+import { getTranscriptionUsage } from "@/server/queries";
 import { relativeTime } from "@/lib/workspace-data";
 
 const SECTIONS = [
@@ -52,6 +64,13 @@ export default async function SettingsPage({
   // The security card needs the account's second-factor state, not the
   // workspace's.
   const security = await getSecurityAccount(session.userId);
+
+  // Transcription is metered per workspace so a runaway import cannot spend
+  // without bound, and Settings is where that is visible.
+  const [usage, provider] = [
+    await getTranscriptionUsage(context.id),
+    transcriptionProvider(),
+  ];
 
   // Every sign-in is its own row, so this list *is* the device list (§9.1).
   const sessions: SessionView[] = (
@@ -121,9 +140,38 @@ export default async function SettingsPage({
               Quiet hours:{" "}
               {context.settings.quietHours
                 ? `${context.settings.quietHours.from}–${context.settings.quietHours.to}`
-                : "off"}{" "}
-              · audio retained for{" "}
-              {context.settings.audioRetentionDays ?? 30} days.
+                : "off"}
+              .
+            </p>
+          </Card>
+
+          <Card title="Audio & transcription">
+            <RetentionSelect
+              workspace={context.slug}
+              value={context.settings.audioRetentionDays ?? DEFAULT_AUDIO_RETENTION_DAYS}
+            />
+            <dl className="mt-5 space-y-3 border-t border-border pt-4 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-text-muted">Speech-to-text</dt>
+                <dd className="text-xs">
+                  {provider ? (
+                    <span className="font-mono">{provider.name}</span>
+                  ) : (
+                    <span className="text-text-subtle">not configured</span>
+                  )}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-text-muted">Transcribed this month</dt>
+                <dd className="font-mono text-xs">
+                  {usage.minutes.toFixed(1)} / {DEFAULT_TRANSCRIPTION_MINUTES_CAP} min
+                </dd>
+              </div>
+            </dl>
+            <p className="mt-4 text-xs leading-relaxed text-text-subtle">
+              {provider
+                ? "Recordings are sent to the provider above and the segments come back with speaker labels. The clock for the setting you picked starts when the transcript is stored."
+                : "No provider is configured, so recordings are stored and never sent anywhere. Upload a transcript or paste the minutes to keep working; set DEEPGRAM_API_KEY to switch transcription on."}
             </p>
           </Card>
 

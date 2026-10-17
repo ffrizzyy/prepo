@@ -1,5 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { withWorkspace } from "./db/client";
+import { withWorkspace, type Db } from "./db/client";
 import { uuidv7 } from "./db/ids";
 import * as t from "./db/schema";
 import type { WorkspaceSettings } from "./db/schema";
@@ -208,4 +208,309 @@ export async function updateSettings(input: {
       .set({ settings: input.settings })
       .where(eq(t.workspaces.id, input.workspaceId)),
   );
+}
+
+/* ------------------------------------------- ingest: audio and transcripts */
+
+async function audit(
+  tx: Db,
+  input: {
+    workspaceId: string;
+    actorId: string | null;
+    action: string;
+    target: string;
+  },
+): Promise<void> {
+  await tx.insert(t.auditLogs).values({
+    id: uuidv7(),
+    workspaceId: input.workspaceId,
+    actorId: input.actorId,
+    action: input.action,
+    target: input.target,
+  });
+}
+
+/**
+ * Creates the meeting and its audio asset in one transaction, so a failure
+ * between the two cannot leave a meeting pointing at audio that was never
+ * recorded.
+ */
+export async function createMeetingFromAudio(input: {
+  meetingId: string;
+  assetId: string;
+  workspaceId: string;
+  actorId: string;
+  title: string;
+  heldAt: Date;
+  source: "recording" | "upload";
+  storageKey: string;
+  contentType: string;
+  sizeBytes: number;
+  durationS: number;
+  deleteAfter: Date | null;
+}): Promise<void> {
+  const meetingId = input.meetingId;
+  const assetId = input.assetId;
+
+  await withWorkspace(input.workspaceId, async (tx) => {
+    await tx.insert(t.meetings).values({
+      id: meetingId,
+      workspaceId: input.workspaceId,
+      title: input.title,
+      heldAt: input.heldAt,
+      source: input.source,
+      // Processing until a transcript lands; the page says which step is next.
+      status: "processing",
+      createdBy: input.actorId,
+    });
+
+    await tx.insert(t.audioAssets).values({
+      id: assetId,
+      workspaceId: input.workspaceId,
+      meetingId,
+      r2Key: input.storageKey,
+      durationS: input.durationS,
+      sizeBytes: input.sizeBytes,
+      status: "uploaded",
+      deleteAfter: input.deleteAfter,
+      // Consent is required and confirmed before this is reachable.
+      consentConfirmedBy: input.actorId,
+    });
+
+    await audit(tx, {
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      action: `audio.${input.source}`,
+      target: `${meetingId}:${input.contentType}:${input.sizeBytes}`,
+    });
+  });
+}
+
+/** Transcript-only ingest: no audio, so no consent and no retention clock. */
+export async function createMeetingFromText(input: {
+  meetingId: string;
+  workspaceId: string;
+  actorId: string;
+  title: string;
+  heldAt: Date;
+  source: "paste" | "upload";
+  segments: { speakerLabel: string; startMs: number; endMs: number; text: string }[];
+}): Promise<void> {
+  const meetingId = input.meetingId;
+
+  await withWorkspace(input.workspaceId, async (tx) => {
+    await tx.insert(t.meetings).values({
+      id: meetingId,
+      workspaceId: input.workspaceId,
+      title: input.title,
+      heldAt: input.heldAt,
+      source: input.source,
+      status: "ready",
+      createdBy: input.actorId,
+    });
+
+    if (input.segments.length > 0) {
+      await tx.insert(t.transcriptSegments).values(
+        input.segments.map((segment, index) => ({
+          id: uuidv7(),
+          workspaceId: input.workspaceId,
+          meetingId,
+          idx: index,
+          speakerLabel: segment.speakerLabel,
+          startMs: segment.startMs,
+          endMs: segment.endMs,
+          text: segment.text,
+        })),
+      );
+    }
+
+    await audit(tx, {
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      action: `transcript.${input.source}`,
+      target: `${meetingId}:${input.segments.length}`,
+    });
+  });
+}
+
+export async function setAudioStatus(input: {
+  workspaceId: string;
+  assetId: string;
+  status: t.AudioStatus;
+  durationS?: number;
+  deleteAfter?: Date | null;
+}): Promise<void> {
+  await withWorkspace(input.workspaceId, (tx) =>
+    tx
+      .update(t.audioAssets)
+      .set({
+        status: input.status,
+        ...(input.durationS === undefined ? {} : { durationS: input.durationS }),
+        ...(input.deleteAfter === undefined ? {} : { deleteAfter: input.deleteAfter }),
+      })
+      .where(eq(t.audioAssets.id, input.assetId)),
+  );
+}
+
+export async function setMeetingStatus(input: {
+  workspaceId: string;
+  meetingId: string;
+  status: t.MeetingStatus;
+}): Promise<void> {
+  await withWorkspace(input.workspaceId, (tx) =>
+    tx
+      .update(t.meetings)
+      .set({ status: input.status })
+      .where(eq(t.meetings.id, input.meetingId)),
+  );
+}
+
+/**
+ * Replaces any existing segments for the meeting, so a retry after a partial
+ * transcription cannot end up with two transcripts interleaved.
+ */
+export async function replaceTranscript(input: {
+  workspaceId: string;
+  meetingId: string;
+  segments: { speakerLabel: string; startMs: number; endMs: number; text: string }[];
+}): Promise<number> {
+  await withWorkspace(input.workspaceId, async (tx) => {
+    await tx
+      .delete(t.transcriptSegments)
+      .where(eq(t.transcriptSegments.meetingId, input.meetingId));
+
+    if (input.segments.length === 0) return;
+
+    await tx.insert(t.transcriptSegments).values(
+      input.segments.map((segment, index) => ({
+        id: uuidv7(),
+        workspaceId: input.workspaceId,
+        meetingId: input.meetingId,
+        idx: index,
+        speakerLabel: segment.speakerLabel,
+        startMs: segment.startMs,
+        endMs: segment.endMs,
+        text: segment.text,
+      })),
+    );
+  });
+
+  return input.segments.length;
+}
+
+export async function recordSttRun(input: {
+  workspaceId: string;
+  assetId: string | null;
+  provider: string;
+  status: "succeeded" | "failed" | "skipped";
+  durationS: number | null;
+  costUsd: string | null;
+  detail?: string;
+}): Promise<void> {
+  await withWorkspace(input.workspaceId, (tx) =>
+    tx.insert(t.sttRuns).values({
+      id: uuidv7(),
+      workspaceId: input.workspaceId,
+      audioAssetId: input.assetId,
+      provider: input.provider,
+      durationS: input.durationS,
+      costUsd: input.costUsd,
+      // The provider's own message is kept, truncated: it is the thing that
+      // makes a failed run diagnosable later.
+      status: input.detail ? `${input.status}: ${input.detail.slice(0, 300)}` : input.status,
+    }),
+  );
+}
+
+/**
+ * Points every segment carrying a label at a real person, and optionally
+ * renames the label itself. Both are one-click fixes in the transcript panel.
+ */
+export async function mapSpeaker(input: {
+  workspaceId: string;
+  meetingId: string;
+  actorId: string;
+  label: string;
+  userId: string | null;
+  renameTo?: string;
+}): Promise<number> {
+  return withWorkspace(input.workspaceId, async (tx) => {
+    const updated = await tx
+      .update(t.transcriptSegments)
+      .set({
+        speakerUserId: input.userId,
+        ...(input.renameTo ? { speakerLabel: input.renameTo } : {}),
+      })
+      .where(
+        and(
+          eq(t.transcriptSegments.meetingId, input.meetingId),
+          eq(t.transcriptSegments.speakerLabel, input.label),
+        ),
+      )
+      .returning({ id: t.transcriptSegments.id });
+
+    await audit(tx, {
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      action: "speaker.mapped",
+      target: `${input.meetingId}:${input.label}->${input.userId ?? "unassigned"}`,
+    });
+
+    return updated.length;
+  });
+}
+
+/** The stored audio for one meeting, or null. */
+export async function findAudioAsset(input: {
+  workspaceId: string;
+  assetId: string;
+}): Promise<{
+  id: string;
+  meetingId: string;
+  r2Key: string;
+  status: t.AudioStatus;
+  durationS: number | null;
+} | null> {
+  return withWorkspace(input.workspaceId, async (tx) => {
+    const [asset] = await tx
+      .select({
+        id: t.audioAssets.id,
+        meetingId: t.audioAssets.meetingId,
+        r2Key: t.audioAssets.r2Key,
+        status: t.audioAssets.status,
+        durationS: t.audioAssets.durationS,
+      })
+      .from(t.audioAssets)
+      .where(eq(t.audioAssets.id, input.assetId));
+    return asset ?? null;
+  });
+}
+
+/** Marks the asset deleted; the caller removes the bytes. */export async function markAudioDeleted(input: {
+  workspaceId: string;
+  actorId: string;
+  assetId: string;
+}): Promise<{ storageKey: string | null }> {
+  return withWorkspace(input.workspaceId, async (tx) => {
+    const [asset] = await tx
+      .select({ r2Key: t.audioAssets.r2Key })
+      .from(t.audioAssets)
+      .where(eq(t.audioAssets.id, input.assetId));
+
+    if (!asset) return { storageKey: null };
+
+    await tx
+      .update(t.audioAssets)
+      .set({ status: "deleted", deleteAfter: null })
+      .where(eq(t.audioAssets.id, input.assetId));
+
+    await audit(tx, {
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      action: "audio.deleted",
+      target: input.assetId,
+    });
+
+    return { storageKey: asset.r2Key };
+  });
 }

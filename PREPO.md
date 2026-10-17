@@ -90,15 +90,15 @@ The move from table discussion to field execution becomes instant. Every team me
 | API | Next.js Route Handlers (REST, `/api/v1`) + Server Actions. OpenAPI generated from Zod |
 | ORM / migrations | Drizzle ORM + drizzle-kit |
 | Auth | Email + password (argon2id), **TOTP 2FA with recovery codes**, per-device sessions with revoke, lockout + rate limits, organizations/roles. Implemented directly on the `users`/`accounts`/`sessions` tables in 4.5 rather than via Better Auth, so the identity model matches the documented schema and stays driver-agnostic (PGlite or Postgres). Magic link, Google/GitHub OAuth, passkeys (WebAuthn), breached-password check and Turnstile are still to be added |
-| Background jobs | Inngest (durable workflows, cron, retries) for the audio → transcript → extraction → ticket pipeline and the follow-up scheduler |
+| Background jobs | Inngest (durable workflows, cron, retries) for the audio → transcript → extraction → ticket pipeline and the follow-up scheduler. **As built:** not wired yet. Audio ingest runs inline in the route handler that received the bytes, and retention is the `db:retention` script, written to be called from any scheduler |
 | Realtime | **Ably**, token auth with per-workspace capabilities. Events carry IDs only, clients refetch through the authorized API |
-| File / audio storage | Cloudflare R2 (S3-compatible), private bucket, presigned URLs, lifecycle auto-delete |
-| Speech-to-text | **Deepgram** (speaker diarization + word timestamps), behind a `TranscriptionProvider` interface so OpenAI or others can be swapped in |
+| File / audio storage | Cloudflare R2 (S3-compatible), private bucket, presigned URLs, lifecycle auto-delete. **As built:** a local filesystem driver behind a `StorageDriver` interface, because there is no R2 account on the build machine. The interface deliberately has **no presign method**, so audio is never publicly addressable — playback is an authorization-checked route that streams byte ranges |
+| Speech-to-text | **Deepgram** (speaker diarization + word timestamps), behind a `TranscriptionProvider` interface so OpenAI or others can be swapped in. **As built:** the interface is `transcribe(bytes, opts)` rather than `transcribe(audioUrl, opts)` — bytes keep a user-supplied URL from ever becoming an outbound request. The provider is unconfigured without `DEEPGRAM_API_KEY` |
 | Linear | `@linear/sdk` (OAuth 2.0 app, GraphQL, signed webhooks) |
 | Email | Resend + React Email |
 | Web Push | `web-push` with self-generated VAPID keys (no third-party service) |
 | Rate limiting | Upstash Redis + `@upstash/ratelimit` |
-| Document parsing | `mammoth` (.docx), `pdf-parse` (.pdf), native parsers for `.txt .md .vtt .srt` |
+| Document parsing | `mammoth` (.docx), `pdf-parse` (.pdf), native parsers for `.txt .md .vtt .srt`. **As built:** the native parsers only. `.docx` and `.pdf` are refused with a reason ("paste the text instead") rather than parsed, so no document parser is installed and there is no parser to attack |
 | Bot protection | Cloudflare Turnstile on auth and public endpoints |
 
 ### 1.3 Database and search (no embeddings)
@@ -524,11 +524,11 @@ Image slots stay labeled until real assets or generated images are supplied.
 
 | Method | Detail |
 |---|---|
-| **Record in the app** | Mic recording everywhere, optional **tab audio** capture in Chromium browsers (for online meetings). Pause/resume, visible timer, level meter. Audio uploads in chunks so a dropped connection does not lose the recording |
-| **Upload a recording** | `.mp3 .m4a .wav .webm .ogg .mp4` (audio track extracted), size and duration caps per plan |
-| **Upload a transcript** | `.vtt .srt .txt .md .docx .pdf` (e.g., exported from Zoom, Meet, or Teams) |
-| **Paste text** | Raw minutes |
-| **Share target (PWA)** | Share a file to Prepo from the OS share sheet |
+| **Record in the app** | Mic recording everywhere, optional **tab audio** capture in Chromium browsers (for online meetings). Pause/resume, visible timer, level meter. Audio uploads in chunks so a dropped connection does not lose the recording. **As built:** microphone only — `getDisplayMedia` is not implemented and the recorder says so — with pause/resume, timer, level meter and 2 MB chunked upload |
+| **Upload a recording** | `.mp3 .m4a .wav .webm .ogg .mp4` (audio track extracted), size and duration caps per plan. **As built:** the container is sniffed from the bytes (WAVE, an MPEG frame sync, Matroska, ISO-BMFF brands) and the claimed extension is ignored; caps are 25 MB a file, 4 MB a piece, 4 hours a recording. The audio track is not extracted from `.mp4`/video — the file is stored as sent and the provider would decode it |
+| **Upload a transcript** | `.vtt .srt .txt .md` (e.g., exported from Zoom, Meet, or Teams). `.docx` and `.pdf` are not parsed; the page tells you to paste instead |
+| **Paste text** | Raw minutes. Parsed as `Speaker: line` paragraphs, stored untimed (`start_ms` null) so nothing pretends to know when it was said |
+| **Share target (PWA)** | Share a file to Prepo from the OS share sheet. **Not built** — there is no service worker or manifest installed yet |
 
 ### 6.2 Pipeline
 
@@ -543,12 +543,25 @@ flowchart LR
   G --> H[Delete audio per retention setting]
 ```
 
+**As built** (the diagram above is the intended shape; these are the differences):
+
+- **Storage** is the local filesystem driver, written directly by the route handler rather than
+  presigned to R2, and the authorization-checked route serves it back with `206` byte ranges.
+- **No Inngest.** Ingest — validate, store, transcribe, write segments — runs inline in the route
+  handler that received the bytes. Retention is the `db:retention` sweep instead of a lifecycle rule.
+- **No extraction step.** A recorded or imported meeting is stored `ready` with its transcript and
+  no summary or action items; the UI says those come from the language model in section 7 rather
+  than inventing them.
+- **Speaker mapping is manual.** Labels come back as `Speaker 1/2/3` and the user attaches each to a
+  workspace member in one form post; the automatic proposal from introductions and calendar
+  attendees is not built.
+
 - **Speaker mapping:** Deepgram returns `Speaker 1/2/3`. Prepo proposes a mapping to attendees (from introductions, names used in conversation, calendar attendee list when provided), and the user can correct it in one click.
 - **Meeting detail with audio:** waveform player synced with the transcript (click a line to seek, current line highlights), playback speed, jump-to-action-item.
 - **Consent and privacy:** a recording requires an explicit consent confirmation ("everyone in this meeting knows it is being recorded"), stored with the audio record. Default retention: **audio deleted 30 days after transcription** (configurable, or delete immediately after transcribing). Transcript stays until the meeting is deleted.
 - **Cost control:** per-workspace monthly transcription minutes cap, duration limit per file, usage shown in Settings, alert before the cap.
-- **Provider abstraction:** `TranscriptionProvider { transcribe(audioUrl, opts) → segments }` so another speech-to-text service can replace Deepgram without touching the pipeline.
-- **Language:** English is the product language. Transcription is configured for auto language detection, and mixed or non-English meetings still go through extraction (the model is multilingual), with a "low transcription confidence" flag when the provider is unsure.
+- **Provider abstraction:** `TranscriptionProvider { transcribe(bytes, opts) → segments }` so another speech-to-text service can replace Deepgram without touching the pipeline. Bytes rather than a URL, because a URL would make the provider call the one place SSRF lives.
+- **Language:** English is the product language. Transcription is configured for auto language detection, and mixed or non-English meetings still go through extraction (the model is multilingual), with a "low transcription confidence" flag when the provider is unsure. **As built:** auto detection is requested and the detected language is stored on the transcript; the low-confidence flag is not surfaced yet, though per-segment confidence is recorded.
 
 ---
 
@@ -730,8 +743,8 @@ These routes are top-level (not under `/{workspace-slug}/…`).
 | Page | Features |
 |---|---|
 | `/meetings` | Table with full-text search (typo-tolerant), filters (date, status, source), sort, pagination, skeletons |
-| `/meetings/new` | **Record**, **upload audio**, **upload transcript**, or **paste**. Metadata (title, date, attendees), consent checkbox for recordings, live pipeline progress (Upload → Transcribe → Understand → Extract → Match owners) |
-| `/meetings/[id]` | Tabs: **Summary** (summary, decisions, open questions) · **Actions** · **Transcript + audio** (synced player, speaker labels editable) · **Activity**. Clarity and Necessity scores with reasons. Share recap (signed link). Export Markdown / PDF |
+| `/meetings/new` | **Record**, **upload audio**, **upload transcript**, or **paste**. Metadata (title, date, attendees), consent checkbox for recordings, live pipeline progress (Upload → Transcribe → Understand → Extract → Match owners). **As built:** all four routes work as plain form posts; the pipeline strip says which stages need a provider or a model rather than animating through stages that are not configured |
+| `/meetings/[id]` | Tabs: **Summary** (summary, decisions, open questions) · **Actions** · **Transcript + audio** (synced player, speaker labels editable) · **Activity**. Clarity and Necessity scores with reasons. Share recap (signed link). Export Markdown / PDF. **As built:** the Transcript tab is a URL parameter (`?tab=transcript`) so redirects land on it; the player seeks by byte range, shows speed control and highlights the active line. Speaker labels are editable and map to members. Recap links and export are not built |
 | Action-item review | Each proposed item: title, owner (with match confidence), due date, priority, **source quote with timestamp (click to play that moment)**. Inline edit, approve, reject, merge duplicates, bulk "Approve all high-confidence". Shortcuts: `A` approve, `E` edit, `R` reject |
 | Flags | "No owner mentioned", "No deadline", "Ambiguous owner", "Possible duplicate of PRE-118", "Low transcription confidence" |
 
@@ -1009,7 +1022,7 @@ All endpoints: Zod-validated, rate-limited, role-authorized, consistent error en
 |---|---|---|
 | **1: Foundation** | Monorepo, CI, design tokens, auth (password + OAuth + passkey + 2FA), workspaces, RLS, security headers | Secure shell |
 | **2: Core loop** | Text ingest → extraction → review → tickets → board | Three core capabilities working |
-| **3: Audio** | R2 uploads, in-app recorder, Deepgram pipeline, speaker mapping, synced player, retention | Recordings become tickets |
+| **3: Audio** | R2 uploads, in-app recorder, Deepgram pipeline, speaker mapping, synced player, retention — ✅ **built** with the local storage driver instead of R2, the recorder mic-only, and the provider unconfigured without a key | Recordings become transcripts |
 | **4: Follow-up engine** | Scheduler, escalation ladder, email, in-app notifications, realtime sync (Ably), device management | The agent chases for you |
 | **5: Landing + demo + PWA** | Full landing, `/demo`, public recap, SEO, manifest, service worker, offline, install prompt, push | Shareable and installable |
 | **6: Linear** | OAuth, issue creation, mapping, two-way sync, failure handling | Work lands where teams already track it |

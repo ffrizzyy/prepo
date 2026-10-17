@@ -36,11 +36,10 @@ function cookieOptions(expiresAt: Date) {
 }
 
 /**
- * The single place a request becomes authenticated. Cached per render pass so a
- * layout and its page share one lookup. The session is verified against the
- * database, not merely decoded from the cookie.
+ * The single place a request becomes authenticated. The session is verified
+ * against the database, not merely decoded from the cookie.
  */
-export const getSession = cache(async (): Promise<ActiveSession | null> => {
+export async function readSession(): Promise<ActiveSession | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
@@ -50,7 +49,14 @@ export const getSession = cache(async (): Promise<ActiveSession | null> => {
   // Sliding idle window; the write itself is throttled inside touchSession.
   await touchSession(session.id);
   return session;
-});
+}
+
+/**
+ * Cached per render pass so a layout and its page share one lookup. Route
+ * handlers call `readSession` directly rather than relying on React's cache
+ * scope, which belongs to the component render.
+ */
+export const getSession = cache(readSession);
 
 export const requireUser = cache(async (): Promise<ActiveSession> => {
   const session = await getSession();

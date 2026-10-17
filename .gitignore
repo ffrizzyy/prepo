@@ -1,6 +1,7 @@
 node_modules
 .next
 .pglite
+.storage
 out
 dist
 build

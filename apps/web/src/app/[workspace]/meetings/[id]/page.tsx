@@ -1,18 +1,34 @@
-import { MeetingDetail } from "@/components/app/meeting-detail";
+import {
+  MeetingDetail,
+  type MeetingTab,
+} from "@/components/app/meeting-detail";
 import { EmptyState } from "@/components/app/page-header";
+import { retentionLabel } from "@/server/audio/retention";
 import { requireWorkspace } from "@/server/context";
 import {
+  getMeetingAudio,
   getMeetingView,
   listActionItemsView,
   listSegmentsView,
+  listSpeakerLabels,
 } from "@/server/queries";
+
+const TABS: Record<string, MeetingTab> = {
+  summary: "Summary",
+  actions: "Actions",
+  transcript: "Transcript",
+  activity: "Activity",
+};
 
 export default async function MeetingDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ workspace: string; id: string }>;
+  searchParams: Promise<{ tab?: string; notice?: string }>;
 }) {
   const { workspace, id } = await params;
+  const { tab, notice } = await searchParams;
   const context = await requireWorkspace(workspace);
 
   const meeting = await getMeetingView(context.id, id);
@@ -33,9 +49,11 @@ export default async function MeetingDetailPage({
     );
   }
 
-  const [segments, actionItems] = await Promise.all([
-    listSegmentsView(context.id, meeting.id),
-    listActionItemsView(context.id, meeting.id),
+  const [segments, actionItems, audio, speakers] = await Promise.all([
+    listSegmentsView(context.id, id),
+    listActionItemsView(context.id),
+    getMeetingAudio(context.id, id),
+    listSpeakerLabels(context.id, id),
   ]);
 
   return (
@@ -44,6 +62,15 @@ export default async function MeetingDetailPage({
       meeting={meeting}
       segments={segments}
       actionItems={actionItems}
+      audio={audio}
+      speakers={speakers}
+      members={context.members.map((member) => ({
+        userId: member.userId,
+        name: member.name,
+      }))}
+      initialTab={tab ? (TABS[tab] ?? "Summary") : "Summary"}
+      notice={notice}
+      retention={`${retentionLabel(context.settings.audioRetentionDays)}.`}
     />
   );
 }

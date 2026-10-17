@@ -1,4 +1,4 @@
-import { asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type {
   ActionItem,
   Meeting,
@@ -6,6 +6,8 @@ import type {
   TranscriptSegment,
 } from "@prepo/shared";
 import { withWorkspace, type Db } from "./db/client";
+import { getWorkspaceMembers } from "./db/repo";
+import { audioStorage } from "./audio/storage";
 import * as t from "./db/schema";
 
 /**
@@ -371,8 +373,117 @@ export async function listFollowupsView(
   );
 }
 
-/* -------------------------------------------------------------- insights */
+/* ------------------------------------------------------------------ audio */
 
+export type MeetingAudioView = {
+  id: string;
+  status: string;
+  durationS: number | null;
+  sizeBytes: number | null;
+  deleteAfter: string | null;
+  consentName: string | null;
+  /** Whether the bytes are actually in storage — the seeded example has none. */
+  available: boolean;
+};
+
+export async function getMeetingAudio(
+  workspaceId: string,
+  meetingId: string,
+): Promise<MeetingAudioView | null> {
+  const rows = await withWorkspace(workspaceId, (tx) =>
+    tx
+      .select({
+        id: t.audioAssets.id,
+        r2Key: t.audioAssets.r2Key,
+        status: t.audioAssets.status,
+        durationS: t.audioAssets.durationS,
+        sizeBytes: t.audioAssets.sizeBytes,
+        deleteAfter: t.audioAssets.deleteAfter,
+        consentName: t.users.name,
+      })
+      .from(t.audioAssets)
+      .leftJoin(t.users, eq(t.users.id, t.audioAssets.consentConfirmedBy))
+      .where(eq(t.audioAssets.meetingId, meetingId))
+      .orderBy(desc(t.audioAssets.createdAt))
+      .limit(1),
+  );
+
+  const row = rows[0];
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    status: row.status,
+    durationS: row.durationS,
+    sizeBytes: row.sizeBytes,
+    deleteAfter: iso(row.deleteAfter),
+    consentName: row.consentName ?? null,
+    available: (await audioStorage().size(row.r2Key)) !== null,
+  };
+}
+
+export type SpeakerLabelView = {
+  label: string;
+  count: number;
+  userId: string | null;
+  userName: string | null;
+};
+
+export async function listSpeakerLabels(
+  workspaceId: string,
+  meetingId: string,
+): Promise<SpeakerLabelView[]> {
+  const rows = await withWorkspace(workspaceId, (tx) =>
+    tx
+      .select({
+        label: t.transcriptSegments.speakerLabel,
+        count: sql<number>`count(*)::int`,
+        userId: sql<string | null>`max(${t.transcriptSegments.speakerUserId}::text)`,
+      })
+      .from(t.transcriptSegments)
+      .where(eq(t.transcriptSegments.meetingId, meetingId))
+      .groupBy(t.transcriptSegments.speakerLabel)
+      .orderBy(asc(t.transcriptSegments.speakerLabel)),
+  );
+
+  const members = await getWorkspaceMembers(workspaceId);
+  const nameById = new Map(members.map((member) => [member.userId, member.name]));
+
+  return rows.map((row) => ({
+    label: row.label,
+    count: row.count,
+    userId: row.userId,
+    userName: row.userId ? (nameById.get(row.userId) ?? null) : null,
+  }));
+}
+
+/** Transcription minutes used this calendar month, for the budget and Settings. */
+export async function getTranscriptionUsage(
+  workspaceId: string,
+  now = new Date(),
+): Promise<{ runs: number; minutes: number }> {
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+  const rows = await withWorkspace(workspaceId, (tx) =>
+    tx
+      .select({
+        runs: sql<number>`count(*)::int`,
+        seconds: sql<number>`coalesce(sum(${t.sttRuns.durationS}), 0)::int`,
+      })
+      .from(t.sttRuns)
+      .where(
+        and(
+          sql`${t.sttRuns.status} like 'succeeded%'`,
+          sql`${t.sttRuns.createdAt} >= ${start.toISOString()}`,
+        ),
+      ),
+  );
+
+  const row = rows[0];
+  return { runs: row?.runs ?? 0, minutes: (row?.seconds ?? 0) / 60 };
+}
+
+/* -------------------------------------------------------------- insights */
 export async function getStatusCounts(
   workspaceId: string,
 ): Promise<Record<string, number>> {

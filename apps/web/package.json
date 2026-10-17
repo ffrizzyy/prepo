@@ -13,6 +13,9 @@
     "db:verify": "tsx src/server/db/verify.ts",
     "db:smoke": "tsx src/server/db/write-smoke.ts",
     "db:auth": "tsx src/server/db/auth-smoke.ts",
+    "db:audio": "tsx src/server/db/audio-smoke.ts",
+    "db:retention": "tsx src/server/db/retention.ts",
+    "db:audio-fixture": "tsx src/server/db/audio-fixture.ts",
     "db:totp-fixture": "tsx src/server/db/totp-fixture.ts",
     "db:studio": "drizzle-kit studio"
   },
