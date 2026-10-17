@@ -8,6 +8,16 @@ export type PasswordAccount = {
   name: string;
   email: string;
   passwordHash: string;
+  /** Set once the account has a second factor to present. */
+  totpEnabled: boolean;
+};
+
+export type SecurityAccount = {
+  userId: string;
+  email: string;
+  totpSecret: string | null;
+  totpEnabled: boolean;
+  recoveryCodeHashes: string[];
 };
 
 /**
@@ -24,6 +34,7 @@ export async function findPasswordAccount(
       name: t.users.name,
       email: t.users.email,
       passwordHash: t.accounts.passwordHash,
+      totpEnabledAt: t.accounts.totpEnabledAt,
     })
     .from(t.users)
     .innerJoin(t.accounts, eq(t.accounts.userId, t.users.id))
@@ -31,7 +42,97 @@ export async function findPasswordAccount(
     .limit(1);
 
   if (!row?.passwordHash) return null;
-  return { ...row, passwordHash: row.passwordHash };
+  return {
+    userId: row.userId,
+    name: row.name,
+    email: row.email,
+    passwordHash: row.passwordHash,
+    totpEnabled: row.totpEnabledAt !== null,
+  };
+}
+
+/** The security half of an account, read for enrolment, confirmation and sign-in. */
+export async function getSecurityAccount(
+  userId: string,
+): Promise<SecurityAccount | null> {
+  const [row] = await getDb()
+    .select({
+      userId: t.accounts.userId,
+      email: t.users.email,
+      totpSecret: t.accounts.totpSecret,
+      totpEnabledAt: t.accounts.totpEnabledAt,
+      recoveryCodeHashes: t.accounts.totpRecoveryCodeHashes,
+    })
+    .from(t.accounts)
+    .innerJoin(t.users, eq(t.users.id, t.accounts.userId))
+    .where(and(eq(t.accounts.userId, userId), eq(t.accounts.provider, "password")))
+    .limit(1);
+
+  if (!row) return null;
+  return {
+    userId: row.userId,
+    email: row.email,
+    totpSecret: row.totpSecret,
+    totpEnabled: row.totpEnabledAt !== null,
+    recoveryCodeHashes: row.recoveryCodeHashes,
+  };
+}
+
+/**
+ * Stores a generated secret but does not switch the factor on: enrolment is only
+ * complete once a code from the authenticator has been checked against it.
+ */
+export async function storePendingTotpSecret(
+  userId: string,
+  secret: string,
+): Promise<void> {
+  await getDb()
+    .update(t.accounts)
+    .set({ totpSecret: secret })
+    .where(and(eq(t.accounts.userId, userId), eq(t.accounts.provider, "password")));
+}
+
+export async function enableTotp(input: {
+  userId: string;
+  recoveryCodeHashes: string[];
+}): Promise<void> {
+  await getDb()
+    .update(t.accounts)
+    .set({
+      totpEnabledAt: new Date(),
+      totpRecoveryCodeHashes: input.recoveryCodeHashes,
+    })
+    .where(
+      and(eq(t.accounts.userId, input.userId), eq(t.accounts.provider, "password")),
+    );
+}
+
+export async function disableTotp(userId: string): Promise<void> {
+  await getDb()
+    .update(t.accounts)
+    .set({ totpSecret: null, totpEnabledAt: null, totpRecoveryCodeHashes: [] })
+    .where(
+      and(eq(t.accounts.userId, userId), eq(t.accounts.provider, "password")),
+    );
+}
+
+/** Consuming a code removes its hash, so a recovery code works exactly once. */
+export async function consumeRecoveryCode(
+  userId: string,
+  codeHash: string,
+): Promise<boolean> {
+  const account = await getSecurityAccount(userId);
+  if (!account || !account.recoveryCodeHashes.includes(codeHash)) return false;
+
+  const remaining = account.recoveryCodeHashes.filter((hash) => hash !== codeHash);
+  await getDb()
+    .update(t.accounts)
+    .set({ totpRecoveryCodeHashes: remaining })
+    .where(
+      and(eq(t.accounts.userId, userId), eq(t.accounts.provider, "password")),
+    );
+
+  return true;
 }
 
 export async function getUserByEmail(email: string) {

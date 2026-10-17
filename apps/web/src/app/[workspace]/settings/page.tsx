@@ -4,8 +4,10 @@ import {
   SessionsPanel,
   type SessionView,
 } from "@/components/auth/sessions-panel";
+import { TwoFactorPanel } from "@/components/auth/two-factor-panel";
 import { requireUser } from "@/server/auth/dal";
 import { signOut } from "@/server/auth/actions";
+import { getSecurityAccount } from "@/server/auth/accounts";
 import { listSessionsForUser } from "@/server/auth/sessions";
 import { requireWorkspace } from "@/server/context";
 import { relativeTime } from "@/lib/workspace-data";
@@ -15,7 +17,6 @@ const SECTIONS = [
     title: "Profile",
     body: "Name, avatar, timezone, notification preferences.",
   },
-  { title: "Security", body: "Password, TOTP 2FA, passkeys, recovery codes." },
   { title: "Integrations", body: "Linear OAuth, team and project mapping." },
   {
     title: "API & webhooks",
@@ -47,6 +48,10 @@ export default async function SettingsPage({
   const { workspace } = await params;
   const context = await requireWorkspace(workspace);
   const session = await requireUser();
+
+  // The security card needs the account's second-factor state, not the
+  // workspace's.
+  const security = await getSecurityAccount(session.userId);
 
   // Every sign-in is its own row, so this list *is* the device list (§9.1).
   const sessions: SessionView[] = (
@@ -141,6 +146,10 @@ export default async function SettingsPage({
                 </li>
               ))}
             </ul>
+          </Card>
+
+          <Card title="Two-factor sign-in">
+            <TwoFactorPanel enabled={security?.totpEnabled ?? false} />
           </Card>
 
           <Card title="Devices & sessions">

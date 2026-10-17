@@ -13,8 +13,9 @@ This repository is being built against the specification in [`PREPO.md`](./PREPO
 **Milestone 3 — durable data layer, wired UI, and sign-in.** The schema, migrations, tenant
 isolation and seed are complete and verified against two engines; the app reads and writes
 Postgres; and authentication is real — password sign-in, per-device sessions with revoke,
-and throttling. Passkeys, OAuth, magic links and TOTP 2FA are the parts of the spec's auth
-line still outstanding.
+throttling, and TOTP two-factor with single-use recovery codes. Passkeys, OAuth, magic
+links, a breached-password check and Turnstile are the parts of the spec's auth line still
+outstanding.
 
 | Area | State |
 |---|---|
@@ -34,7 +35,8 @@ line still outstanding.
 | Sign-in / sign-up / create workspace, argon2id passwords | Done |
 | Per-device sessions, revoke one / revoke the others, idle + absolute expiry | Done |
 | Sign-in throttling and the identity-plane audit log | Done |
-| Passkeys, magic link, OAuth, TOTP 2FA, breach check, Turnstile | Not started |
+| TOTP 2FA with single-use recovery codes | Done |
+| Passkeys, magic link, OAuth, breach check, Turnstile | Not started |
 | Real AI + integrations | Not started |
 | Desktop (Tauri) shell | Not started — requires Rust, absent on the build machine |
 
@@ -69,8 +71,8 @@ A note on scope: this is password auth, built on the `users` / `accounts` / `ses
 stack table). Sessions are database-backed and verified per request, never decoded from the
 cookie alone; the cookie holds an opaque 256-bit token whose SHA-256 is what the database
 stores. Rate limiting, the timing-equalised failure path, session rotation on login and the
-append-only `auth_events` log are all in place. What is **not** here: passkeys, magic links,
-OAuth, TOTP 2FA, a breached-password check, and Turnstile.
+append-only `auth_events` log are all in place. Two-factor (TOTP) is also live — see below.
+What is **not** here: passkeys, magic links, OAuth, a breached-password check, and Turnstile.
 
 ## Requirements
 
@@ -114,6 +116,7 @@ pnpm --filter @prepo/web db:seed       # load two seeded workspaces
 pnpm --filter @prepo/web db:verify     # prove tenant isolation
 pnpm --filter @prepo/web db:smoke      # exercise the write path end to end
 pnpm --filter @prepo/web db:auth       # exercise the authentication core
+pnpm --filter @prepo/web db:totp-fixture  # add a test account with 2FA on (see Authentication)
 pnpm --filter @prepo/web db:studio     # browse the data
 ```
 
@@ -135,7 +138,10 @@ argon2id hashing and verification, the timing decoy for unknown addresses, per-e
 per-network throttling windows, session creation and lookup by hash (never by token),
 revocation scoped to the owning user, revoke-others, absolute and idle expiry, account
 creation with a duplicate-email rejection, and creating a workspace whose owner is its only
-member. Twenty-seven checks, all passing.
+member. The TOTP section pins the algorithm against all six RFC 6238 test vectors and drives
+the enrolment round-trip: pending secret → confirm → recovery codes hashed and single-use →
+challenge lookup, expiry and cleanup → per-user throttle of second-factor failures.
+Fifty-five checks, all passing.
 
 Search is Postgres-native rather than embedding-based (`PREPO.md` §1.3): a trigger maintains
 a `tsvector` on every transcript segment, with a GIN index for ranking and a `pg_trgm` index
@@ -181,6 +187,32 @@ The cookie is `HttpOnly; SameSite=Lax; Path=/`, and in production it is `__Host-
 `Secure`. Development keeps the plain name and drops `Secure`, because the dev server is
 reachable over plain http on the LAN and browsers refuse to send a `Secure` cookie there.
 
+### Two-factor sign-in
+
+Accounts can switch on **TOTP** from the settings page ("Two-factor sign-in"): the app issues
+a 160-bit secret, shows it and an `otpauth://` URI for the authenticator of your choice, and
+the factor switches on only once a code from that app has been verified. The confirmation
+also issues eight single-use recovery codes — shown once, stored as SHA-256 hashes, consumed
+by being used.
+
+After that, sign-in has two steps. A correct password against a factor-protected account
+mints no session; it stores a short-lived **login challenge** (a hashed 256-bit token behind
+its own `__Host-`-prefixed cookie, expiring in five minutes) and the second step asks for the
+authenticator's six-digit code or a recovery code. The challenge is deliberately not a
+session: stolen or leaked, it is worthless without the authenticator. Codes are verified
+with a ±30-second window and per-user throttling; recovery codes work exactly once and are
+then removed from the account. Disabling the factor or regenerating the codes both require a
+fresh valid code, and every one of these steps writes to `auth_events`.
+
+The TOTP implementation is hand-rolled on `node:crypto` and pinned against the RFC 6238 test
+vectors in `db:auth`. Not implemented (matching the spec's remaining auth line): hardware
+passkeys as a second factor, replay protection within a time step, and rate limiting keyed
+to the challenge token itself.
+
+> `db:totp-fixture` is a **test fixture, not part of the demo flow**: it adds one extra
+> account with the factor already on, so end-to-end tests can exercise the second step of
+> sign-in. The demo accounts (`lena`, `nadia`, …) stay factors-free.
+
 ## Repository layout
 
 ```
@@ -196,7 +228,7 @@ prepo/
 │     ├─ src/components/auth/  # auth layout, forms, sessions panel
 │     ├─ src/lib/              # cn() and the shared date/initial formatters
 │     ├─ src/server/           # context (workspace + viewer), queries, actions, writes
-│     ├─ src/server/auth/      # passwords, sessions, throttle, identity audit, DAL
+│     ├─ src/server/auth/      # passwords, TOTP, challenges, sessions, throttle, identity audit, DAL
 │     ├─ src/server/db/        # Drizzle schema, client, migrations, seed, verify, repo
 │     └─ drizzle/              # generated migrations + hand-written RLS/policy SQL
 ├─ packages/
@@ -234,7 +266,7 @@ Milestones follow section 12 of `PREPO.md`:
 1. ✅ Foundation, design system, landing page
 2. ✅ App shell on seeded data (sidebar, dashboard, meetings, board, tickets)
 3. ✅ Database, tenant isolation and the durable core loop — schema, RLS, seed, the wired UI,
-   and sign-in with per-device sessions and revocation
+   and sign-in with per-device sessions, revocation, TOTP 2FA and recovery codes
 4. Audio and transcription
 5. Follow-up engine
 6. Linear two-way sync

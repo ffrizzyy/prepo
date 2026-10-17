@@ -187,6 +187,29 @@ export const authEvents = pgTable(
   ],
 );
 
+/**
+ * A half-completed sign-in: the password was correct, but the account's second
+ * factor has not been presented yet. It must not be a session, or the cookie
+ * would already grant access; it is a short-lived challenge looked up by hash.
+ */
+export const loginChallenges = pgTable(
+  "login_challenges",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    /** `totp` today; `passkey` and `magic_link` would slot in beside it. */
+    kind: text("kind").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("login_challenges_user_idx").on(table.userId)],
+);
+
 /* --------------------------------------------------------- tenant tables */
 
 export const workspaces = pgTable("workspaces", {

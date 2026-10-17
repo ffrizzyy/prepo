@@ -4,6 +4,7 @@
  * membership. Reseeds first so it is repeatable:
  *   pnpm --filter @prepo/web db:auth
  */
+import { eq } from "drizzle-orm";
 import { getDb } from "./client";
 import { uuidv7 } from "./ids";
 import { migrateAndApply } from "./migrate";
@@ -11,10 +12,20 @@ import { runCli } from "./run";
 import { seed } from "./seed";
 import * as t from "./schema";
 import {
+  consumeRecoveryCode,
   createUserWithPassword,
+  disableTotp as disableTotpInDb,
+  enableTotp,
   findPasswordAccount,
+  getSecurityAccount,
   getUserByEmail,
+  storePendingTotpSecret,
 } from "../auth/accounts";
+import {
+  createChallenge,
+  deleteChallenge,
+  findChallenge,
+} from "../auth/challenges";
 import { DEMO } from "../auth/demo";
 import { countRecentFailures, recordAuthEvent } from "../auth/events";
 import {
@@ -28,6 +39,16 @@ import {
   revokeOtherSessions,
   revokeSession,
 } from "../auth/sessions";
+import {
+  base32Decode,
+  base32Encode,
+  generateRecoveryCodes,
+  generateTotpSecret,
+  hashRecoveryCode,
+  normalizeCode,
+  totpAt,
+  verifyTotp,
+} from "../auth/totp";
 import { hashToken } from "../auth/tokens";
 import {
   clientTypeFor,
@@ -294,6 +315,202 @@ runCli("auth-smoke.ts", async () => {
     "a new workspace starts with exactly one member",
     newWorkspace.length === 1 && newWorkspace[0]!.userId === newUserId,
     `${newWorkspace.length} member(s)`,
+  );
+
+  /* ------------------------------------------------------------------ totp */
+
+  // RFC 4648 round-trip, and the exact secret RFC 6238's vectors are computed
+  // over (the 20 ASCII bytes "12345678901234567890").
+  const rfcSecret = base32Encode(Buffer.from("12345678901234567890", "ascii"));
+  check(
+    "base32 encoding matches the RFC's own key material",
+    rfcSecret === "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" &&
+      base32Decode(rfcSecret).toString("ascii") === "12345678901234567890",
+    rfcSecret,
+  );
+
+  // The six vectors from RFC 6238, Appendix B, for SHA-1 and eight digits.
+  const rfcVectors: Array<[number, string]> = [
+    [59, "94287082"],
+    [1111111109, "07081804"],
+    [1111111111, "14050471"],
+    [1234567890, "89005924"],
+    [2000000000, "69279037"],
+    [20000000000, "65353130"],
+  ];
+  for (const [at, code] of rfcVectors) {
+    check(
+      `RFC 6238 vector at t=${at}`,
+      totpAt(rfcSecret, at, 8) === code,
+      `${totpAt(rfcSecret, at, 8)} vs ${code}`,
+    );
+  }
+
+  const liveSecret = generateTotpSecret();
+  const now = Math.floor(Date.now() / 1000);
+  check(
+    "a freshly generated secret is 32 base32 characters",
+    liveSecret.length === 32 && /^[A-Z2-7]+$/.test(liveSecret),
+    `${liveSecret.length} chars`,
+  );
+  check(
+    "the current code verifies",
+    verifyTotp(liveSecret, totpAt(liveSecret, now)),
+    "±0 steps",
+  );
+  check(
+    "one step back still verifies (the ±1 window)",
+    verifyTotp(liveSecret, totpAt(liveSecret, now - 30)),
+    "-30s",
+  );
+  check(
+    "three steps back does not",
+    !verifyTotp(liveSecret, totpAt(liveSecret, now - 90)),
+    "-90s",
+  );
+  check(
+    "a code of the wrong shape is refused",
+    !verifyTotp(liveSecret, "12345") && !verifyTotp(liveSecret, "12ab45"),
+    "shape",
+  );
+
+  /* ------------------------------------------------- enrolment round-trip */
+
+  const codes = generateRecoveryCodes();
+  check(
+    "recovery codes come as eight XXXXX-XXXXX strings",
+    codes.length === 8 &&
+      codes.every((code) => /^[A-Z2-7]{5}-[A-Z2-7]{5}$/.test(code)) &&
+      new Set(codes).size === 8,
+    codes[0]!,
+  );
+  check(
+    "recovery hashes survive case, spacing and dash differences",
+    hashRecoveryCode(codes[0]!.replace("-", "").toLowerCase()) ===
+      hashRecoveryCode(codes[0]!),
+    normalizeCode(codes[0]!),
+  );
+
+  let security = await getSecurityAccount(newUserId);
+  check(
+    "a fresh account has no second factor",
+    security !== null &&
+      !security.totpEnabled &&
+      security.totpSecret === null &&
+      security.recoveryCodeHashes.length === 0,
+    "off",
+  );
+
+  const enrolSecret = generateTotpSecret();
+  await storePendingTotpSecret(newUserId, enrolSecret);
+  security = await getSecurityAccount(newUserId);
+  check(
+    "a stored secret alone does not switch the factor on",
+    security?.totpSecret === enrolSecret && security.totpEnabled === false,
+    "pending",
+  );
+
+  await enableTotp({
+    userId: newUserId,
+    recoveryCodeHashes: codes.map(hashRecoveryCode),
+  });
+  security = await getSecurityAccount(newUserId);
+  check(
+    "confirming turns the factor on and stores hashed codes",
+    security?.totpEnabled === true &&
+      security.recoveryCodeHashes.length === 8 &&
+      security.recoveryCodeHashes[0] !== codes[0],
+    "on",
+  );
+  check(
+    "a live 6-digit code from the secret verifies (the sign-in check)",
+    security !== null && verifyTotp(security.totpSecret!, totpAt(enrolSecret, now)),
+    "totp",
+  );
+  check(
+    "a code from a different secret does not",
+    !verifyTotp(enrolSecret, totpAt(liveSecret, now)),
+    "foreign secret",
+  );
+
+  check(
+    "an unknown recovery code consumes nothing",
+    !(await consumeRecoveryCode(newUserId, hashRecoveryCode("ZZZZZ-ZZZZZ"))),
+    "rejected",
+  );
+  check(
+    "a recovery code is consumed by being used",
+    (await consumeRecoveryCode(newUserId, hashRecoveryCode(codes[0]!))) &&
+      (await consumeRecoveryCode(newUserId, hashRecoveryCode(codes[0]!))) ===
+        false,
+    "once",
+  );
+  security = await getSecurityAccount(newUserId);
+  check(
+    "the spent code is gone from the stored hashes",
+    security?.recoveryCodeHashes.length === 7,
+    "7 left",
+  );
+
+  await disableTotpInDb(newUserId);
+  security = await getSecurityAccount(newUserId);
+  check(
+    "turning the factor off clears the secret and the codes",
+    security?.totpEnabled === false &&
+      security.totpSecret === null &&
+      security.recoveryCodeHashes.length === 0,
+    "off",
+  );
+
+  /* ------------------------------------------------------------ challenges */
+
+  const challenge = await createChallenge({ userId: newUserId });
+  const challengeRow = await findChallenge(challenge.token);
+  check(
+    "a challenge resolves by token to its user",
+    challengeRow?.userId === newUserId,
+    "found",
+  );
+  check(
+    "a challenge is spent on deletion and strangers' tokens find nothing",
+    (await findChallenge("a-token-that-never-existed")) === null &&
+      (await deleteChallenge(challenge.token), true),
+    "deleted",
+  );
+  check(
+    "a deleted challenge cannot be used",
+    (await findChallenge(challenge.token)) === null,
+    "gone",
+  );
+
+  const expiring = await createChallenge({ userId: newUserId });
+  const expiresNow = new Date(Date.now() - 1000);
+  await getDb()
+    .update(t.loginChallenges)
+    .set({ expiresAt: expiresNow })
+    .where(
+      // Only this challenge: its hash is the only identifying column stored.
+      eq(t.loginChallenges.tokenHash, hashToken(expiring.token)),
+    );
+  check(
+    "an expired challenge is not usable",
+    (await findChallenge(expiring.token)) === null,
+    "expired",
+  );
+
+  await recordAuthEvent({
+    kind: "totp_failed",
+    userId: newUserId,
+    email: newEmail,
+  });
+  const perUser = await countRecentFailures({
+    userId: newUserId,
+    seconds: 60,
+  });
+  check(
+    "second-factor failures throttle per user",
+    perUser.byUser === 1,
+    String(perUser.byUser),
   );
 
   /* -------------------------------------------------------------- labels */

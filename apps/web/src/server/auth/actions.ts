@@ -11,11 +11,30 @@ import {
   resolveWorkspaceId,
 } from "../db/repo";
 import {
+  consumeRecoveryCode,
   createUserWithPassword,
+  disableTotp as disableTotpInDb,
+  enableTotp,
   findPasswordAccount,
+  getSecurityAccount,
   getUserByEmail,
+  storePendingTotpSecret,
+  type SecurityAccount,
 } from "./accounts";
-import { clearSessionCookie, getSession, requireUser, setSessionCookie } from "./dal";
+import {
+  clearChallengeCookie,
+  clearSessionCookie,
+  getSession,
+  readChallengeCookie,
+  requireUser,
+  setChallengeCookie,
+  setSessionCookie,
+} from "./dal";
+import {
+  createChallenge,
+  deleteChallenge,
+  findChallenge,
+} from "./challenges";
 import { countRecentFailures, recordAuthEvent } from "./events";
 import { dummyPasswordHash, hashPassword, verifyPassword } from "./password";
 import {
@@ -23,10 +42,31 @@ import {
   revokeOtherSessions,
   revokeSession as revokeSessionRow,
 } from "./sessions";
+import {
+  generateRecoveryCodes,
+  generateTotpSecret,
+  hashRecoveryCode,
+  normalizeCode,
+  otpauthUrl,
+  verifyTotp,
+} from "./totp";
 import { hashUserAgent } from "./tokens";
 import { clientTypeFor, describeDevice, ipPrefixFor } from "./user-agent";
 
 export type AuthFormState = { error: string } | null;
+
+/** Sign-in is two steps when the account has a second factor. */
+export type SignInState = { stage: "credentials" | "totp"; error: string | null };
+
+export type TotpEnrolment =
+  | { ok: true; secret: string; otpauth: string }
+  | { ok: false; error: string };
+
+export type TotpConfirmed =
+  | { ok: true; recoveryCodes: string[] }
+  | { ok: false; error: string };
+
+export type TotpDisabled = { ok: true } | { ok: false; error: string };
 
 const PASSWORD_MIN = 12;
 const UUID_RE =
@@ -37,6 +77,10 @@ const LIMITS = { perEmail: 5, perIp: 20, windowSeconds: 60 };
 
 /** Deliberately identical for every failure mode, so responses cannot probe. */
 const GENERIC_FAILURE = "Email or password is incorrect.";
+const EXPIRED_CHALLENGE = "Your sign-in attempt expired. Start again.";
+const CODE_MISMATCH =
+  "That code did not match. Codes rotate every 30 seconds — try the current one.";
+const THROTTLED = "Too many attempts. Wait a minute and try again.";
 
 async function deviceContext() {
   const headerList = await headers();
@@ -66,6 +110,7 @@ async function startSession(input: {
   userId: string;
   email: string;
   next?: string | null;
+  factor?: "password" | "totp" | "recovery";
 }): Promise<never> {
   const device = await deviceContext();
   const session = await createSession({
@@ -82,17 +127,30 @@ async function startSession(input: {
     email: input.email,
     ipPrefix: device.ipPrefix,
     uaHash: device.uaHash,
-    detail: { device: device.deviceLabel },
+    detail: { device: device.deviceLabel, factor: input.factor ?? "password" },
   });
 
   await setSessionCookie(session.token, session.expiresAt);
   redirect(input.next ?? (await defaultLanding(input.userId)));
 }
 
+/* ---------------------------------------------------------------- sign in */
+
 export async function signIn(
-  _previous: AuthFormState,
+  _previous: SignInState,
   formData: FormData,
-): Promise<AuthFormState> {
+): Promise<SignInState> {
+  // A live challenge means the password has already checked out and the second
+  // factor is what is being asked for.
+  const challengeToken = await readChallengeCookie();
+  if (challengeToken) {
+    return completeTotpStep({
+      token: challengeToken,
+      code: String(formData.get("code") ?? ""),
+      next: String(formData.get("next") ?? ""),
+    });
+  }
+
   const email = String(formData.get("email") ?? "")
     .trim()
     .toLowerCase();
@@ -102,7 +160,7 @@ export async function signIn(
   const parsed = z
     .object({ email: z.string().email(), password: z.string().min(1).max(200) })
     .safeParse({ email, password });
-  if (!parsed.success) return { error: "Enter your email and password." };
+  if (!parsed.success) return { stage: "credentials", error: "Enter your email and password." };
 
   const device = await deviceContext();
   const failures = await countRecentFailures({
@@ -119,7 +177,7 @@ export async function signIn(
       uaHash: device.uaHash,
       detail: { byEmail: failures.byEmail, byIp: failures.byIp },
     });
-    return { error: "Too many attempts. Wait a minute and try again." };
+    return { stage: "credentials", error: THROTTLED };
   }
 
   const account = await findPasswordAccount(email);
@@ -139,9 +197,18 @@ export async function signIn(
       ipPrefix: device.ipPrefix,
       uaHash: device.uaHash,
     });
-    return { error: GENERIC_FAILURE };
+    return { stage: "credentials", error: GENERIC_FAILURE };
   }
 
+  // The password is right, but this account proves a second factor before it
+  // gets a session. The challenge carries no authority of its own.
+  if (account.totpEnabled) {
+    const challenge = await createChallenge({ userId: account.userId });
+    await setChallengeCookie(challenge.token, challenge.expiresAt);
+    return { stage: "totp", error: null };
+  }
+
+  await clearChallengeCookie();
   // `return await` so the compiler sees the redirect as the way out.
   return await startSession({
     userId: account.userId,
@@ -149,6 +216,82 @@ export async function signIn(
     next: safeNext(next),
   });
 }
+
+/**
+ * The second step: either a six-digit code from the authenticator, or one of the
+ * account's recovery codes, which is consumed by being used.
+ */
+async function completeTotpStep(input: {
+  token: string;
+  code: string;
+  next: string;
+}): Promise<SignInState> {
+  const challenge = await findChallenge(input.token);
+  if (!challenge) {
+    await clearChallengeCookie();
+    return { stage: "credentials", error: EXPIRED_CHALLENGE };
+  }
+
+  const account = await getSecurityAccount(challenge.userId);
+  if (!account?.totpEnabled || !account.totpSecret) {
+    await deleteChallenge(input.token);
+    await clearChallengeCookie();
+    return { stage: "credentials", error: GENERIC_FAILURE };
+  }
+
+  const failures = await countRecentFailures({
+    userId: challenge.userId,
+    seconds: LIMITS.windowSeconds,
+  });
+  if (failures.byUser >= LIMITS.perEmail) {
+    await recordAuthEvent({
+      kind: "totp_failed",
+      userId: challenge.userId,
+      email: account.email,
+      detail: { stage: "sign_in", throttled: true },
+    });
+    return { stage: "totp", error: THROTTLED };
+  }
+
+  const clean = normalizeCode(input.code);
+  const isDigitCode = /^\d{6}$/.test(clean);
+  const accepted = isDigitCode
+    ? verifyTotp(account.totpSecret, clean)
+    : await consumeRecoveryCode(challenge.userId, hashRecoveryCode(clean));
+
+  if (!accepted) {
+    await recordAuthEvent({
+      kind: "totp_failed",
+      userId: challenge.userId,
+      email: account.email,
+      detail: { stage: "sign_in", kind: isDigitCode ? "totp" : "recovery" },
+    });
+    return {
+      stage: "totp",
+      error: isDigitCode
+        ? CODE_MISMATCH
+        : "That recovery code has already been used or is not one of yours.",
+    };
+  }
+
+  if (!isDigitCode) {
+    await recordAuthEvent({
+      kind: "totp_recovery_used",
+      userId: challenge.userId,
+      email: account.email,
+    });
+  }
+
+  await deleteChallenge(input.token);
+  await clearChallengeCookie();
+  return await startSession({
+    userId: challenge.userId,
+    email: account.email,
+    next: safeNext(input.next),
+    factor: isDigitCode ? "totp" : "recovery",
+  });
+}
+
 export async function signUp(
   _previous: AuthFormState,
   formData: FormData,
@@ -209,6 +352,8 @@ export async function signOut(): Promise<void> {
   redirect("/sign-in");
 }
 
+/* --------------------------------------------------------------- sessions */
+
 /** Revokes one of the signed-in user's own sessions. */
 export async function revokeDeviceSession(formData: FormData): Promise<void> {
   const context = await requireWorkspace(
@@ -256,7 +401,132 @@ export async function revokeOtherDevices(formData: FormData): Promise<void> {
   revalidatePath(`/${context.slug}/settings`);
 }
 
+/* ------------------------------------------------- two-factor enrolment */
+
+/**
+ * Shared by confirmation, turning the factor off and regenerating codes: the
+ * caller must present the code their authenticator shows right now.
+ */
+async function verifyPresentCode(input: {
+  account: SecurityAccount;
+  code: string;
+  stage: string;
+}): Promise<string | null> {
+  const failures = await countRecentFailures({
+    userId: input.account.userId,
+    seconds: LIMITS.windowSeconds,
+  });
+  if (failures.byUser >= LIMITS.perEmail) return THROTTLED;
+
+  const clean = normalizeCode(input.code);
+  const valid =
+    /^\d{6}$/.test(clean) && verifyTotp(input.account.totpSecret!, clean);
+  if (!valid) {
+    await recordAuthEvent({
+      kind: "totp_failed",
+      userId: input.account.userId,
+      email: input.account.email,
+      detail: { stage: input.stage },
+    });
+    return CODE_MISMATCH;
+  }
+  return null;
+}
+
+/**
+ * Issues a secret and stores it, but the factor is not on yet: it is switched on
+ * by `confirmTotpEnrolment`, once a code from the authenticator has checked out.
+ */
+export async function startTotpEnrolment(): Promise<TotpEnrolment> {
+  const session = await requireUser();
+  const account = await getSecurityAccount(session.userId);
+  if (!account) return { ok: false, error: "This account has no password set up." };
+  if (account.totpEnabled) return { ok: false, error: "Two-factor is already on." };
+
+  const secret = generateTotpSecret();
+  await storePendingTotpSecret(session.userId, secret);
+  return { ok: true, secret, otpauth: otpauthUrl(session.user.email, secret) };
+}
+
+export async function confirmTotpEnrolment(code: string): Promise<TotpConfirmed> {
+  const session = await requireUser();
+  const account = await getSecurityAccount(session.userId);
+  if (!account?.totpSecret || account.totpEnabled) {
+    return { ok: false, error: "Start the set-up again." };
+  }
+
+  const error = await verifyPresentCode({
+    account,
+    code,
+    stage: "confirm",
+  });
+  if (error) return { ok: false, error };
+
+  const recoveryCodes = generateRecoveryCodes();
+  await enableTotp({
+    userId: session.userId,
+    recoveryCodeHashes: recoveryCodes.map(hashRecoveryCode),
+  });
+
+  await recordAuthEvent({
+    kind: "totp_enrolled",
+    userId: session.userId,
+    email: account.email,
+  });
+  return { ok: true, recoveryCodes };
+}
+
+export async function turnOffTotp(code: string): Promise<TotpDisabled> {
+  const session = await requireUser();
+  const account = await getSecurityAccount(session.userId);
+  if (!account?.totpEnabled) return { ok: false, error: "Two-factor is not on." };
+
+  const error = await verifyPresentCode({
+    account,
+    code,
+    stage: "disable",
+  });
+  if (error) return { ok: false, error };
+
+  await disableTotpInDb(session.userId);
+  await recordAuthEvent({
+    kind: "totp_disabled",
+    userId: session.userId,
+    email: account.email,
+  });
+  return { ok: true };
+}
+
+export async function regenerateRecoveryCodes(code: string): Promise<TotpConfirmed> {
+  const session = await requireUser();
+  const account = await getSecurityAccount(session.userId);
+  if (!account?.totpEnabled || !account.totpSecret) {
+    return { ok: false, error: "Two-factor is not on." };
+  }
+
+  const error = await verifyPresentCode({
+    account,
+    code,
+    stage: "regenerate",
+  });
+  if (error) return { ok: false, error };
+
+  const recoveryCodes = generateRecoveryCodes();
+  await enableTotp({
+    userId: session.userId,
+    recoveryCodeHashes: recoveryCodes.map(hashRecoveryCode),
+  });
+
+  await recordAuthEvent({
+    kind: "recovery_codes_regenerated",
+    userId: session.userId,
+    email: account.email,
+  });
+  return { ok: true, recoveryCodes };
+}
+
 /* --------------------------------------------------------- workspace setup */
+
 function prefixFor(name: string): string {
   const letters = name.toUpperCase().replace(/[^A-Z0-9]/g, "");
   return letters.slice(0, 3).padEnd(2, "X");

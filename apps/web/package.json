@@ -13,6 +13,7 @@
     "db:verify": "tsx src/server/db/verify.ts",
     "db:smoke": "tsx src/server/db/write-smoke.ts",
     "db:auth": "tsx src/server/db/auth-smoke.ts",
+    "db:totp-fixture": "tsx src/server/db/totp-fixture.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

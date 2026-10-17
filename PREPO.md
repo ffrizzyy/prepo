@@ -89,7 +89,7 @@ The move from table discussion to field execution becomes instant. Every team me
 |---|---|
 | API | Next.js Route Handlers (REST, `/api/v1`) + Server Actions. OpenAPI generated from Zod |
 | ORM / migrations | Drizzle ORM + drizzle-kit |
-| Auth | Email + password (argon2id), per-device sessions with revoke, lockout + rate limits, organizations/roles. Implemented directly on the `users`/`accounts`/`sessions` tables in 4.5 rather than via Better Auth, so the identity model matches the documented schema and stays driver-agnostic (PGlite or Postgres). Magic link, Google/GitHub OAuth, passkeys (WebAuthn), TOTP 2FA, breached-password check and Turnstile are still to be added |
+| Auth | Email + password (argon2id), **TOTP 2FA with recovery codes**, per-device sessions with revoke, lockout + rate limits, organizations/roles. Implemented directly on the `users`/`accounts`/`sessions` tables in 4.5 rather than via Better Auth, so the identity model matches the documented schema and stays driver-agnostic (PGlite or Postgres). Magic link, Google/GitHub OAuth, passkeys (WebAuthn), breached-password check and Turnstile are still to be added |
 | Background jobs | Inngest (durable workflows, cron, retries) for the audio → transcript → extraction → ticket pipeline and the follow-up scheduler |
 | Realtime | **Ably**, token auth with per-workspace capabilities. Events carry IDs only, clients refetch through the authorized API |
 | File / audio storage | Cloudflare R2 (S3-compatible), private bucket, presigned URLs, lifecycle auto-delete |
@@ -465,6 +465,7 @@ prepo/
 | `stt_runs` | audio_asset_id, provider, duration_s, cost, status |
 | `audit_logs` | workspace_id, actor, action, target, ip_prefix, ua_hash (append-only) |
 | `auth_events` | id, user_id?, email?, kind, ip_prefix, ua_hash, detail (JSON), created_at. Append-only identity-plane log: sign-in happens *before* a workspace is known (and sometimes against an address that has none), so these events cannot satisfy a `workspace_id`-scoped RLS policy |
+| `login_challenges` | id, user_id, **token_hash**, kind (`totp`), expires_at, created_at — a half-completed sign-in (password checked out, second factor not yet presented). It is deliberately *not* a session: until the factor clears, the cookie only names a worthless 5-minute challenge |
 
 ---
 
@@ -702,7 +703,7 @@ These routes are top-level (not under `/{workspace-slug}/…`).
 | `/sign-in` | Email + password, magic link, Google, GitHub, **passkey** one-tap, Turnstile, rate-limited, generic errors (no user enumeration) |
 | `/sign-up` | Same options, password strength meter, breached-password check (HIBP k-anonymity), email verification |
 | `/verify`, `/forgot`, `/reset` | Single-use hashed tokens, short expiry, all sessions revoked on reset |
-| `/2fa` | TOTP, recovery codes, passkey as second factor |
+| `/2fa` | TOTP, recovery codes — **implemented as a "Two-factor sign-in" card in the workspace settings**, not a separate route: after the password, sign-in asks for a six-digit code or one of eight single-use recovery codes; the pending step is a 5-minute hashed `login_challenges` row behind an HttpOnly cookie, which is not a session |
 | `/invite/[token]` | Accept invite, role preview |
 | `/demo` | **Instant read-only demo workspace**, no signup, seeded with a realistic meeting (including a sample recording and transcript), resets on schedule |
 | `/r/[token]` | **Public meeting recap**: signed, expiring, revocable; approved summary and action items only, never audio |
@@ -777,7 +778,7 @@ These routes are top-level (not under `/{workspace-slug}/…`).
 | Profile | Name, avatar, timezone, notification preferences (email / in-app / push) |
 | Workspace | Name, slug, **AI autonomy level**, follow-up tone, quiet hours, **audio retention**, transcription minutes usage |
 | **AI autonomy levels** | **Suggest** (everything needs approval) · **Assist** (auto-ticket only high-confidence items with owner and date) · **Autopilot** (auto-ticket + auto-follow-up; external side effects logged and reversible) |
-| Security | Password, 2FA, passkeys, recovery codes |
+| Security | Password, TOTP 2FA with recovery codes (live), passkeys (planned) |
 | **Devices & sessions** | Signed-in devices (label, type: web / installed app / desktop, approx. location, last active), **revoke one / revoke all others**, "this device" marker |
 | Integrations | Linear (8.6) |
 | API & webhooks | API keys (hash stored, shown once, scoped), outbound HMAC-signed webhooks |

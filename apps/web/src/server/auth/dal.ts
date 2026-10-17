@@ -17,6 +17,25 @@ export const SESSION_COOKIE = isProduction
   : "prepo_session";
 
 /**
+ * Carries a half-completed sign-in: the password checked out, the second factor
+ * has not been presented. Five minutes, no authority, and worthless without the
+ * account's authenticator.
+ */
+export const CHALLENGE_COOKIE = isProduction
+  ? "__Host-prepo_challenge"
+  : "prepo_challenge";
+
+function cookieOptions(expiresAt: Date) {
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax" as const,
+    path: "/",
+    expires: expiresAt,
+  };
+}
+
+/**
  * The single place a request becomes authenticated. Cached per render pass so a
  * layout and its page share one lookup. The session is verified against the
  * database, not merely decoded from the cookie.
@@ -43,16 +62,27 @@ export async function setSessionCookie(
   token: string,
   expiresAt: Date,
 ): Promise<void> {
-  const store = await cookies();
-  store.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: "lax",
-    path: "/",
-    expires: expiresAt,
-  });
+  (await cookies()).set(SESSION_COOKIE, token, cookieOptions(expiresAt));
 }
 
 export async function clearSessionCookie(): Promise<void> {
   (await cookies()).delete(SESSION_COOKIE);
+}
+
+export async function readChallengeCookie(): Promise<string | null> {
+  return (await cookies()).get(CHALLENGE_COOKIE)?.value ?? null;
+}
+
+export async function setChallengeCookie(
+  token: string,
+  expiresAt: Date,
+): Promise<void> {
+  (await cookies()).set(CHALLENGE_COOKIE, token, cookieOptions(expiresAt));
+}
+
+export async function clearChallengeCookie(): Promise<void> {
+  const store = await cookies();
+  // Only when present, so a plain sign-in does not emit a pointless expiry
+  // header alongside the session cookie.
+  if (store.get(CHALLENGE_COOKIE)) store.delete(CHALLENGE_COOKIE);
 }
