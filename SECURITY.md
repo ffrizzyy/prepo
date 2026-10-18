@@ -12,10 +12,12 @@ centre), the Linear integration (encrypted token, queue, pull, signed webhook) a
 Two providers are wired and **unconfigured on this deployment** — speech-to-text (no
 `DEEPGRAM_API_KEY`) and email, where a `RESEND_API_KEY` is set but the account has **no verified
 sending domain**, so Resend accepts only the account's own address and every other recipient comes
-back `403`. Either way an email is attempted, then recorded as **failed with the reason** rather
+back `403`. That split has been exercised against the live API: three messages were accepted and
+eight refused. Either way an email is attempted, then recorded as **failed with the reason** rather
 than quietly marked sent, while the in-app half of the same rung is still delivered. Push is never
 queued, because there is no service worker. Extraction has **no PII redaction and no eval gate**;
-the desktop shell is not built. Where the table below mentions them, it says so.
+the desktop shell is not built. The Linear integration has been run once against a real team (see
+*How this was checked*); everything else in the table is tested against fixtures or a local database. Where the table below mentions them, it says so.
 
 ## Reporting a vulnerability
 
@@ -78,7 +80,7 @@ remain. None of them are secret; the goal of this list is that nobody has to gue
 | **A10** SSRF | The transcription call is a fixed host with a body of bytes, the email sender is a fixed host with a server-built body, the Linear client is a fixed host (`api.linear.app`) with a server-built GraphQL document, and extraction posts a server-built JSON body to OpenRouter's fixed endpoint — so there is nothing to steer from user input, and applying a webhook never triggers an outbound fetch. No meeting is ever enriched by fetching a "source link" |
 | **Linear integration** | The credential is a **personal API key, not OAuth**: it carries the key owner's whole Linear access, cannot be narrowed by scope, and revoking it is done in Linear rather than in Prepo. The webhook reads the body with `request.text()` before the signature is checked, so a large unauthenticated POST costs memory; there is no explicit size cap, no per-IP rate limit and no allow-list of Linear's addresses on that route. The signing secret is pasted by hand rather than registered through Linear's API. Exactly one team and one project are mirrored per workspace. Tickets that predate connecting are not backfilled, so there is no queue entry and no retry for them until they are moved. Linear's `canceled` state has no Prepo equivalent and is left unmapped rather than guessed, and comments, attachments, sub-issues, cycles, estimates and Linear's own labels are neither read nor written |
 | AI pipeline | The transcript is sent **as stored** to the configured OpenRouter model: there is no PII redaction, no data-region choice and no per-user limit beyond the workspace's monthly run cap. There is no eval gate or prompt-version pinning, so a model or prompt change is not measured before it ships, and no output classifier — grounding catches uncited items but cannot catch a cited item that is still wrong. The provider is a third party and its retention terms apply to what is sent |
-| Follow-up delivery | The `RESEND_API_KEY` is set, but the account has **no verified sending domain**, so Resend refuses every recipient except the account's own address with `403`. **No email has ever actually been delivered** by this build — the refusal is what the suite records and what the ticket timeline shows. There is no bounce or complaint handling, no unsubscribe link, no per-recipient send rate limit beyond the ladder itself, and no retry with backoff: a failed message stays failed. The job is a script meant for a scheduler; there is no queue, no worker, no exactly-once guarantee and no scheduled-job auth, so whoever can run it can send |
+| Follow-up delivery | The `RESEND_API_KEY` is set, but the account has **no verified sending domain**, so Resend refuses every recipient except the account's own address with `403`. That was exercised live: three messages were accepted to the account's own address and eight refused `403`, with Resend's own text stored on each failed row. There is no bounce or complaint handling, no unsubscribe link, no per-recipient send rate limit beyond the ladder itself, and no retry with backoff: a failed message stays failed. The job is a script meant for a scheduler; there is no queue, no worker, no exactly-once guarantee and no scheduled-job auth, so whoever can run it can send |
 | Push notifications | Not implemented at all: no service worker, no subscription table, no Web Push keys. The ladder lists push on the nudge rung, and the code refuses to write a push row while no device is subscribed, so nothing is pretended |
 | Object storage | The R2 presigned-PUT flow in the spec is not implemented — there is no Cloudflare account on this machine, so audio uses a local filesystem driver behind the same `StorageDriver` interface. The interface has no presign method at all, which is why the "no publicly addressable URLs" claim holds here; moving to R2 would need the access route re-reviewed |
 | Antivirus / content scanning | Uploaded audio is validated by format and size, not scanned. Transcripts are parsed as text only — `.docx` and `.pdf` are refused rather than parsed, so there is no document parser to attack |
@@ -118,8 +120,9 @@ pass, in either email environment: with a provider configured the recorded reaso
 own words, and without one it names the missing variable.
 
 `db:linear-smoke` is the integration's equivalent, run against an in-memory Linear that really holds
-state. One hundred and fourteen checks: the encryption round-trip and its refusals (a wrong key, a
-truncated tag, a value that is not `v1`); the mapping arithmetic in both directions; HMAC signatures,
+state. One hundred and nineteen checks: the encryption round-trip and its refusals (a wrong key, a
+truncated tag, a value that is not `v1`); the mapping arithmetic in both directions, including which
+of several same-type states a status picks; HMAC signatures,
 including a replayed body and a stale timestamp; the queue refusing to write a `pending` state while
 no connection exists; push as create-then-update rather than a duplicate; a refused push recording
 the reason, backing off, and recovering; pull applying status and assignee, treating `canceled` as
@@ -127,6 +130,16 @@ unmapped, and keeping a removed issue's ticket; both source-of-truth orders, inc
 being written to the timeline; the echoed webhook staying idempotent; the job's counts; the webhook
 secret being encrypted at rest; a second workspace's ticket being unreachable; and disconnect
 keeping the tickets. What it cannot prove is that Linear itself answers: the network is a fixture.
+
+The network has been used once, deliberately, against a private Linear team. Nine demo tickets were
+queued by hand (there is still no backfill) and created as issues with the mapped state, priority and
+due date; a later pass wrote the states; and a state changed *in Linear* was pulled back onto its
+ticket by the next pass. No assignee was attached, because none of the demo addresses belongs to that
+team — owners match by email, and Prepo does not guess. That run is also what exposed the two
+integration defects now fixed (a create that did not send `stateId`, and in-progress tickets landing
+in whichever `started` state came first), so the live exercise paid for itself. The token used for it
+is encrypted in the local database under the same `INTEGRATION_ENCRYPTION_KEY` as any other, and the
+demo tickets in Linear can be deleted from Linear without touching Prepo.
 
 `db:extract-smoke` covers the model boundary without a network call. Sixty-six checks: a reply that
 is not the agreed shape imports **nothing** and still records its spend; an uncited item is dropped

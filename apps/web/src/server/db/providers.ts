@@ -1,3 +1,4 @@
+import { integratingKey } from "../linear/crypto";
 import { runCli } from "./run";
 
 /**
@@ -113,8 +114,9 @@ const PROBES: Probe[] = [
   {
     name: "openrouter",
     variable: "OPENROUTER_API_KEY",
-    what: "meeting → tickets extraction (milestone 7, not built)",
-    unconfigured: "expected — extraction does not exist yet, so the key just sits here",
+    what: "meeting → tickets extraction (milestone 7)",
+    unconfigured:
+      "expected — extraction is refused, and the meeting page names the missing variable",
     live: (key) => ({
       url: "https://openrouter.ai/api/v1/key",
       init: { headers: { Authorization: `Bearer ${key}` } },
@@ -173,6 +175,24 @@ runCli("providers.ts", async () => {
       `${probe.name.padEnd(10)} ${(value ? `set (${mask(value)})` : "not set").padEnd(21)} ${probe.what}`,
     );
     if (!value) console.log(`${" ".repeat(11)}→ ${probe.unconfigured}`);
+  }
+
+  // Not a provider key, so it is never masked by prefix: six hex characters of a
+  // key is six characters too many. Its only property worth printing is whether
+  // it can be used at all, and that question is answered by the same function the
+  // integration asks.
+  const keyState = !env.INTEGRATION_ENCRYPTION_KEY?.trim()
+    ? "not set"
+    : integratingKey(env)
+      ? "set (32 bytes)"
+      : "set but invalid";
+  console.log(
+    `${"crypto".padEnd(10)} ${keyState.padEnd(21)} encrypts stored Linear tokens (milestone 6)`,
+  );
+  if (keyState !== "set (32 bytes)") {
+    console.log(
+      `${" ".repeat(11)}→ connecting Linear is refused until this is a 32-byte key (openssl rand -hex 32, or 32 bytes base64); nothing is ever stored in plaintext`,
+    );
   }
 
   if (!live) {

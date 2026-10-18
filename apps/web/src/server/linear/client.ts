@@ -206,6 +206,7 @@ export function linearClient(
             dueDate: input.dueDate,
             assigneeId: input.assigneeId,
             projectId: input.projectId,
+            ...(input.stateId ? { stateId: input.stateId } : {}),
           },
         },
         "issueCreate",

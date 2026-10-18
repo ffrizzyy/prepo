@@ -34,11 +34,14 @@ The follow-up engine is honest about what it can and cannot deliver here. A `RES
 configured, but the account has **no verified sending domain**, so Resend accepts a send only to
 the account's own address; anything else comes back `403` and is **recorded as failed with
 Resend's own words**, never quietly marked sent, while the in-app half is delivered to the
-notification centre. Whether the key is set or not, a refused email always carries a reason. Push
-is listed on the nudge rung because the ladder advertises it, but **no push row is ever queued**:
-that needs an installed app with a subscription and there is no service worker. Quiet hours
-**defer** a message until the window ends, in the recipient's own timezone, rather than dropping
-it.
+notification centre. That is not theory: the chaser was run against the live API, three messages
+were accepted to the account's own address (`01a14cdb-…`, Resend's ids) and eight were refused
+`403` because the demo members are not that address. The refused rows on the follow-ups page carry
+Resend's message verbatim. Whether the key is set or not, a refused email always carries a reason.
+Push is listed on the nudge rung because the ladder advertises it, but **no push row is ever
+queued**: that needs an installed app with a subscription and there is no service worker. Quiet
+hours **defer** a message until the window ends, in the recipient's own timezone, rather than
+dropping it — an early run at 17:00 UTC moved its messages to the next working morning and said so.
 
 One older gap stays as it was, and the UI still says so: there is no `DEEPGRAM_API_KEY`, so nothing
 is sent anywhere for speech-to-text, and import-by-transcript is the working path. The extractor
@@ -84,7 +87,7 @@ implemented next to the OWASP gaps that are still open, so nothing has to be tak
 | Linear — connect with a personal API key, token encrypted (AES-256-GCM), never stored in the clear | Done |
 | Linear — choose a team (and optional project), editable priority/status/label/owner mapping | Done |
 | Linear — local writes queue, `db:linear` (or "Sync now") does the network, failures back off and retry | Done |
-| Linear — pull and signed webhook share one conflict rule; `canceled` is reported as unmapped | Done |
+| Linear — pull and signed webhook share one conflict rule; `canceled` is reported as unmapped | Done — a real team, one real push (9 issues) and one real pull are recorded below |
 | Linear — link, sync status and one-click retry on the ticket page | Done |
 | Linear OAuth 2.0 | Not implemented — the personal API key path was built instead (see **Linear** below) |
 | Extraction — summary, decisions, open questions, action items, one call per meeting | Done — OpenRouter, JSON Schema (with a JSON-mode fallback) |
@@ -96,7 +99,7 @@ implemented next to the OWASP gaps that are still open, so nothing has to be tak
 | PII redaction before the model call | Not implemented |
 | Speech-to-text provider (Deepgram) | Wired, **unconfigured without a key** |
 | Tab-audio capture (`getDisplayMedia`), `.docx`/`.pdf` transcripts | Not implemented — recorder is mic-only; transcripts are parsed as text |
-| Email delivery (Resend) | Wired; a key is set but **no verified sending domain**, so only the account's own address can receive — refusals are recorded with Resend's reason |
+| Email delivery (Resend) | Wired and used live: 3 messages accepted to the account's own address, 8 refused `403` (no verified sending domain) with Resend's reason recorded on the row |
 | Push notifications | Not implemented — no service worker, so no push row is ever queued |
 | Ask Prepo, insights | Not started |
 | Desktop (Tauri) shell | Not started — requires Rust, absent on the build machine |
@@ -273,9 +276,11 @@ offered to Linear the next time it is moved or its action item is approved. The 
 
 **The mapping** is editable, and the defaults are Linear's own scale: priority `p0…p3` → Urgent /
 High / Medium / Low, and status → workflow state *type* (`in_review` lands in `started`, because
-Linear has no review type). Labels map by name unless a row overrides one, and owners map by
-email — both are `prepo=linear` lists. A label with no row is sent under its own name, and an
-assignee with no Linear counterpart is left unassigned rather than guessed at.
+Linear has no review type). A type with more than one state — Linear's default team has both
+"In Progress" and "In Review" — is narrowed by name, so an in-progress ticket does not land in
+whatever started state came back first. Labels map by name unless a row overrides one, and owners
+map by email — both are `prepo=linear` lists. A label with no row is sent under its own name, and
+an assignee with no Linear counterpart is left unassigned rather than guessed at.
 
 **The conflict rule lives in one function.** `applyRemoteChange()` is used by both the pull and
 the webhook, so a poll and a delivery cannot disagree about the same change. A field the payload
@@ -305,12 +310,22 @@ reports "unchanged", and only `pending` tickets (or failed ones past their backo
 **Not synced, and the page says so:** comments and attachments; sub-issues, cycles, estimates and
 Linear's own labels; and exactly one team and one project are mirrored per workspace.
 
-**How this is verified.** `pnpm --filter @prepo/web db:linear-smoke` runs **114 checks** against an
+**How this is verified.** `pnpm --filter @prepo/web db:linear-smoke` runs **119 checks** against an
 in-memory Linear that really holds state, so a refused call, a deleted issue, a replayed webhook
-and both source-of-truth orders are all exercised — but Linear is not what answers. The real API is
-only touched by `db:providers -- --live`, which makes one authenticated **read** (`viewer`) and
-creates nothing. Nothing in this repository can prove that a real push lands in a real team until
-someone points it at one, and the README will not claim otherwise.
+and both source-of-truth orders are all exercised — but Linear is not what answers.
+
+The real API has been used, once, against a personal team (`FRI`, the only team the key can see).
+The demo tickets were queued deliberately instead of relying on a backfill, and one pass created
+`FRI-5`…`FRI-13` with the mapped state, priority and due date; a second pass wrote the states,
+including the in-progress ticket landing in **In Progress** and the done ones in **Done**; then a
+state was changed *in Linear* to Done and the next pass pulled it back onto the ticket. Assignees
+were left empty, because none of the demo addresses is a member of that Linear workspace — email is
+the only thing Prepo matches owners on, and it does not guess. Two real bugs came out of that run
+and are fixed: a newly created issue was filed in the team's default state instead of the mapped
+one, and `in_progress` and `in_review` both landed in whichever `started` state came first.
+
+Nothing in this repository can prove a real push lands in *your* team until it is pointed at one,
+and the README will not claim otherwise.
 
 ## Extraction
 
@@ -626,14 +641,17 @@ Milestones follow section 12 of `PREPO.md`:
    storage and streaming, prompt-free provider seam, retention and the sweep. The provider is
    unconfigured without a key, and extraction stays in milestone 7 where its model lives
 5. ✅ Follow-up engine — the ladder, the job, quiet hours and the digest, cancellation on
-   completion, the notification centre and the per-ticket controls. Email is wired, and a key is
-   configured, but the account has no verified sending domain: a refusal is recorded with Resend's
-   own words rather than faked, and push is not queued because there is no service worker
+   completion, the notification centre and the per-ticket controls. Email is wired, a key is
+   configured, and the chaser has been run against the live API: three messages were accepted to the
+   account's own address and eight refused `403` because the account has no verified sending domain.
+   A refusal is recorded with Resend's own words rather than faked, and push is not queued because
+   there is no service worker
 6. ✅ Linear two-way sync — personal API key encrypted at rest, team/project pick, editable mapping,
    a queue the request never waits on, a job and a Sync now button that call the same function,
    pull and signed webhook through one conflict rule, per-ticket link/status/retry, and disconnect
-   that keeps both sides. OAuth, comments, attachments and sub-issues are not part of it, and the
-   page says so
+   that keeps both sides. Run against a real team: nine issues created, states written, and a change
+   made in Linear pulled back. OAuth, comments, attachments and sub-issues are not part of it, and
+   the page says so
 7. ◐ Extraction, scores and evals — extraction (OpenRouter, grounded, budgeted, with the
    Suggest/Assist/Autopilot split) and the clarity score are done. Ask Prepo, necessity scoring
    and automated evals are not

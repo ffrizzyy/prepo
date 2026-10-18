@@ -858,11 +858,24 @@ echoed webhook for that push re-applies the same values and is reported as uncha
 Disconnecting keeps every ticket and every issue: the token and the signing secret are nulled, the row
 stays as `disconnected`, and the tickets' issue links are cleared with an event saying why.
 
-**What the suite does not prove.** `db:linear-smoke` is 114 checks against an in-memory Linear that
-really holds state — so Prepo's own behaviour is exercised, including a refused call and a deleted
-issue — but Linear is not what answers. `db:providers --live` makes one authenticated **read** per
-configured provider (for Linear, `viewer`); it does not create an issue. Nothing in this repository
-can prove that a real push lands in a real team until someone points it at one.
+**What the suite does not prove, and what the live run did.** `db:linear-smoke` is 119 checks
+against an in-memory Linear that really holds state — so Prepo's own behaviour is exercised,
+including a refused call and a deleted issue — but Linear is not what answers. `db:providers --live`
+makes one authenticated **read** per configured provider (for Linear, `viewer`) and creates nothing.
+
+The real API has been used against one personal team (`FRI`). The demo tickets were queued on
+purpose — there is still no backfill — and one pass created `FRI-5`…`FRI-13` with the mapped state,
+priority and due date. Assignees came back empty because none of the demo addresses belongs to that
+Linear workspace: owners are matched by email, and an unknown address is not guessed at. A second
+pass wrote the states, and a state changed *in Linear* to Done was pulled back onto its ticket by
+the next pass. That run found two defects, both now fixed and covered by the suite: a new issue was
+filed in the team's default state because the create call carried no `stateId`, and `in_progress`
+and `in_review` both landed in whichever `started` state the API returned first — `chooseState()`
+now prefers the state whose name matches the Prepo status, so an in-progress ticket lands in
+"In Progress" and an in-review one in "In Review".
+
+Nothing in this repository can prove that a real push lands in *your* team until it is pointed at
+one, and this document will not claim otherwise.
 
 ### 8.7 Follow-ups (`/followups`)
 
@@ -890,9 +903,13 @@ fall back to UTC) rather than dropping the message. It is a script rather than a
 there is no queue, no retry with backoff, and no exactly-once guarantee — a failed message stays
 failed.
 
-Email goes through Resend; **no key is configured on this deployment**, so every email rung is
-attempted and then stored as `failed` with `set RESEND_API_KEY` in the reason, while the in-app
-half of the same rung is delivered to the notification centre. Only a 2xx marks a row `sent`.
+Email goes through Resend. A key **is** configured on this deployment, so email rungs are attempted
+for real; the account has **no verified sending domain**, so Resend accepts a send only to the
+account's own address and answers `403` with its own explanation for any other recipient. A refusal
+is stored on the row in Resend's words, never quietly marked sent, while the in-app half of the same
+rung is delivered to the notification centre. That was exercised against the live API, not assumed:
+three messages were accepted (Resend ids `01a14cdb-…`) and eight were refused `403`, and the
+follow-ups page shows both outcomes. Only a 2xx marks a row `sent`.
 Push is listed on the nudge rung but **never queued**: there is no service worker and no
 subscription table, and the engine refuses to write a push row while no device is subscribed. The
 weekly digest is per owner/admin recipient, on a chosen weekday at 09:00 in their own zone, as

@@ -13,6 +13,7 @@ import {
   type EncryptionKey,
 } from "./crypto";
 import {
+  chooseState,
   fromLinearDate,
   issueDescription,
   matchLinearMember,
@@ -793,9 +794,11 @@ export async function pushTicket(input: {
     ]);
 
     const member = matchLinearMember(snapshot.ownerEmail, mapping, members);
-    const state =
-      states.find((entry) => entry.type === statusToLinear(snapshot.ticket.status, mapping)) ??
-      null;
+    const state = chooseState(
+      states,
+      statusToLinear(snapshot.ticket.status, mapping),
+      snapshot.ticket.status,
+    );
 
     const description = issueDescription({
       description: snapshot.ticket.description,
@@ -816,6 +819,7 @@ export async function pushTicket(input: {
           priority: priorityToLinear(snapshot.ticket.priority, mapping),
           dueDate: toLinearDate(snapshot.ticket.dueAt),
           assigneeId: member?.id ?? null,
+          ...(state ? { stateId: state.id } : {}),
         })
       : await client.updateIssue(snapshot.ticket.linearIssueId!, {
           title: snapshot.ticket.title,

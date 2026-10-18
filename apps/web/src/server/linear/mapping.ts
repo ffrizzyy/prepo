@@ -3,6 +3,7 @@ import type {
   LinearTicketStatus,
   RemoteIssue,
   RemotePatch,
+  RemoteState,
   RemoteUser,
 } from "./types";
 
@@ -31,6 +32,7 @@ export const DEFAULT_MAPPING: LinearMapping = {
     todo: "unstarted",
     in_progress: "started",
     // Linear has no "in review" state type, so both of these land in started.
+    // chooseState() tells them apart by the state's name.
     in_review: "started",
     done: "completed",
   },
@@ -105,6 +107,41 @@ export function statusToLinear(
   mapping: LinearMapping,
 ): string {
   return mapping.status[status] ?? DEFAULT_MAPPING.status[status];
+}
+
+/**
+ * Picks the workflow state a ticket should be written into.
+ *
+ * A Linear team can have several states of the same type — the default team has
+ * both "In Progress" and "In Review", and both are type `started`. Matching on
+ * type alone would file every in-progress ticket into whichever of the two
+ * happened to come back first, which is how an in-progress ticket ends up
+ * showing as In Review. So when a type has more than one state, the state whose
+ * name matches the Prepo status wins; otherwise the first of that type does.
+ */
+const STATE_NAME_HINTS: Record<LinearTicketStatus, readonly string[]> = {
+  backlog: ["backlog"],
+  todo: ["todo", "to do", "unstarted"],
+  in_progress: ["in progress", "doing"],
+  in_review: ["in review", "review"],
+  done: ["done", "complete", "completed"],
+};
+
+export function chooseState(
+  states: readonly RemoteState[],
+  stateType: string,
+  status: LinearTicketStatus,
+): RemoteState | null {
+  const ofType = states.filter((state) => state.type === stateType);
+  if (ofType.length <= 1) return ofType[0] ?? null;
+
+  for (const hint of STATE_NAME_HINTS[status]) {
+    const named = ofType.find(
+      (state) => state.name.trim().toLowerCase() === hint,
+    );
+    if (named) return named;
+  }
+  return ofType[0]!;
 }
 
 export function statusFromLinear(

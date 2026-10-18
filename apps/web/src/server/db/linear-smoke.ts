@@ -27,6 +27,7 @@ import {
 } from "../linear/crypto";
 import { fixtureLinear } from "../linear/fixture";
 import {
+  chooseState,
   DEFAULT_MAPPING,
   fromLinearDate,
   issueDescription,
@@ -180,6 +181,35 @@ runCli("linear-smoke.ts", async () => {
   check(
     "in review has no Linear state type of its own and shares started",
     statusToLinear("in_review", DEFAULT_MAPPING) === "started",
+  );
+
+  const startedStates = [
+    { id: "state-review", name: "In Review", type: "started" },
+    { id: "state-progress", name: "In Progress", type: "started" },
+  ];
+  check(
+    "an in-progress ticket picks In Progress, not the first started state",
+    chooseState(startedStates, "started", "in_progress")?.id === "state-progress",
+  );
+  check(
+    "an in-review ticket picks In Review",
+    chooseState(startedStates, "started", "in_review")?.id === "state-review",
+  );
+  check(
+    "a type with no matching name still resolves, to its first state",
+    chooseState(
+      [
+        { id: "state-parked", name: "Parked", type: "started" },
+        { id: "state-doing", name: "Doing", type: "started" },
+      ],
+      "started",
+      "backlog",
+    )?.id === "state-parked",
+  );
+  check(
+    "a type with one state needs no name",
+    chooseState([{ id: "state-only", name: "Whatever", type: "started" }], "started", "done")
+      ?.id === "state-only",
   );
   check("completed comes back as done", statusFromLinear("completed") === "done");
   check(
@@ -523,6 +553,11 @@ runCli("linear-smoke.ts", async () => {
 
   const created = fixture.created[0]!;
   check("the issue carries the mapped priority", created.priority === 2, `${created.priority}`);
+  check(
+    "a new issue lands in the mapped state, not the team default",
+    created.stateId === "state-todo",
+    `${created.stateId}`,
+  );
   check("the issue carries the due date as a plain date", created.dueDate === "2026-11-05");
   check("the issue is filed into the chosen project", created.projectId === "project-q4");
   check(

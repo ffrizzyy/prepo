@@ -37,6 +37,8 @@ export type IssueWrite = {
   priority: number;
   assigneeId: string | null;
   dueDate: string | null;
+  /** Absent means "the team's default state", which is what Linear does anyway. */
+  stateId?: string;
 };
 
 export type IssuePatch = Partial<Omit<IssueWrite, "teamId">> & {
