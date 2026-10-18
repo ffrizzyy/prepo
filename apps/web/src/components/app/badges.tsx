@@ -93,9 +93,22 @@ export function ScoreMeter({
   hint,
 }: {
   label: string;
-  value: number;
+  /** Null means no extraction has produced this score; it is not zero. */
+  value: number | null;
   hint?: string;
 }) {
+  if (value === null) {
+    return (
+      <div>
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-xs text-text-muted">{label}</span>
+          <span className="font-mono text-sm text-text-subtle">—</span>
+        </div>
+        <p className="mt-2 text-xs text-text-subtle">{hint}</p>
+      </div>
+    );
+  }
+
   const tone =
     value >= 70
       ? "text-[#15803d] dark:text-[#4ade80]"

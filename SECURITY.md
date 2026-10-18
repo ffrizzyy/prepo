@@ -4,17 +4,18 @@ Prepo is a portfolio project, not a product with a support contract. It holds me
 by design, so it is built as though it holds yours — and this file records what is actually in
 place, what is not, and how to report a problem.
 
-**Status: milestone 6.** Authentication (password + TOTP two-factor), tenant isolation, the
+**Status: milestone 7.** Authentication (password + TOTP two-factor), tenant isolation, the
 writable core loop, the audio path (recording, upload, transcript import, speaker mapping,
 retention), the follow-up engine (escalation ladder, job, quiet hours, digest, notification
-centre) and the Linear integration (encrypted token, queue, pull, signed webhook) are implemented
-and tested. Two providers are wired and **unconfigured on this deployment** — speech-to-text (no
+centre), the Linear integration (encrypted token, queue, pull, signed webhook) and extraction
+(transcript → minutes and grounded action items through OpenRouter) are implemented and tested.
+Two providers are wired and **unconfigured on this deployment** — speech-to-text (no
 `DEEPGRAM_API_KEY`) and email, where a `RESEND_API_KEY` is set but the account has **no verified
 sending domain**, so Resend accepts only the account's own address and every other recipient comes
 back `403`. Either way an email is attempted, then recorded as **failed with the reason** rather
 than quietly marked sent, while the in-app half of the same rung is still delivered. Push is never
-queued, because there is no service worker. Extraction and the desktop shell are not built yet;
-where the table below mentions them, it says so.
+queued, because there is no service worker. Extraction has **no PII redaction and no eval gate**;
+the desktop shell is not built. Where the table below mentions them, it says so.
 
 ## Reporting a vulnerability
 
@@ -41,7 +42,11 @@ there is no payment to offer — only a fix and credit in the commit if you want
 | Injection | Drizzle parameterised queries throughout; Zod validates every action input; full-text search is built with `websearch_to_tsquery`, never string concatenation |
 | Secrets at rest | Session tokens, recovery codes, login challenges and invitation/share tokens are stored hashed |
 | Data minimisation | IP addresses are truncated to a /24 prefix, user agents stored as a hash plus a device label, identity events kept in a separate append-only log from workspace-scoped audit events |
-| Agent output | Nothing becomes a ticket without passing the workspace autonomy setting (default: human approval). Agent writes are attributed to `prepo-agent` in the audit log, and model output is treated as untrusted input |
+| Agent output | Nothing becomes a ticket without passing the workspace autonomy setting (default: Suggest = human approval). Assist and Autopilot only auto-approve items at ≥ 0.85 confidence with no ambiguity or duplicate flag (Assist also requires an owner and a date); every auto-created ticket event records `actorKind: "prepo"` with a null actor, so a machine decision is never presented as a person's |
+| Model input boundary | The transcript is sent as JSON, segment by segment, under a system prompt that names it as data and never as instructions. There are no model-facing tools, no URL from a meeting is fetched, and the only host contacted is OpenRouter's fixed endpoint. A transcript over 120,000 characters is **refused**, not truncated |
+| Model output boundary | The reply must be JSON that passes `rawExtractionSchema` (Zod); a wrong shape fails the run and imports **nothing**. Values are cleaned (whitespace collapsed, lengths capped) and rendered as text, never as HTML; every citation is resolved against the segment ids that were sent |
+| Evidence grounding | An action item with no valid citation is dropped and counted rather than repaired, and the quote on the review screen is read from the transcript row itself, not from the model's prose. Owners resolve only to workspace members (full name, alias, email local part); a name that matches two members is `ambiguous_owner`, not a guess |
+| Model spend limits | 200 extraction runs per workspace per calendar month and 120,000 characters per transcript, both refusals with a reason; a 90-second timeout; tokens, cost and latency recorded in `ai_runs`. There is no circuit breaker and no concurrency limit |
 | Uploads | Audio is accepted only if its own bytes look like audio — the container is sniffed (RIFF/WAVE, MPEG frame sync, Matroska, ISO-BMFF brands) and the extension the client claimed is ignored. Caps: 25 MB per file, 4 MB per chunked piece, 4 hours per recording, 300 transcription minutes per workspace per month. A file that fails is rejected with the reason, before anything is written |
 | Recorded audio at rest | Bytes live under `apps/web/.storage` (or `AUDIO_STORAGE_DIR`) and are **never publicly addressable**: no presigned URLs, no static path. Playback goes through `/api/audio/[assetId]`, which resolves the caller's workspaces and lets row-level security decide visibility, then streams with `private, no-store` and `206` byte ranges. A non-member gets **404**, an anonymous caller **401** |
 | Recording consent | A recording cannot be stored without an explicit consent confirmation, which is recorded against the person who gave it. The API refuses the upload — rather than trusting the form — if the flag is absent |
@@ -70,8 +75,9 @@ remain. None of them are secret; the goal of this list is that nobody has to gue
 | **A07** Auth failures | No passkeys, OAuth or magic links; no email verification, password reset, or breached-password check (no mail provider); no CAPTCHA/bot challenge; no replay protection within a single TOTP step; no session invalidation on password change |
 | **A08** Data integrity | Webhook signatures **are** verified now (HMAC-SHA256, constant time, 60-second window; see above), and a push records the remote issue id and timestamp so an echoed delivery is idempotent. There are still no signed desktop updates (no desktop build), and no integrity check on stored audio bytes beyond the SHA-256 recorded at ingest |
 | **A09** Logging & monitoring | No Sentry or alerting; `auth_events` and `audit_logs` are append-only but there is no anomaly detection, no "impossible travel" alert, and logs are not shipped anywhere. The follow-up job prints a per-row decision line, but there is no metric or alert on a run that fails wholesale |
-| **A10** SSRF | The transcription call is a fixed host with a body of bytes, the email sender is a fixed host with a server-built body, and the Linear client is a fixed host (`api.linear.app`) with a server-built GraphQL document — so there is nothing to steer from user input, and applying a webhook never triggers an outbound fetch. When extraction (milestone 7) adds another provider, the same rule applies: no user-supplied URLs, and no fetching a meeting's "source link" |
+| **A10** SSRF | The transcription call is a fixed host with a body of bytes, the email sender is a fixed host with a server-built body, the Linear client is a fixed host (`api.linear.app`) with a server-built GraphQL document, and extraction posts a server-built JSON body to OpenRouter's fixed endpoint — so there is nothing to steer from user input, and applying a webhook never triggers an outbound fetch. No meeting is ever enriched by fetching a "source link" |
 | **Linear integration** | The credential is a **personal API key, not OAuth**: it carries the key owner's whole Linear access, cannot be narrowed by scope, and revoking it is done in Linear rather than in Prepo. The webhook reads the body with `request.text()` before the signature is checked, so a large unauthenticated POST costs memory; there is no explicit size cap, no per-IP rate limit and no allow-list of Linear's addresses on that route. The signing secret is pasted by hand rather than registered through Linear's API. Exactly one team and one project are mirrored per workspace. Tickets that predate connecting are not backfilled, so there is no queue entry and no retry for them until they are moved. Linear's `canceled` state has no Prepo equivalent and is left unmapped rather than guessed, and comments, attachments, sub-issues, cycles, estimates and Linear's own labels are neither read nor written |
+| AI pipeline | The transcript is sent **as stored** to the configured OpenRouter model: there is no PII redaction, no data-region choice and no per-user limit beyond the workspace's monthly run cap. There is no eval gate or prompt-version pinning, so a model or prompt change is not measured before it ships, and no output classifier — grounding catches uncited items but cannot catch a cited item that is still wrong. The provider is a third party and its retention terms apply to what is sent |
 | Follow-up delivery | The `RESEND_API_KEY` is set, but the account has **no verified sending domain**, so Resend refuses every recipient except the account's own address with `403`. **No email has ever actually been delivered** by this build — the refusal is what the suite records and what the ticket timeline shows. There is no bounce or complaint handling, no unsubscribe link, no per-recipient send rate limit beyond the ladder itself, and no retry with backoff: a failed message stays failed. The job is a script meant for a scheduler; there is no queue, no worker, no exactly-once guarantee and no scheduled-job auth, so whoever can run it can send |
 | Push notifications | Not implemented at all: no service worker, no subscription table, no Web Push keys. The ladder lists push on the nudge rung, and the code refuses to write a push row while no device is subscribed, so nothing is pretended |
 | Object storage | The R2 presigned-PUT flow in the spec is not implemented — there is no Cloudflare account on this machine, so audio uses a local filesystem driver behind the same `StorageDriver` interface. The interface has no presign method at all, which is why the "no publicly addressable URLs" claim holds here; moving to R2 would need the access route re-reviewed |
@@ -90,6 +96,7 @@ pnpm --filter @prepo/web db:audio    # parsing, sniffing, chunk assembly, retent
 pnpm --filter @prepo/web db:retention  # the retention job, runnable from a scheduler
 pnpm --filter @prepo/web db:followup-smoke  # the ladder, quiet hours, digest and the job
 pnpm --filter @prepo/web db:linear-smoke    # crypto, mapping, queue, push, pull, webhook, tenancy
+pnpm --filter @prepo/web db:extract-smoke   # schema gate, grounding, dates, autonomy, refusals
 ```
 
 `db:verify` and `db:smoke` run against the embedded engine and a real Postgres (set
@@ -121,6 +128,16 @@ being written to the timeline; the echoed webhook staying idempotent; the job's 
 secret being encrypted at rest; a second workspace's ticket being unreachable; and disconnect
 keeping the tickets. What it cannot prove is that Linear itself answers: the network is a fixture.
 
+`db:extract-smoke` covers the model boundary without a network call. Sixty-six checks: a reply that
+is not the agreed shape imports **nothing** and still records its spend; an uncited item is dropped
+and counted while a cited one is kept; a citation that does not resolve cannot become evidence; an
+ambiguous owner is flagged rather than guessed; confidence is clamped; a date is validated and stored
+at 17:00 in the owner's zone across both DST changes; the transcript and monthly caps refuse rather
+than truncate; Assist and Autopilot only auto-approve unflagged high-confidence items and record
+`actorKind: "prepo"`; a re-run replaces proposed items only; and another workspace's meeting is
+indistinguishable from a missing one. What it cannot prove is how well a real model reads a real
+transcript — nobody has measured that yet.
+
 On top of the committed suites, the flows were exercised end-to-end over HTTP against the
 production build: 46 sign-in checks and 23 two-factor checks while milestone 3 was built, 73
 audio checks while milestone 4 was — including refusal of a renamed file and of an upload without
@@ -136,3 +153,9 @@ to an empty, non-JSON, team-less or stale body, and `200` with a reason for a te
 (which is why a forged signature there changes nothing). The `401` branch itself — a real secret,
 a wrong signature — is covered by the committed suite rather than by that live pass, because
 reaching it over HTTP needs a connected workspace.
+
+And one live extraction while milestone 7 was built: a four-line synthetic transcript through the
+configured free OpenRouter model returned three items, resolved Lena, Sam and Priya by name, turned
+"by Friday" into 2026-10-16 and "tomorrow" into 2026-10-13 (both 17:00 Europe/Berlin), left the
+undated item undated with `no_deadline`, and reported `$0.000000` cost. One run is an anecdote, not
+an eval; it is here because it is the only evidence that the prompt and the free model agree.

@@ -403,32 +403,9 @@ export async function seed(): Promise<SeedSummary> {
     isShared: true,
   });
 
-  await db.insert(t.aiRuns).values([
-    {
-      id: uuidv7(),
-      workspaceId: WORKSPACE_IDS.northwind,
-      purpose: "extract_action_items",
-      model: "claude-sonnet-5",
-      tokensIn: 8420,
-      tokensOut: 1180,
-      costUsd: "0.043000",
-      latencyMs: 6120,
-      traceId: "seed-trace-1",
-      evalScore: "0.9200",
-    },
-    {
-      id: uuidv7(),
-      workspaceId: WORKSPACE_IDS.globex,
-      purpose: "extract_action_items",
-      model: "claude-sonnet-5",
-      tokensIn: 1200,
-      tokensOut: 210,
-      costUsd: "0.008000",
-      latencyMs: 2400,
-      traceId: "seed-trace-2",
-      evalScore: "0.8800",
-    },
-  ]);
+  // No `ai_runs` rows are seeded. The demo minutes and action items were written
+  // by hand, not by a model, and a fabricated run would make the cost table claim
+  // spend that never happened. A real extraction writes its own row.
 
   await db.insert(t.auditLogs).values(
     userRows.slice(0, 2).map((user, index) => ({

@@ -4,14 +4,13 @@ import { useOptimistic, useTransition } from "react";
 import { ArrowRight, ArrowUpRight, Clock } from "@phosphor-icons/react";
 import {
   TICKET_STATUSES,
-  type Meeting,
   type Ticket,
   type TicketStatusId,
 } from "@prepo/shared";
 import { formatShortDate, isOverdue } from "@/lib/workspace-data";
 import { cn } from "@/lib/utils";
 import { moveTicket } from "@/server/actions";
-import type { ActionItemView, FollowupView } from "@/server/queries";
+import type { ActionItemView, FollowupView, MeetingView } from "@/server/queries";
 import { OverdueBadge, PriorityBadge } from "./badges";
 import { Card } from "./page-header";
 import { ReviewList } from "./review-list";
@@ -25,7 +24,7 @@ export function Dashboard({
 }: {
   workspace: string;
   tickets: Ticket[];
-  meetings: Meeting[];
+  meetings: MeetingView[];
   actionItems: ActionItemView[];
   followups: FollowupView[];
 }) {
@@ -221,19 +220,28 @@ export function Dashboard({
                         {formatShortDate(meeting.heldAt)} · {meeting.source}
                       </p>
                     </div>
-                    <span
-                      className={cn(
-                        "shrink-0 font-mono text-sm",
-                        meeting.clarityScore >= 70
-                          ? "text-[#15803d] dark:text-[#4ade80]"
-                          : meeting.clarityScore >= 45
-                            ? "text-accent-ink"
-                            : "text-[#b91c1c] dark:text-[#f87171]",
-                      )}
-                      title="Clarity score"
-                    >
-                      {meeting.clarityScore}
-                    </span>
+                    {meeting.clarityScored ? (
+                      <span
+                        className={cn(
+                          "shrink-0 font-mono text-sm",
+                          meeting.clarityScore >= 70
+                            ? "text-[#15803d] dark:text-[#4ade80]"
+                            : meeting.clarityScore >= 45
+                              ? "text-accent-ink"
+                              : "text-[#b91c1c] dark:text-[#f87171]",
+                        )}
+                        title="Clarity score"
+                      >
+                        {meeting.clarityScore}
+                      </span>
+                    ) : (
+                      <span
+                        className="shrink-0 font-mono text-sm text-text-subtle"
+                        title="No clarity score yet"
+                      >
+                        —
+                      </span>
+                    )}
                   </a>
                 </li>
               ))}

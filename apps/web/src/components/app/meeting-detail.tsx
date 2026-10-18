@@ -13,6 +13,7 @@ import type {
   SpeakerLabelView,
 } from "@/server/queries";
 import { ScoreMeter } from "./badges";
+import { ExtractButton } from "./extract-button";
 import { Card } from "./page-header";
 import { ReviewList } from "./review-list";
 import { TranscriptPanel } from "./transcript-panel";
@@ -39,6 +40,8 @@ export function MeetingDetail({
   initialTab = "Summary",
   notice,
   retention,
+  extraction,
+  canExtract,
 }: {
   workspace: string;
   meeting: MeetingView;
@@ -50,6 +53,10 @@ export function MeetingDetail({
   initialTab?: MeetingTab;
   notice?: string;
   retention: string;
+  /** Whether the extraction provider is configured, and why not when it is not. */
+  extraction: { ready: boolean; reason: string | null };
+  /** Viewers can read the meeting but cannot spend a model call on it. */
+  canExtract: boolean;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<MeetingTab>(initialTab);
@@ -82,9 +89,11 @@ export function MeetingDetail({
     },
     {
       who: "prepo",
-      what: meetingItems.length
+      what: meeting.summary
         ? `Extracted ${meetingItems.length} action items with source quotes.`
-        : "No action items were extracted for this meeting.",
+        : meetingItems.length
+          ? `${meetingItems.length} action items are attached to this meeting.`
+          : "No action items have been extracted for this meeting.",
       when: formatDate(meeting.heldAt),
     },
   ];
@@ -142,12 +151,37 @@ export function MeetingDetail({
               <p className="max-w-[65ch] text-sm leading-relaxed text-text-muted">
                 {meeting.summary}
               </p>
-            ) : (
+            ) : !extraction.ready ? (
+              <div className="max-w-[65ch]">
+                <p className="text-sm leading-relaxed text-text-muted">
+                  No summary was produced for this meeting. Summaries come from the extraction
+                  step, which needs a language model and is not configured on this deployment —
+                  the transcript on the next tab is complete and quotable.
+                </p>
+                <p className="mt-3 text-xs leading-relaxed text-text-subtle">
+                  {extraction.reason}. Set both values in{" "}
+                  <code className="font-mono">apps/web/.env.local</code>; until then nothing is
+                  sent anywhere.
+                </p>
+              </div>
+            ) : segments.length === 0 ? (
               <p className="max-w-[65ch] text-sm leading-relaxed text-text-muted">
-                No summary was produced for this meeting. Summaries come from the extraction step,
-                which needs a language model and is not configured on this deployment — the
-                transcript on the next tab is complete and quotable.
+                No minutes yet. Extraction reads a transcript, and this meeting does not have
+                one — upload or paste it on the next tab first.
               </p>
+            ) : (
+              <div className="max-w-[65ch]">
+                <p className="text-sm leading-relaxed text-text-muted">
+                  No minutes yet. Extraction reads the {segments.length} transcript segments on
+                  the next tab and writes a summary, the decisions, and action items that cite
+                  them.
+                </p>
+                {!canExtract ? (
+                  <p className="mt-3 text-xs text-text-subtle">
+                    You can read this meeting. A member with edit access can run extraction.
+                  </p>
+                ) : null}
+              </div>
             )}
             {meeting.keyDecisions.length > 0 ? (
               <>
@@ -178,17 +212,31 @@ export function MeetingDetail({
           </Card>
 
           <div className="space-y-6">
+            {extraction.ready && canExtract && segments.length > 0 ? (
+              <Card title="Extraction">
+                <p className="text-sm leading-relaxed text-text-muted">
+                  {meeting.summary
+                    ? "Run extraction again. Proposed items from the previous run are replaced; ticketed and rejected items are kept."
+                    : "Read the transcript and draft the minutes and action items. Every item has to cite a transcript segment."}
+                </p>
+                <ExtractButton
+                  workspace={workspace}
+                  meetingId={meeting.id}
+                  hasSummary={Boolean(meeting.summary)}
+                />
+              </Card>
+            ) : null}
             <Card title="Scores">
               <div className="space-y-5">
                 <ScoreMeter
                   label="Clarity"
-                  value={meeting.clarityScore}
-                  hint="How well the minutes name owners, dates, and decisions."
+                  value={meeting.clarityScored ? meeting.clarityScore : null}
+                  hint="Computed from the extracted items: owners 45%, deadlines 35%, a settled decision 20%."
                 />
                 <ScoreMeter
                   label="Necessity"
-                  value={meeting.necessityScore}
-                  hint="Higher means the meeting likely repeated earlier ones."
+                  value={meeting.necessityScored ? meeting.necessityScore : null}
+                  hint="Higher means the meeting likely repeated earlier ones. Comparing meetings is not built, so new meetings are not scored."
                 />
               </div>
             </Card>

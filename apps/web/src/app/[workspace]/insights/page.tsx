@@ -61,7 +61,9 @@ export default async function InsightsPage({
     })
     .filter((entry): entry is { label: string; value: number } => entry !== null);
 
-  const clarityTrend = chronological.map((meeting) => meeting.clarityScore);
+  const clarityTrend = chronological
+    .filter((meeting) => meeting.clarityScored)
+    .map((meeting) => meeting.clarityScore);
 
   // Meetings per weekday and time slot, built from real meeting timestamps.
   const load = WEEKDAYS.map(() => SLOTS.map(() => 0));
@@ -166,7 +168,7 @@ export default async function InsightsPage({
         <Card title="Clarity score trend">
           {clarityTrend.length === 0 ? (
             <p className="py-6 text-center text-sm text-text-subtle">
-              No meetings recorded yet.
+              No meeting has a clarity score yet. Scores come from extraction.
             </p>
           ) : (
             <>
@@ -182,7 +184,11 @@ export default async function InsightsPage({
               </div>
               <p className="mt-3 text-xs text-text-subtle">
                 Are the minutes getting clearer over time? Last{" "}
-                {clarityTrend.length} meetings.
+                {clarityTrend.length} scored meeting
+                {clarityTrend.length === 1 ? "" : "s"}.
+                {clarityTrend.length < chronological.length
+                  ? " Meetings without an extraction are not scored, so they are not plotted."
+                  : ""}
               </p>
             </>
           )}

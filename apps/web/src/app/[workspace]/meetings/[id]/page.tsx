@@ -3,6 +3,7 @@ import {
   type MeetingTab,
 } from "@/components/app/meeting-detail";
 import { EmptyState } from "@/components/app/page-header";
+import { extractionReadiness } from "@/server/ai/extract";
 import { retentionLabel } from "@/server/audio/retention";
 import { requireWorkspace } from "@/server/context";
 import {
@@ -71,6 +72,8 @@ export default async function MeetingDetailPage({
       initialTab={tab ? (TABS[tab] ?? "Summary") : "Summary"}
       notice={notice}
       retention={`${retentionLabel(context.settings.audioRetentionDays)}.`}
+      extraction={extractionReadiness()}
+      canExtract={context.viewer.role !== "viewer"}
     />
   );
 }

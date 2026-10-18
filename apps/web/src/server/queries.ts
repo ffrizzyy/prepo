@@ -26,6 +26,13 @@ export type MeetingView = Meeting & {
   segmentCount: number;
   proposedCount: number;
   ticketedCount: number;
+  /**
+   * False when no extraction has produced a score. The row's numeric fallback is
+   * 0, which is a real score, so "never scored" has to be carried separately or
+   * an unread meeting would look like a badly run one.
+   */
+  clarityScored: boolean;
+  necessityScored: boolean;
 };
 
 export type TicketCommentView = {
@@ -98,6 +105,8 @@ export async function listMeetingsView(
 
     return meetings.map((row) => ({
       ...toMeeting(row),
+      clarityScored: row.clarityScore !== null,
+      necessityScored: row.necessityScore !== null,
       segmentCount: segments.get(row.id) ?? 0,
       proposedCount: items.get(row.id)?.proposed ?? 0,
       ticketedCount: tickets.get(row.id) ?? items.get(row.id)?.ticketed ?? 0,

@@ -10,12 +10,25 @@ This repository is being built against the specification in [`PREPO.md`](./PREPO
 
 ## Status
 
-**Milestone 6 — Linear, two-way.** The schema, migrations, tenant isolation and seed are
+**Milestone 7 — extraction.** The schema, migrations, tenant isolation and seed are
 complete and verified against two engines; the app reads and writes Postgres; authentication is
 real — password sign-in, per-device sessions with revoke, throttling, and TOTP two-factor with
-single-use recovery codes; the audio path (milestone 4) records, uploads and transcribes; and the
-follow-up engine (milestone 5) chases. **Milestone 6 mirrors tickets into Linear and takes
+single-use recovery codes; the audio path (milestone 4) records, uploads and transcribes; the
+follow-up engine (milestone 5) chases; and **milestone 6 mirrors tickets into Linear and takes
 Linear's changes back**, through a queue that never makes a local write wait on the network.
+**Milestone 7 turns a transcript into minutes and candidate action items through OpenRouter**,
+grounded in the transcript before a single row is written.
+
+The extraction step is deliberately conservative. The transcript is sent as JSON and treated as
+untrusted data; the reply has to pass the same Zod schema the prompt describes; every action item
+must cite a segment token that resolves to a real row, and an item that cannot is **dropped**
+rather than repaired. The quote the review screen shows is read from the transcript, not from the
+model's prose. Owners resolve only against workspace members (full name, alias, or the email's
+local part; a first-name match scores lower, and two matches are ambiguous, not a guess). A date
+becomes 17:00 in the owner's zone, and clarity is arithmetic over what was extracted rather than a
+second opinion. Assist and Autopilot auto-approve only high-confidence items with no ambiguity or
+duplicate flag. A run is capped at 120,000 characters of transcript and 200 runs per workspace per
+month, and both refusals say so.
 
 The follow-up engine is honest about what it can and cannot deliver here. A `RESEND_API_KEY` is
 configured, but the account has **no verified sending domain**, so Resend accepts a send only to
@@ -27,12 +40,10 @@ that needs an installed app with a subscription and there is no service worker. 
 **defer** a message until the window ends, in the recipient's own timezone, rather than dropping
 it.
 
-Two older gaps stay as they were, and the UI still says so: there is no `DEEPGRAM_API_KEY`, so
-nothing is sent anywhere for speech-to-text; and turning a meeting into tickets is the
-**extraction** step (milestone 7), which needs a language model, so a new import is stored as
-`ready` with a complete transcript and no invented summary or action items. An
-`OPENROUTER_API_KEY` is configured and accepted by the provider, but the step that would call it
-does not exist yet — a key on the machine is not a feature.
+One older gap stays as it was, and the UI still says so: there is no `DEEPGRAM_API_KEY`, so nothing
+is sent anywhere for speech-to-text, and import-by-transcript is the working path. The extractor
+is configured: `AI_MODEL_EXTRACT` names a model on OpenRouter, chosen from the provider's live model
+list and free to run at this size, so a real extraction needs no credit.
 
 The links under the landing page are real routes now — `/security`, `/privacy`, `/terms` and
 `/download` — and so are the 404 and 500 states. [`SECURITY.md`](./SECURITY.md) records what is
@@ -76,8 +87,14 @@ implemented next to the OWASP gaps that are still open, so nothing has to be tak
 | Linear — pull and signed webhook share one conflict rule; `canceled` is reported as unmapped | Done |
 | Linear — link, sync status and one-click retry on the ticket page | Done |
 | Linear OAuth 2.0 | Not implemented — the personal API key path was built instead (see **Linear** below) |
+| Extraction — summary, decisions, open questions, action items, one call per meeting | Done — OpenRouter, JSON Schema (with a JSON-mode fallback) |
+| Extraction grounding — citations resolved to real segments, uncited items dropped, owners from the roster, dates at 17:00 local | Done |
+| Review — approve / reject with the transcript quote, owner confidence and flags | Done |
+| Budget and observability — 120k-character cap, 200 runs per workspace per month, `ai_runs` cost/latency/usage | Done |
+| Autonomy — Suggest / Assist / Autopilot applied at extraction time | Done |
+| Automated extraction evals (golden set, precision/recall gate) | Not implemented — the suite tests grounding, not model quality (see **Extraction**) |
+| PII redaction before the model call | Not implemented |
 | Speech-to-text provider (Deepgram) | Wired, **unconfigured without a key** |
-| Extraction of summary / decisions / action items (meeting → tickets) | Not started (milestone 7) |
 | Tab-audio capture (`getDisplayMedia`), `.docx`/`.pdf` transcripts | Not implemented — recorder is mic-only; transcripts are parsed as text |
 | Email delivery (Resend) | Wired; a key is set but **no verified sending domain**, so only the account's own address can receive — refusals are recorded with Resend's reason |
 | Push notifications | Not implemented — no service worker, so no push row is ever queued |
@@ -295,6 +312,63 @@ only touched by `db:providers -- --live`, which makes one authenticated **read**
 creates nothing. Nothing in this repository can prove that a real push lands in a real team until
 someone points it at one, and the README will not claim otherwise.
 
+## Extraction
+
+Milestone 7 turns a transcript into minutes and candidate tickets: one model call per meeting,
+made through OpenRouter, followed by a grounding pass that decides whether anything the model said
+is allowed into the database.
+
+**Configuration.** Two values, both required:
+
+```bash
+OPENROUTER_API_KEY=      # in apps/web/.env.local, never committed
+AI_MODEL_EXTRACT=        # a model id from OpenRouter's live model list
+```
+
+`db:providers` shows whether they are set (masked); `--live` checks the key against
+`https://openrouter.ai/api/v1/key`. With either missing, the meeting page names the missing value
+and `db:extract` prints the same sentence and writes nothing. The request asks for a JSON Schema
+response; if a provider rejects that, one retry uses JSON mode, and either way the reply must pass
+`rawExtractionSchema` before anything is written.
+
+**What a run does** (`extractMeeting` in `server/ai/extract.ts`):
+
+1. Read the meeting, segments, roster, workspace settings and this month's run count in one
+   workspace transaction.
+2. Refuse early when there is no transcript, when the meeting already has minutes (the scheduled
+   job never re-extracts), when the transcript exceeds 120,000 characters, or when the workspace
+   has used its 200 runs for the month.
+3. Call the provider **outside any transaction**. A 90-second timeout is a failed run, not a hung
+   request.
+4. Validate the reply, then ground it: `s1`-style citations are resolved against the transcript
+   that was sent; an item with no valid citation is dropped and counted; owners resolve against
+   members only; `dueDate` must be a real calendar date and is stored at 17:00 in the owner's
+   timezone; near-identical titles are flagged, not deleted.
+5. In a second transaction, write the summary, decisions, open questions, clarity score, items
+   and one `ai_runs` row, plus an audit entry.
+6. Apply the autonomy level. **Suggest** leaves everything in review; **Assist** tickets items at
+   ≥ 0.85 confidence with an owner, a date and no ambiguity/duplicate flag; **Autopilot** drops the
+   owner/date requirement but keeps the flag rule. Auto-approved tickets record `actorKind: "prepo"`
+   with a null actor and get their normal follow-up ladder.
+
+The review screen shows the quote from the transcript segment itself, so the evidence cannot be
+fabricated; "Extract again" replaces only items still in review, never a ticketed or rejected one.
+
+**What is deliberately not here.** There are no automated evals: the suite proves the prompt, the
+schema gate and the grounding rules with a fixture provider, and proves that a run writes what it
+reports, but it cannot score a real model's judgement. PII redaction before the call is not
+implemented. A transcript over the cap is refused rather than split. Necessity scoring is not
+computed — comparing meetings for overlap is a different feature, so the meter stays empty rather
+than showing a guess.
+
+**How this is verified.** `pnpm --filter @prepo/web db:extract-smoke` runs **66 checks** with a
+fixture provider: configuration reasons, DST-correct date handling, schema degradation, grounding
+(unknown citations, ambiguous owners, clamped confidence), the full happy path with stored values,
+idempotency, replacement, Assist and Autopilot, the character and budget refusals, an invalid
+reply, and cross-tenant invisibility. Run the scheduler entry point with `db:extract`. A live call
+is the one thing the suite cannot make: one was run once against the configured free model and is
+recorded in `SECURITY.md`, but it is not part of CI and it is not an eval.
+
 ## Requirements
 
 - Node.js ≥ 22 (developed on 24)
@@ -345,6 +419,8 @@ pnpm --filter @prepo/web db:followups  # work the follow-up queue (scheduler ent
 pnpm --filter @prepo/web db:followup-smoke    # exercise the ladder, quiet hours and the engine
 pnpm --filter @prepo/web db:linear      # work the Linear queue: pull what changed, push what is queued
 pnpm --filter @prepo/web db:linear-smoke # exercise crypto, mapping, queue, push, pull and the webhook
+pnpm --filter @prepo/web db:extract      # extract every ready meeting with no minutes (scheduler entry point)
+pnpm --filter @prepo/web db:extract-smoke # exercise the schema gate, grounding, autonomy and refusals
 pnpm --filter @prepo/web db:providers        # which keys are set, and whether they work
 pnpm --filter @prepo/web db:studio     # browse the data
 ```
@@ -503,6 +579,7 @@ prepo/
 │     ├─ src/server/           # context (workspace + viewer), queries, actions, writes
 │     ├─ src/server/audio/     # storage driver, validation, parsers, provider, ingest, retention
 │     ├─ src/server/linear/    # crypto, mapping, GraphQL client + fixture, queue, webhook, sync
+│     ├─ src/server/ai/        # extraction provider (OpenRouter), prompt, schema, grounding, run
 │     ├─ src/server/auth/      # passwords, TOTP, challenges, sessions, throttle, identity audit, DAL
 │     ├─ src/server/db/        # Drizzle schema, client, migrations, seed, verify, repo
 │     └─ drizzle/              # generated migrations + hand-written RLS/policy SQL
@@ -528,11 +605,12 @@ that reads `prefers-color-scheme` and a stored preference (no flash).
 ## Sample data
 
 `packages/shared/src/sample.ts` holds a realistic seeded meeting ("Q4 Launch — Weekly
-Sync") with a speaker-labelled transcript, seven extracted action items (including ones
+Sync") with a speaker-labelled transcript, seven action items (including ones
 flagged for a missing owner or deadline), existing tickets, and a small roster. `db:seed`
 loads this into Postgres — the app reads the database, not the file — while the hero preview
 and several landing sections render straight from it, so the marketing page and the seeded
-workspace stay in step.
+workspace stay in step. The demo minutes are hand-written: there are no seeded `ai_runs`, because
+no model produced them.
 
 ## Roadmap
 
@@ -554,6 +632,8 @@ Milestones follow section 12 of `PREPO.md`:
    pull and signed webhook through one conflict rule, per-ticket link/status/retry, and disconnect
    that keeps both sides. OAuth, comments, attachments and sub-issues are not part of it, and the
    page says so
-7. Ask Prepo, scores, insights, evals
+7. ◐ Extraction, scores and evals — extraction (OpenRouter, grounded, budgeted, with the
+   Suggest/Assist/Autopilot split) and the clarity score are done. Ask Prepo, necessity scoring
+   and automated evals are not
 8. Desktop app (Tauri)
 9. Polish and security checklist

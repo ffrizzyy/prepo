@@ -100,10 +100,10 @@ export function MeetingsTable({
                       {SOURCE_LABEL[meeting.source] ?? meeting.source}
                     </td>
                     <td className="px-5 py-3">
-                      <Score value={meeting.clarityScore} />
+                      <Score value={meeting.clarityScored ? meeting.clarityScore : null} />
                     </td>
                     <td className="px-5 py-3">
-                      <Score value={meeting.necessityScore} invert />
+                      <Score value={meeting.necessityScored ? meeting.necessityScore : null} invert />
                     </td>
                     <td className="px-5 py-3 font-mono text-xs text-text-muted">
                       {meeting.ticketedCount}/{meeting.proposedCount}
@@ -119,7 +119,15 @@ export function MeetingsTable({
   );
 }
 
-function Score({ value, invert }: { value: number; invert?: boolean }) {
+function Score({ value, invert }: { value: number | null; invert?: boolean }) {
+  if (value === null) {
+    return (
+      <span className="font-mono text-sm text-text-subtle" title="Not scored">
+        —
+      </span>
+    );
+  }
+
   const good = invert ? value <= 45 : value >= 70;
   const mid = invert ? value <= 70 : value >= 45;
   return (

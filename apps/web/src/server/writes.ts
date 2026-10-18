@@ -85,7 +85,10 @@ export async function moveTicket(input: {
  */
 export async function approveActionItems(input: {
   workspaceId: string;
-  actorId: string;
+  /** Null when the agent auto-approved under Assist or Autopilot. */
+  actorId: string | null;
+  /** "user" unless the agent acted; recorded on every ticket event. */
+  actorKind?: string;
   prefix: string;
   actionItemIds: string[];
 }): Promise<{ created: number }> {
@@ -138,7 +141,7 @@ export async function approveActionItems(input: {
         workspaceId: input.workspaceId,
         ticketId,
         actorId: input.actorId,
-        actorKind: "user",
+        actorKind: input.actorKind ?? "user",
         type: "created",
         payload: {
           key,

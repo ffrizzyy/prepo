@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AUDIO_RETENTION_CHOICES } from "./audio/retention";
+import { extractMeeting, type ExtractionReport } from "./ai/extract";
 import { requireWorkspace } from "./context";
 import * as t from "./db/schema";
 import {
@@ -101,6 +102,33 @@ export async function approveActionItems(input: {
 
   revalidateWorkspace(parsed.workspace);
   return { created };
+}
+
+/**
+ * Runs extraction from the meeting page. This is the explicit re-run path, so it
+ * may replace proposed items; the scheduled job never does. The provider, the
+ * budget, and the workspace are all decided here rather than by the client.
+ */
+export async function extractMeetingNow(input: {
+  workspace: string;
+  meetingId: string;
+}): Promise<ExtractionReport> {
+  const parsed = z.object({ workspace: slug, meetingId: uuid }).parse(input);
+  const context = await requireWorkspace(parsed.workspace);
+
+  if (context.viewer.role === "viewer") {
+    throw new Error("Viewers cannot run extraction.");
+  }
+
+  const report = await extractMeeting({
+    workspaceId: context.id,
+    meetingId: parsed.meetingId,
+    actorId: context.viewer.userId,
+    replace: true,
+  });
+
+  revalidateWorkspace(parsed.workspace);
+  return report;
 }
 
 export async function rejectActionItem(input: {

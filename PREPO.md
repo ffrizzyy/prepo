@@ -90,7 +90,7 @@ The move from table discussion to field execution becomes instant. Every team me
 | API | Next.js Route Handlers (REST, `/api/v1`) + Server Actions. OpenAPI generated from Zod |
 | ORM / migrations | Drizzle ORM + drizzle-kit |
 | Auth | Email + password (argon2id), **TOTP 2FA with recovery codes**, per-device sessions with revoke, lockout + rate limits, organizations/roles. Implemented directly on the `users`/`accounts`/`sessions` tables in 4.5 rather than via Better Auth, so the identity model matches the documented schema and stays driver-agnostic (PGlite or Postgres). Magic link, Google/GitHub OAuth, passkeys (WebAuthn), breached-password check and Turnstile are still to be added |
-| Background jobs | Inngest (durable workflows, cron, retries) for the audio → transcript → extraction → ticket pipeline and the follow-up scheduler. **As built:** not wired yet. Audio ingest runs inline in the route handler that received the bytes; retention is the `db:retention` script and the follow-up chaser is `db:followups`, both written to be called from any scheduler and both printing a per-row decision line |
+| Background jobs | Inngest (durable workflows, cron, retries) for the audio → transcript → extraction → ticket pipeline and the follow-up scheduler. **As built:** not wired yet. Audio ingest runs inline in the route handler that received the bytes; retention is the `db:retention` script, the follow-up chaser is `db:followups`, and extraction is `db:extract` (the meeting page's button calls the same function) — all written to be called from any scheduler, all printing a per-row decision line |
 | Realtime | **Ably**, token auth with per-workspace capabilities. Events carry IDs only, clients refetch through the authorized API |
 | File / audio storage | Cloudflare R2 (S3-compatible), private bucket, presigned URLs, lifecycle auto-delete. **As built:** a local filesystem driver behind a `StorageDriver` interface, because there is no R2 account on the build machine. The interface deliberately has **no presign method**, so audio is never publicly addressable — playback is an authorization-checked route that streams byte ranges |
 | Speech-to-text | **Deepgram** (speaker diarization + word timestamps), behind a `TranscriptionProvider` interface so OpenAI or others can be swapped in. **As built:** the interface is `transcribe(bytes, opts)` rather than `transcribe(audioUrl, opts)` — bytes keep a user-supplied URL from ever becoming an outbound request. The provider is unconfigured without `DEEPGRAM_API_KEY` |
@@ -117,12 +117,12 @@ The move from table discussion to field execution becomes instant. Every team me
 
 | Item | Choice |
 |---|---|
-| SDK | Vercel AI SDK (`ai`) with OpenRouter as the provider, so the vendor is a model id rather than a dependency |
-| Model | Reached through `OPENROUTER_API_KEY` (server-side only). Model IDs live in env (`AI_MODEL_EXTRACT`, `AI_MODEL_FAST`) and are checked against current docs before first run |
-| Structured output | `generateObject` / `streamObject` with Zod |
-| Agent tools | Typed tool calls with a hard allow-list: `create_ticket`, `assign_owner`, `schedule_followup`, `search_meetings` |
-| Observability | Langfuse (or an `ai_runs` table): prompts, latency, tokens, cost, eval scores |
-| Evals | Golden transcripts scored on owner / deadline / action-item F1, gated in CI |
+| SDK | Vercel AI SDK (`ai`) with OpenRouter as the provider, so the vendor is a model id rather than a dependency. **As built:** OpenRouter's OpenAI-compatible endpoint over `fetch`, so no AI SDK dependency is installed; the provider seam is our own `ExtractionProvider` |
+| Model | Reached through `OPENROUTER_API_KEY` (server-side only). Model IDs live in env (`AI_MODEL_EXTRACT`, `AI_MODEL_FAST`) and are checked against current docs before first run. **As built:** `AI_MODEL_EXTRACT` only; the configured id was taken from OpenRouter's live model list (`/api/v1/models`) |
+| Structured output | `generateObject` / `streamObject` with Zod. **As built:** a JSON Schema `response_format` (with a JSON-mode fallback) and the same Zod schema as the arrival gate |
+| Agent tools | Typed tool calls with a hard allow-list: `create_ticket`, `assign_owner`, `schedule_followup`, `search_meetings`. **As built:** no model-facing tools at all; extraction returns JSON and the server decides what to write |
+| Observability | Langfuse (or an `ai_runs` table): prompts, latency, tokens, cost, eval scores. **As built:** `ai_runs` with model, tokens, cost, latency and the meeting id as `traceId`; no prompt tracing |
+| Evals | Golden transcripts scored on owner / deadline / action-item F1, gated in CI. **As built:** not implemented (7.5) |
 
 ### 1.5 Tooling, quality, DevOps
 
@@ -396,9 +396,11 @@ BETTER_AUTH_SECRET=
 GOOGLE_CLIENT_ID= / GOOGLE_CLIENT_SECRET=
 GITHUB_CLIENT_ID= / GITHUB_CLIENT_SECRET=
 # AI  (you provide these; server-side only, never exposed to the browser)
+# As built: only OPENROUTER_API_KEY and AI_MODEL_EXTRACT are read. With either
+# missing, extraction is refused and the UI names the missing variable.
 OPENROUTER_API_KEY=              # one key, model chosen by id
-AI_MODEL_EXTRACT=
-AI_MODEL_FAST=
+AI_MODEL_EXTRACT=                # a model id from OpenRouter's live model list
+AI_MODEL_FAST=                   # not read yet (Ask Prepo is not built)
 DEEPGRAM_API_KEY=
 DEEPGRAM_CALLBACK_SECRET=        # verifies transcription callbacks
 # Storage
@@ -550,9 +552,9 @@ flowchart LR
   presigned to R2, and the authorization-checked route serves it back with `206` byte ranges.
 - **No Inngest.** Ingest — validate, store, transcribe, write segments — runs inline in the route
   handler that received the bytes. Retention is the `db:retention` sweep instead of a lifecycle rule.
-- **No extraction step.** A recorded or imported meeting is stored `ready` with its transcript and
-  no summary or action items; the UI says those come from the language model in section 7 rather
-  than inventing them.
+- **Extraction is a script or a button, not an Inngest step.** `db:extract` (or the meeting page's
+  Extract button) reads the transcript, calls the model **outside any transaction**, grounds the
+  answer, and writes once. A meeting with no minutes keeps its transcript and no invented summary.
 - **Speaker mapping is manual.** Labels come back as `Speaker 1/2/3` and the user attaches each to a
   workspace member in one form post; the automatic proposal from introductions and calendar
   attendees is not built.
@@ -585,6 +587,30 @@ flowchart TD
   K --> L[Monitor, nudge, escalate, weekly digest]
 ```
 
+**As built (milestone 7).** The sequence is the same; the durable workflow is not.
+
+- **One call, not a chain of stages.** `extractMeeting` asks for the summary, decisions, open
+  questions and action items together. A separate "understand" call could contradict the extraction
+  call; one answer cannot.
+- **The provider is OpenRouter over `fetch`**, not the Vercel AI SDK. The request asks for a JSON
+  Schema response and retries once in JSON mode if the model rejects that; either way the reply must
+  pass `rawExtractionSchema`. `AI_MODEL_EXTRACT` selects the model.
+- **Grounding is a pure function** (`server/ai/ground.ts`). Citations resolve to segment ids against
+  the transcript that was sent; an item with no valid citation is dropped and counted; owners match
+  only workspace members; a date is validated and stored at 17:00 in the owner's zone; near-identical
+  titles are flagged rather than deleted.
+- **PII redaction is not implemented.** The transcript is sent as stored.
+- **No Inngest.** `db:extract` is a one-pass script with no retry; a provider failure is a failed run,
+  reported. The meeting page's Extract button calls the same function with `replace: true`, the only
+  path that re-runs an extracted meeting.
+- **Quality checks are flags, not a second pass:** `no_owner`, `no_deadline`, `ambiguous_owner`,
+  `possible_duplicate`. Necessity is not computed; clarity is arithmetic over the items and decisions.
+- **Autonomy** is applied after the write: Suggest leaves everything in review; Assist tickets
+  high-confidence items with an owner and a date; Autopilot drops the owner/date requirement but still
+  refuses ambiguity and duplicates. Auto-approved tickets record `actorKind: "prepo"`.
+- **Limits:** 120,000 characters of transcript and 200 runs per workspace per calendar month; both are
+  refusals with a reason, not truncation.
+
 ### 7.2 Structured extraction schema (illustrative)
 
 ```ts
@@ -601,6 +627,8 @@ const ActionItem = z.object({
 ```
 
 Rule: **no source quote, no ticket.** An item the model cannot ground in the transcript is discarded.
+**As built:** the model cites `s1`-style segment tokens, not quote text; the quote shown on the review
+screen is read from the segment row itself, so the evidence cannot be a sentence the model made up.
 
 ### 7.3 Signature AI features
 
@@ -616,6 +644,13 @@ Rule: **no source quote, no ticket.** An item the model cannot ground in the tra
 | Ask Prepo | Full-text retrieval + Claude, cited answers, permission-aware (no embeddings) |
 | Weekly digest | What shipped, what is stuck, who is blocked |
 
+**As built:** extraction, owner resolution, relative dates, auto-ticketing, follow-ups and the clarity
+score exist. Owner resolution matches a member's full name, alias, or the email's local part (a
+first name scores lower); it does not match "Sam from design" or "the backend team" to a roster entry —
+those become `no_owner` rather than a guess. Relative dates are resolved by the model and validated
+against a real calendar. The necessity score, Ask Prepo, and any AI commentary in the digest are not
+built; the digest is a plain summary of scheduled and overdue work.
+
 ### 7.4 AI safety and cost controls (OWASP Top 10 for LLM Applications)
 
 | Risk | Mitigation |
@@ -627,11 +662,23 @@ Rule: **no source quote, no ticket.** An item the model cannot ground in the tra
 | Unbounded consumption | Per-user and per-workspace token and audio-minute budgets, input caps, concurrency limits, circuit breaker, cost in `ai_runs` / `stt_runs` |
 | Hallucination | Evidence-required schema, confidence thresholds, citations in chat, golden-set evals gate CI |
 
+**As built (milestone 7):** injection defence is a system prompt that names the transcript as data,
+JSON-delimited segments, a schema-constrained reply, no tools, and a grounding pass that drops
+anything uncited. Output is Zod-validated and rendered as text. Agency is bounded by the autonomy
+setting and recorded on every ticket event. There is **no PII redaction**, **no circuit breaker**, and
+**no concurrency limit**; the budgets that do exist are the 120,000-character transcript cap, the
+90-second timeout and the 200-runs-per-workspace-per-month cap, with tokens, cost and latency written
+to `ai_runs`.
+
 ### 7.5 Evals (CI gate)
 
 - 30–50 golden transcripts with hand-labeled action items (include noisy speech-to-text-style transcripts with errors and filler words).
 - Metrics: item precision / recall / F1, owner accuracy, due-date accuracy, hallucination rate.
 - A prompt or model change that drops F1 below the threshold fails the PR. Score trend shown in the README.
+
+**As built:** not implemented. There is no golden set, no metrics run and no CI gate, so model quality
+is unmeasured; `db:extract-smoke` tests the schema and grounding with a fixture provider, which is a
+different claim. The README says so where the feature is described.
 
 ---
 
@@ -745,7 +792,7 @@ These routes are top-level (not under `/{workspace-slug}/…`).
 |---|---|
 | `/meetings` | Table with full-text search (typo-tolerant), filters (date, status, source), sort, pagination, skeletons |
 | `/meetings/new` | **Record**, **upload audio**, **upload transcript**, or **paste**. Metadata (title, date, attendees), consent checkbox for recordings, live pipeline progress (Upload → Transcribe → Understand → Extract → Match owners). **As built:** all four routes work as plain form posts; the pipeline strip says which stages need a provider or a model rather than animating through stages that are not configured |
-| `/meetings/[id]` | Tabs: **Summary** (summary, decisions, open questions) · **Actions** · **Transcript + audio** (synced player, speaker labels editable) · **Activity**. Clarity and Necessity scores with reasons. Share recap (signed link). Export Markdown / PDF. **As built:** the Transcript tab is a URL parameter (`?tab=transcript`) so redirects land on it; the player seeks by byte range, shows speed control and highlights the active line. Speaker labels are editable and map to members. Recap links and export are not built |
+| `/meetings/[id]` | Tabs: **Summary** (summary, decisions, open questions) · **Actions** · **Transcript + audio** (synced player, speaker labels editable) · **Activity**. Clarity and Necessity scores with reasons. Share recap (signed link). Export Markdown / PDF. **As built:** the Transcript tab is a URL parameter (`?tab=transcript`) so redirects land on it; the player seeks by byte range, shows speed control and highlights the active line. Speaker labels are editable and map to members. The Summary panel runs extraction when a transcript exists and names the missing env value when it does not; clarity is computed from that run, while necessity stays unset because cross-meeting comparison is not built. Recap links and export are not built |
 | Action-item review | Each proposed item: title, owner (with match confidence), due date, priority, **source quote with timestamp (click to play that moment)**. Inline edit, approve, reject, merge duplicates, bulk "Approve all high-confidence". Shortcuts: `A` approve, `E` edit, `R` reject |
 | Flags | "No owner mentioned", "No deadline", "Ambiguous owner", "Possible duplicate of PRE-118", "Low transcription confidence" |
 
@@ -1116,7 +1163,7 @@ All endpoints: Zod-validated, rate-limited, role-authorized, consistent error en
 | **4: Follow-up engine** | Scheduler, escalation ladder, email, in-app notifications, realtime sync (Ably), device management — ✅ **built** with the chaser as a scheduler-invoked script (`db:followups`) instead of Inngest, email wired with a key set but no verified sending domain (a refusal is recorded with Resend's own words), push not queued at all, and the notification centre per person; **Ably realtime sync is not built** | The agent chases for you |
 | **5: Landing + demo + PWA** | Full landing, `/demo`, public recap, SEO, manifest, service worker, offline, install prompt, push | Shareable and installable |
 | **6: Linear** | OAuth, issue creation, mapping, two-way sync, failure handling — ✅ **built** with a personal API key instead of OAuth (encrypted AES-256-GCM), the mapping editable on `/integrations`, a queue the request never waits on, pull and signed webhook through one conflict rule, and per-ticket retry; comments, attachments and sub-issues are not synced | Work lands where teams already track it |
-| **7: Intelligence** | Ask Prepo, Necessity / Clarity scores, insights, evals in CI | The "wow" layer |
+| **7: Intelligence** | Ask Prepo, Necessity / Clarity scores, insights, evals in CI | ◐ **Partly built:** extraction from a transcript (OpenRouter, grounded, budgeted, with the Suggest/Assist/Autopilot split), the Clarity score and Insights are built — extraction runs from `db:extract` or the meeting page, not Inngest. Ask Prepo, Necessity scoring and evals in CI are not built |
 | **8: Desktop app** | Tauri shell, tray, global shortcut, native notifications, deep links, signed updater, release pipeline, `/download` | Real installable software |
 | **9: Polish** | Accessibility and performance pass, security checklist, docs, demo recording | Production-ready |
 
@@ -1148,7 +1195,7 @@ All endpoints: Zod-validated, rate-limited, role-authorized, consistent error en
 
 | Topic | Assumption |
 |---|---|
-| AI | A model through OpenRouter via the Vercel AI SDK, key in `OPENROUTER_API_KEY` |
+| AI | A model through OpenRouter's chat-completions API (no SDK), key in `OPENROUTER_API_KEY`, model in `AI_MODEL_EXTRACT` |
 | Speech-to-text | **Deepgram** (needs its own API key: `DEEPGRAM_API_KEY`). Chosen for built-in speaker labels and word timestamps, swappable through the provider interface |
 | Language | English UI and landing. Meetings in other languages are still processed best-effort |
 | Realtime | Ably (free tier is enough for a portfolio) |
