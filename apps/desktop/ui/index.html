@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prepo</title>
+    <!--
+      The shell's own page. It never shows the product: it checks whether the app
+      is reachable and either goes there or shows why it could not. Everything
+      the window displays after that is served by the app itself.
+    -->
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <p id="connecting" class="muted">Connecting to Prepo…</p>
+
+    <main id="offline" hidden>
+      <h1>Can’t reach Prepo</h1>
+      <p class="muted">
+        The shell could not open <code id="app-url"></code>. Nothing is wrong with
+        your data — the window just has nothing to render.
+      </p>
+
+      <dl>
+        <div><dt>Target</dt><dd id="fact-url"></dd></div>
+        <div><dt>Shell</dt><dd id="fact-version"></dd></div>
+        <div><dt>Platform</dt><dd id="fact-platform"></dd></div>
+      </dl>
+
+      <ol class="hint">
+        <li>
+          If you are running the app yourself, start it first:
+          <code>pnpm dev</code> (then this window reconnects).
+        </li>
+        <li>
+          If it runs somewhere else, relaunch the shell with
+          <code>PREPO_DESKTOP_URL</code> set to that address, and add the origin to
+          <code>connect-src</code> in <code>src-tauri/tauri.conf.json</code>.
+        </li>
+      </ol>
+
+      <div class="actions">
+        <button id="retry" type="button">Try again</button>
+      </div>
+    </main>
+
+    <script src="offline.js"></script>
+  </body>
+</html>

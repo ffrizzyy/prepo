@@ -81,7 +81,8 @@ export function Features() {
           </h3>
           <p className="mt-2 text-sm leading-relaxed text-text-muted">
             Reminders, nudges, and escalation on a schedule you control, delivered by
-            email and in-app — and as push when the app is installed.
+            email and in-app. Push is not built yet — it needs the service worker the app
+            does not have.
           </p>
         </Cell>
 

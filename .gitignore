@@ -15,3 +15,7 @@ next-env.d.ts
 .vercel
 .turbo
 pnpm-debug.log*
+
+# Rust / Tauri
+target
+apps/desktop/src-tauri/gen/schemas

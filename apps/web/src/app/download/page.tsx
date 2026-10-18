@@ -13,47 +13,50 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "Download",
   description:
-    "Where to run Prepo today: the hosted app, install it as a PWA, or run the repository locally.",
+    "What runs today: the web app, the desktop shell's source, and the repository you can run on your own machine.",
 };
 
 const OPTIONS = [
   {
     icon: Browser,
     title: "Use it in the browser",
-    body: "The whole app is a web app. No install, no signup for the demo workspace.",
+    body: "The whole product is a web app. No install, and the demo workspace needs no signup.",
     cta: { label: "Open the demo", href: "/demo", variant: "primary" as const },
   },
   {
     icon: DeviceMobile,
     title: "Install it as an app",
-    body: "Add Prepo to your home screen or dock from the browser. It opens without browser chrome and keeps its own window.",
-    cta: { label: "Install instructions", href: "#install", variant: "outline" as const },
+    body: "Not built yet. A browser will only install a site that ships a web app manifest and a service worker, and Prepo has neither — so there is no install prompt and nothing works offline.",
+    cta: { label: "What's missing", href: "#install", variant: "outline" as const },
   },
   {
-    icon: Terminal,
-    title: "Run it yourself",
-    body: "Clone the repository and run it on your machine — it needs nothing but Node and pnpm, because the default database is embedded.",
-    cta: { label: "Read the README", href: `${REPO_URL}#readme`, variant: "outline" as const },
+    icon: Desktop,
+    title: "Build the desktop shell",
+    body: "The Tauri shell is in the repository and its configuration is checked. No installer is published, so building it yourself is the only way to run it.",
+    cta: { label: "How to build it", href: "#desktop", variant: "outline" as const },
   },
 ];
 
-const PLATFORM_STEPS: Array<{ platform: string; steps: string }> = [
+const DESKTOP_STEPS: Array<{ label: string; value: string }> = [
   {
-    platform: "Chrome · Edge · Brave (desktop)",
-    steps:
-      "Open the app, then choose Install from the address-bar icon, or the browser menu → “Install Prepo”.",
+    label: "Needs",
+    value:
+      "Rust (stable) and, on Windows, the MSVC build tools. WebView2 already ships with Windows 10 and 11.",
   },
   {
-    platform: "Safari (macOS)",
-    steps: "File → Add to Dock. Prepo then opens in its own window.",
+    label: "Build it",
+    value:
+      "pnpm install, then pnpm --filter @prepo/desktop build. The installer is written under apps/desktop/src-tauri/target/release/bundle.",
   },
   {
-    platform: "Safari (iOS)",
-    steps: "Share → Add to Home Screen.",
+    label: "Run it",
+    value:
+      "pnpm dev in one terminal, then pnpm --filter @prepo/desktop dev in another — the shell has nothing to show until the app answers.",
   },
   {
-    platform: "Chrome (Android)",
-    steps: "Menu → Add to Home screen, or the inline install prompt.",
+    label: "Point it elsewhere",
+    value:
+      "Set PREPO_DESKTOP_URL, and add that origin to connect-src in apps/desktop/src-tauri/tauri.conf.json. The shell's own page checks the address before it hands the window over.",
   },
 ];
 
@@ -62,7 +65,7 @@ export default function DownloadPage() {
     <StaticPage
       eyebrow="Download"
       title="Get Prepo running"
-      intro="Prepo is a web app first. There is nothing to download to use it, and the desktop build is not shipped yet — this page says what each option really gives you today."
+      intro="Prepo is a web app first, and the desktop shell is source you build yourself. Nothing here is downloadable yet, and this page says what each option really gives you today."
     >
       <div className="space-y-14">
         <div className="grid gap-4 md:grid-cols-3">
@@ -95,29 +98,58 @@ export default function DownloadPage() {
 
         <div id="install" className="scroll-mt-24">
           <Prose>
-            <h2>Installing as an app</h2>
+            <h2>Installing as an app is not built</h2>
             <p>
-              Prepo installs from the browser as a progressive web app: same code, same data,
-              its own window and icon. It is the closest thing to a desktop app that exists
-              today.
+              An installable web app needs four pieces: a manifest describing the name, icons and
+              window, a service worker to serve the shell offline, icons in the sizes each platform
+              asks for, and a prompt that offers the install without nagging. Prepo has none of
+              them, so no browser will offer to install it and no page will load without a network.
+            </p>
+            <p>
+              It is not a trick of the build: <code>public/</code> is empty and there is no service
+              worker anywhere in the source. The same missing service worker is why nothing is
+              pushed to your devices — push subscriptions are delivered through one.
+            </p>
+          </Prose>
+        </div>
+
+        <div id="desktop" className="scroll-mt-24">
+          <Prose>
+            <h2>The desktop shell</h2>
+            <p>
+              <code>apps/desktop</code> is a Tauri 2 shell: a native window around the web app, plus
+              the four things a browser cannot do — a tray menu, a global shortcut (
+              <code>Ctrl/⌘ + Shift + R</code> opens the recorder), <code>prepo://</code> links, and
+              native notifications. A second launch focuses the open window instead of opening
+              another, window position is remembered, and a link to any other site opens in your
+              browser rather than inside a window that carries your session.
+            </p>
+            <p>
+              It holds no product logic and no data of its own, and{" "}
+              <strong>no command is exposed to the page in the window</strong> — not even to the app
+              it wraps — so nothing the app renders can reach the tray, the filesystem or the
+              updater. The shell watches the app; the app does not drive the shell.
+            </p>
+            <p className="text-text-muted">
+              What is missing: no installer is published or signed, no update endpoint or signing
+              key is configured (so <em>Check for updates</em> says exactly that), the scheme is
+              registered through the installer an installed build would have, and the shell has not
+              been run through a release. Its behaviour is covered by Rust tests for the rules it
+              enforces and by {""}
+              <code>pnpm --filter @prepo/desktop verify</code> for its configuration.
             </p>
           </Prose>
           <div className="mt-6">
-            <FactList
-              rows={PLATFORM_STEPS.map((step) => ({
-                label: step.platform,
-                value: step.steps,
-              }))}
-            />
+            <FactList rows={DESKTOP_STEPS} />
           </div>
         </div>
 
         <Prose>
           <h2>Running it locally</h2>
           <p>
-            The repository is a pnpm monorepo containing the web app and two small packages. The
-            default database is PGlite — a real Postgres compiled to WebAssembly — so the whole
-            thing runs with no Docker and no database to install.
+            The repository is a pnpm monorepo containing the web app, the desktop shell and two
+            small packages. The default database is PGlite — a real Postgres compiled to
+            WebAssembly — so the whole thing runs with no Docker and no database to install.
           </p>
           <p>
             <code>pnpm install</code> then <code>pnpm --filter @prepo/web db:verify</code> to
@@ -134,22 +166,12 @@ export default function DownloadPage() {
           </p>
         </Prose>
 
-        <Prose>
-          <h2>Desktop app</h2>
-          <p>
-            A native desktop shell is specified — Tauri, for macOS, Windows and Linux, with a
-            tray, a global shortcut and notifications. <strong>It is not built.</strong> The
-            specification deliberately puts it late in the milestones, and the build machine has
-            no Rust toolchain, so the shell and its code signing are CI-only work that has not
-            been started.
-          </p>
-        </Prose>
-
         <Callout title="There are no installers to download">
           <p>
             No <code>.dmg</code>, <code>.msi</code> or <code>.AppImage</code> exists, and this
-            page will not pretend otherwise. When the desktop build lands it will be published
-            from{" "}
+            page will not pretend otherwise. The shell&apos;s source is in the repository today; a
+            published, signed build will be the release that adds files here and checksums
+            alongside them on{" "}
             <a
               href={`${REPO_URL}/releases`}
               target="_blank"
@@ -158,7 +180,7 @@ export default function DownloadPage() {
             >
               GitHub Releases
             </a>
-            , signed, with the checksums alongside.
+            .
           </p>
         </Callout>
 

@@ -10,14 +10,21 @@ This repository is being built against the specification in [`PREPO.md`](./PREPO
 
 ## Status
 
-**Milestone 7 — extraction.** The schema, migrations, tenant isolation and seed are
+**Milestone 8 — the desktop shell.** The schema, migrations, tenant isolation and seed are
 complete and verified against two engines; the app reads and writes Postgres; authentication is
 real — password sign-in, per-device sessions with revoke, throttling, and TOTP two-factor with
 single-use recovery codes; the audio path (milestone 4) records, uploads and transcribes; the
-follow-up engine (milestone 5) chases; and **milestone 6 mirrors tickets into Linear and takes
+follow-up engine (milestone 5) chases; **milestone 6 mirrors tickets into Linear and takes
 Linear's changes back**, through a queue that never makes a local write wait on the network.
 **Milestone 7 turns a transcript into minutes and candidate action items through OpenRouter**,
-grounded in the transcript before a single row is written.
+grounded in the transcript before a single row is written. **Milestone 8 adds `apps/desktop`**: a
+Tauri 2 window around the web app with a tray, a global shortcut, `prepo://` links and native
+notifications — compiled, unit-tested, and checked, but **not packaged or published**, and with no
+bridge from the page in the window back into the shell.
+
+There is still **no installable web app**: no web app manifest and no service worker, so browsers
+will not offer to install Prepo and nothing is cached offline. The `/download` page and the FAQ say
+so plainly instead of implying otherwise.
 
 The extraction step is deliberately conservative. The transcript is sent as JSON and treated as
 untrusted data; the reply has to pass the same Zod schema the prompt describes; every action item
@@ -54,7 +61,7 @@ implemented next to the OWASP gaps that are still open, so nothing has to be tak
 
 | Area | State |
 |---|---|
-| pnpm monorepo (`apps/web`, `packages/shared`, `packages/config`) | Done |
+| pnpm monorepo (`apps/web`, `apps/desktop`, `packages/shared`, `packages/config`) | Done |
 | Design tokens (coral + near-black, light/dark) | Done |
 | Landing page, all 11 sections | Done |
 | Static pages — `/security`, `/privacy`, `/terms`, `/download` | Done |
@@ -100,9 +107,10 @@ implemented next to the OWASP gaps that are still open, so nothing has to be tak
 | Speech-to-text provider (Deepgram) | Wired, **unconfigured without a key** |
 | Tab-audio capture (`getDisplayMedia`), `.docx`/`.pdf` transcripts | Not implemented — recorder is mic-only; transcripts are parsed as text |
 | Email delivery (Resend) | Wired and used live: 3 messages accepted to the account's own address, 8 refused `403` (no verified sending domain) with Resend's reason recorded on the row |
-| Push notifications | Not implemented — no service worker, so no push row is ever queued |
+| Push notifications | Not implemented - no service worker, so no push row is ever queued |
+| Installable app (PWA) | Not implemented - no web app manifest and no service worker; `/download`, the FAQ and the "Get the app" section say so |
 | Ask Prepo, insights | Not started |
-| Desktop (Tauri) shell | Not started — requires Rust, absent on the build machine |
+| Desktop (Tauri 2) shell - native window, tray, global shortcut, `prepo://` links, notifications, single instance, window state, external links kept out of the app window | Done - `cargo test` 22/22, `desktop:verify` 48/48. **No installer is built or published**, there is no update endpoint or signing key, and no command is exposed to the page in the window |
 | Docs — `PREPO.md`, `SECURITY.md` (posture + OWASP gaps) | Done |
 
 The app runs at **`/northwind`** on the seeded "Northwind Studio" workspace. Sign in
@@ -203,7 +211,7 @@ it. Four rungs, as the UI has always advertised:
 |---|---|---|---|
 | Reminder | 24h before the due date | the assignee | in-app + email |
 | Reminder | on the due day | the assignee | in-app + email |
-| Overdue nudge | +1 day | the assignee | in-app + email + push |
+| Overdue nudge | +1 day | the assignee | in-app + email (+ push, which is not built) |
 | Escalation | +3 days | whoever ran the meeting | email |
 
 Rungs whose moment has already passed are **not** scheduled when a ladder is built. A ticket with
@@ -386,11 +394,53 @@ recorded in `SECURITY.md`, but it is not part of CI and it is not an eval. The m
 was checked over HTTP (16 checks: the panel, the re-run copy, the first-extraction state, the meter,
 and no key in the HTML), also recorded there.
 
+## Desktop shell
+
+`apps/desktop` is a Tauri 2 shell — a native window around the web app, plus the four things a
+browser cannot do on its own: a tray menu, a global shortcut (`Ctrl/⌘ + Shift + R` opens the
+recorder), `prepo://` links, and native notifications. It is Rust and four small modules:
+
+| File | What it decides |
+|---|---|
+| `src-tauri/src/config.rs` | where the window points (`PREPO_DESKTOP_URL`, default `http://localhost:3000`), and that the answer must be http(s) with no credentials in it |
+| `src-tauri/src/deeplink.rs` | the `prepo://<workspace>`, `prepo://<workspace>/ticket/<KEY>` and `prepo://<workspace>/meeting/<id>` grammar, and where each one lands |
+| `src-tauri/src/urls.rs` | which workspace the window is showing, and the routes the tray items open |
+| `src-tauri/src/shell.rs` | the window, tray, shortcut, deep links, notifications and the update check |
+
+The shell holds no product logic and no data of its own, and **no capability is granted to any
+window** — so although the plugins register commands, nothing in the webview can reach the tray, the
+filesystem, the opener or the updater; not the shell's own page, and not the app it opens. A link to
+any other origin is handed to the system's browser rather than loaded in a window that carries the
+session. Sessions appear as `desktop` in the device list because the shell sends a user agent
+containing `Tauri/2 PrepoDesktop/0.1.0`, which is what `src/server/auth/user-agent.ts` reads.
+
+**What it is not.** No installer is built or published — no `.dmg`, `.msi` or `.AppImage` — and
+nothing is signed. There is no update endpoint and no update signing key, so *Check for updates*
+answers with exactly that. `prepo://` registration in a development run lasts for the session; an
+installed build would register the scheme through its own installer. Tray items and the shortcut
+open the workspace the window is showing and fall back to the app's front door when none is known,
+and the shell's "New recording" opens the recorder rather than starting it from the tray.
+
+Two things check it without a screen:
+
+```bash
+pnpm --filter @prepo/desktop test     # 22 Rust tests: refusing a target, the prepo:// grammar, workspace detection
+pnpm --filter @prepo/desktop verify   # 48 configuration checks: CSP, capabilities, icons, scheme, updater, versions
+```
+
+`verify` reads the configuration the way an attacker would: is a CSP set and does it deny by
+default, does anything grant remote content IPC permission, does the update channel claim a key it
+does not have, is the target origin actually allowed by `connect-src`. Neither it nor the tests
+prove the window looks right or that a tray click does what the menu says; that needs a person and a
+desktop, and has not been done.
+
 ## Requirements
 
 - Node.js ≥ 22 (developed on 24)
 - pnpm 10+ (`npm i -g pnpm`)
 - Docker *(optional)* — only for a real Postgres; the default embedded database needs nothing
+- Rust (stable) and, on Windows, the MSVC build tools *(optional)* — only to build the desktop
+  shell in `apps/desktop`
 
 ## Getting started
 
@@ -406,6 +456,11 @@ Other scripts:
 pnpm build        # production build
 pnpm start        # serve the production build
 pnpm typecheck    # typecheck every workspace package
+
+pnpm --filter @prepo/desktop verify   # check the desktop shell's configuration (48 checks)
+pnpm --filter @prepo/desktop test     # the shell's Rust tests (URL refusal, prepo:// parsing)
+pnpm --filter @prepo/desktop dev      # run the shell against the dev server
+pnpm --filter @prepo/desktop build    # build an installer locally (none is published)
 ```
 
 ## Database
@@ -655,5 +710,8 @@ Milestones follow section 12 of `PREPO.md`:
 7. ◐ Extraction, scores and evals — extraction (OpenRouter, grounded, budgeted, with the
    Suggest/Assist/Autopilot split) and the clarity score are done. Ask Prepo, necessity scoring
    and automated evals are not
-8. Desktop app (Tauri)
+8. ✅ Desktop app (Tauri 2) — the window, tray, global shortcut, `prepo://` links, notifications,
+   single instance, window state and external-link handling. Compiled and tested (22 Rust tests,
+   48 configuration checks). Not packaged: no installer, no signing key, no update endpoint, and no
+   bridge from the page in the window into the shell
 9. Polish and security checklist

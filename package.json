@@ -7,6 +7,11 @@
     "dev": "pnpm --filter @prepo/web dev",
     "build": "pnpm --filter @prepo/web build",
     "start": "pnpm --filter @prepo/web start",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "desktop:dev": "pnpm --filter @prepo/desktop dev",
+    "desktop:build": "pnpm --filter @prepo/desktop build",
+    "desktop:check": "pnpm --filter @prepo/desktop check",
+    "desktop:test": "pnpm --filter @prepo/desktop test",
+    "desktop:verify": "pnpm --filter @prepo/desktop verify"
   }
 }

@@ -4,20 +4,27 @@ Prepo is a portfolio project, not a product with a support contract. It holds me
 by design, so it is built as though it holds yours — and this file records what is actually in
 place, what is not, and how to report a problem.
 
-**Status: milestone 7.** Authentication (password + TOTP two-factor), tenant isolation, the
+**Status: milestone 8.** Authentication (password + TOTP two-factor), tenant isolation, the
 writable core loop, the audio path (recording, upload, transcript import, speaker mapping,
 retention), the follow-up engine (escalation ladder, job, quiet hours, digest, notification
-centre), the Linear integration (encrypted token, queue, pull, signed webhook) and extraction
-(transcript → minutes and grounded action items through OpenRouter) are implemented and tested.
-Two providers are wired and **unconfigured on this deployment** — speech-to-text (no
-`DEEPGRAM_API_KEY`) and email, where a `RESEND_API_KEY` is set but the account has **no verified
-sending domain**, so Resend accepts only the account's own address and every other recipient comes
-back `403`. That split has been exercised against the live API: three messages were accepted and
-eight refused. Either way an email is attempted, then recorded as **failed with the reason** rather
-than quietly marked sent, while the in-app half of the same rung is still delivered. Push is never
-queued, because there is no service worker. Extraction has **no PII redaction and no eval gate**;
-the desktop shell is not built. The Linear integration has been run once against a real team (see
-*How this was checked*); everything else in the table is tested against fixtures or a local database. Where the table below mentions them, it says so.
+centre), the Linear integration (encrypted token, queue, pull, signed webhook), extraction
+(transcript → minutes and grounded action items through OpenRouter) and the desktop shell are
+implemented and tested. Two providers are wired and **unconfigured on this deployment** —
+speech-to-text (no `DEEPGRAM_API_KEY`) and email, where a `RESEND_API_KEY` is set but the account
+has **no verified sending domain**, so Resend accepts only the account's own address and every other
+recipient comes back `403`. That split has been exercised against the live API: three messages were
+accepted and eight refused. Either way an email is attempted, then recorded as **failed with the
+reason** rather than quietly marked sent, while the in-app half of the same rung is still delivered.
+Push is never queued, and there is no installable web app at all — no manifest, no service worker —
+so no browser offers to install Prepo and nothing is cached offline. Extraction has **no PII
+redaction and no eval gate**. The desktop shell (milestone 8, `apps/desktop`) is a Tauri 2 window
+with a tray, a global shortcut, `prepo://` links and native notifications that **exposes no command
+and no capability to the page in the window**, hands any non-app origin to the system browser, and
+refuses any target that is not http(s); it is **not packaged** — no installer, no code signing, no
+update endpoint or signing key, so nothing updates itself, and no window has been run by hand. The
+Linear integration has been run once against a real team (see *How this was checked*); everything
+else in the table is tested against fixtures or a local database. Where the table below mentions
+them, it says so.
 
 ## Reporting a vulnerability
 
@@ -63,6 +70,11 @@ there is no payment to offer — only a fix and credit in the commit if you want
 | Integration queue | A local write never calls Linear. The ticket is marked `pending` in the same transaction as the change, and only `pending` tickets, or failed ones past their backoff, are ever pushed — so an unconnected workspace queues nothing at all. A push records `linear_synced_at` and marks the ticket `synced`, and the echoed webhook for that push re-applies the same values and reports "unchanged" |
 | Webhook authenticity | `POST /api/integrations/linear/webhook` verifies **HMAC-SHA256 over the exact bytes** in constant time against the secret stored for that workspace, and refuses a `webhookTimestamp` more than 60 seconds from now, so a captured delivery cannot be replayed. A missing secret is a `400`, not "verification skipped". The payload is parsed before verification only to learn which team — and therefore which secret — to check against; nothing is written until the signature holds. A team this deployment does not mirror is answered `200` with a reason, because a 4xx would have Linear retry it forever |
 | Integration tenancy | The team-to-workspace lookup is the only read in the app that happens before a workspace scope is set, and it reads only the integration row. The change itself is applied through `withWorkspace`, so row-level security decides what can be touched, and a delivery cannot reach a ticket in another workspace. Disconnecting keeps the tickets and the issues, and clears the links with an event saying why |
+| Desktop window | The shell is a native window around the app, not a bundle of it: the app is still loaded over http(s), so its session handling, row-level security and headers apply unchanged. The shell's own page is a local asset that probes the target and hands the window over, and that says which address it tried when the app does not answer |
+| Desktop content boundary | **No capability is granted to any window**, so although the plugins register commands (notify, open, update, deep link), nothing in the webview can call one — neither the shell's own page nor the app it opens. `withGlobalTauri` is off, and the shell's own page is served with a CSP that denies by default (`default-src 'self'`, `frame-ancestors 'none'`, no `unsafe-eval`, no inline script) — the app's document carries whatever headers the app itself sends. There is no reachable IPC surface, and the review count the tray would like is not exposed rather than exposed to be shown |
+| Desktop navigation | A navigation to any origin other than the configured app is refused inside the window and handed to the system browser, so a link in a meeting note cannot render inside a window that carries the session |
+| Desktop target and deep links | The address is whatever `PREPO_DESKTOP_URL` says (default `http://localhost:3000`) and is refused outright unless it is http(s) with no credentials in it. `prepo://` links go through a total grammar: a wrong scheme, a missing or malformed workspace, an unknown target, a malformed ticket key or a percent-escaped identifier are each refused with a reason and logged, never navigated to |
+| Desktop single instance | A second launch focuses the window that is already open rather than starting a second process, so a `prepo://` link from the OS reuses the running session instead of opening another one |
 
 ## What is **not** implemented
 
@@ -75,7 +87,7 @@ remain. None of them are secret; the goal of this list is that nobody has to gue
 | **A05** Security misconfiguration | The strict CSP with nonces from the specification is not configured; no environment schema validation; no `Permissions-Policy`, COOP or CORP. None of the security headers in the spec are set yet — they belong with the hosting setup |
 | **A06** Vulnerable components | No Dependabot, CodeQL or SBOM job in CI yet; `pnpm audit` is not wired into the pipeline |
 | **A07** Auth failures | No passkeys, OAuth or magic links; no email verification, password reset, or breached-password check (no mail provider); no CAPTCHA/bot challenge; no replay protection within a single TOTP step; no session invalidation on password change |
-| **A08** Data integrity | Webhook signatures **are** verified now (HMAC-SHA256, constant time, 60-second window; see above), and a push records the remote issue id and timestamp so an echoed delivery is idempotent. There are still no signed desktop updates (no desktop build), and no integrity check on stored audio bytes beyond the SHA-256 recorded at ingest |
+| **A08** Data integrity | Webhook signatures **are** verified now (HMAC-SHA256, constant time, 60-second window; see above), and a push records the remote issue id and timestamp so an echoed delivery is idempotent. The desktop shell exists but **nothing about it is signed or updated**: no installer, no code signing or notarization, and the updater is registered with no endpoint and no public key, so an update check reports that it cannot run rather than faking one. There is still no integrity check on stored audio bytes beyond the SHA-256 recorded at ingest |
 | **A09** Logging & monitoring | No Sentry or alerting; `auth_events` and `audit_logs` are append-only but there is no anomaly detection, no "impossible travel" alert, and logs are not shipped anywhere. The follow-up job prints a per-row decision line, but there is no metric or alert on a run that fails wholesale |
 | **A10** SSRF | The transcription call is a fixed host with a body of bytes, the email sender is a fixed host with a server-built body, the Linear client is a fixed host (`api.linear.app`) with a server-built GraphQL document, and extraction posts a server-built JSON body to OpenRouter's fixed endpoint — so there is nothing to steer from user input, and applying a webhook never triggers an outbound fetch. No meeting is ever enriched by fetching a "source link" |
 | **Linear integration** | The credential is a **personal API key, not OAuth**: it carries the key owner's whole Linear access, cannot be narrowed by scope, and revoking it is done in Linear rather than in Prepo. The webhook reads the body with `request.text()` before the signature is checked, so a large unauthenticated POST costs memory; there is no explicit size cap, no per-IP rate limit and no allow-list of Linear's addresses on that route. The signing secret is pasted by hand rather than registered through Linear's API. Exactly one team and one project are mirrored per workspace. Tickets that predate connecting are not backfilled, so there is no queue entry and no retry for them until they are moved. Linear's `canceled` state has no Prepo equivalent and is left unmapped rather than guessed, and comments, attachments, sub-issues, cycles, estimates and Linear's own labels are neither read nor written |
@@ -99,6 +111,8 @@ pnpm --filter @prepo/web db:retention  # the retention job, runnable from a sche
 pnpm --filter @prepo/web db:followup-smoke  # the ladder, quiet hours, digest and the job
 pnpm --filter @prepo/web db:linear-smoke    # crypto, mapping, queue, push, pull, webhook, tenancy
 pnpm --filter @prepo/web db:extract-smoke   # schema gate, grounding, dates, autonomy, refusals
+pnpm --filter @prepo/desktop verify   # the shell's configuration: CSP, capabilities, scheme, updater, icons
+pnpm --filter @prepo/desktop test     # the shell's rules: target refusal, the prepo:// grammar, workspace detection
 ```
 
 `db:verify` and `db:smoke` run against the embedded engine and a real Postgres (set
@@ -150,6 +164,21 @@ than truncate; Assist and Autopilot only auto-approve unflagged high-confidence 
 `actorKind: "prepo"`; a re-run replaces proposed items only; and another workspace's meeting is
 indistinguishable from a missing one. What it cannot prove is how well a real model reads a real
 transcript — nobody has measured that yet.
+
+`desktop:verify` reads the shell the way an attacker would. Forty-eight checks over
+`apps/desktop/src-tauri`: that a CSP is set and denies by default without `unsafe-eval` or inline
+scripts; that nothing grants a permission to remote content and no command is registered at all;
+that the bundle identifier is not the framework default; that the default target's origin is allowed
+by `connect-src`, so changing one without the other fails the check; that the `prepo://` scheme in
+the Tauri config is the same string the parser accepts; that the updater claims no signing key; that
+every icon the bundle names exists, including the `.ico` and the `.icns`; and that the version
+agrees across `package.json`, `tauri.conf.json` and `Cargo.toml`. `cargo test` covers the rules as
+code, in twenty-two assertions: that `file://`, `javascript:` and `data:` targets are refused and
+that an address carrying a login is refused; that a `prepo://` link with no workspace, with
+credentials, with an unknown target or with a percent-escaped identifier is refused rather than
+sanitised; and that a route like `/download` is not mistaken for a workspace. What neither can prove
+is that the window renders, that a tray click opens what its label says, or that an installer
+installs — no window has been run by hand here, and no installer exists to run.
 
 On top of the committed suites, the flows were exercised end-to-end over HTTP against the
 production build: 46 sign-in checks and 23 two-factor checks while milestone 3 was built, 73

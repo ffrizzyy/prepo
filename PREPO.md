@@ -333,6 +333,36 @@ The shell is a thin native window pointing at the hosted app. This keeps one sou
 
 **Desktop security posture:** minimal Tauri capabilities (only the commands above are exposed to the web content), remote content limited to the allow-listed Prepo origin, strict CSP, navigation to any other origin opens the system browser, deep-link payloads validated, updater keys stored as CI secrets, code signing and notarization when certificates are available (see 12.2).
 
+**As built (milestone 8).** The shell exists at `apps/desktop` and points at a **configurable**
+address — `PREPO_DESKTOP_URL`, defaulting to `http://localhost:3000` — because there is no hosted
+deployment to point at yet. Deviations from the table above, all stated in
+`apps/desktop/README.md`:
+
+- **Tray**: *New recording*, *Review queue*, *Board*, a test notification, an update check, quit.
+  The review-queue count is not shown: nothing in the shell knows it.
+- **Global shortcut**: `Ctrl/⌘ + Shift + R` opens the recorder rather than starting a recording.
+  The shell grants no capability to the page, so no plugin command is reachable from it and the page
+  cannot be told to start a recording.
+- **Native notifications** are raised by the shell (the test item, the result of an update check).
+  The app does not raise them yet, for the same reason.
+- **Deep links** are `prepo://<workspace>/ticket/<KEY>` and `prepo://<workspace>/meeting/<id>`. A
+  workspace is required: `prepo://ticket/PRE-142` cannot say whose ticket it is, so it is refused
+  rather than guessed, as is any `prepo://` link carrying credentials or an unknown target.
+- **Offline**: the shell's own page explains an unreachable app and offers a retry. There is no
+  IndexedDB read cache, because the web app has no offline layer to reuse — it has no service
+  worker at all.
+- **Window**: native decorations, remembers position and size, and hands any non-app origin to the
+  system browser. OS dark mode is the app's own (CSS `prefers-color-scheme` inside the webview).
+- **Not built**: installers, the release pipeline, the signed updater (the plugin is registered
+  with no endpoint and no key, and *Check for updates* says exactly that), code signing and
+  notarization, and any bridge from the page in the window into the shell — no capability is granted
+  to any window, so no plugin command is reachable from web content, remote or local.
+
+Two checks stand in for a screen: `cargo test` (22 assertions covering the target-URL rules, the
+`prepo://` grammar and workspace detection) and `desktop:verify` (48 checks covering the CSP,
+capabilities, icons, scheme registration, updater honesty and version agreement). Neither proves
+that the window renders or that a tray click does what its label says.
+
 ### 3.3 Feature matrix
 
 | Feature | Web | PWA | Desktop |
@@ -1178,10 +1208,10 @@ All endpoints: Zod-validated, rate-limited, role-authorized, consistent error en
 | **2: Core loop** | Text ingest → extraction → review → tickets → board | Three core capabilities working |
 | **3: Audio** | R2 uploads, in-app recorder, Deepgram pipeline, speaker mapping, synced player, retention — ✅ **built** with the local storage driver instead of R2, the recorder mic-only, and the provider unconfigured without a key | Recordings become transcripts |
 | **4: Follow-up engine** | Scheduler, escalation ladder, email, in-app notifications, realtime sync (Ably), device management — ✅ **built** with the chaser as a scheduler-invoked script (`db:followups`) instead of Inngest, email wired with a key set but no verified sending domain (a refusal is recorded with Resend's own words), push not queued at all, and the notification centre per person; **Ably realtime sync is not built** | The agent chases for you |
-| **5: Landing + demo + PWA** | Full landing, `/demo`, public recap, SEO, manifest, service worker, offline, install prompt, push | Shareable and installable |
+| **5: Landing + demo + PWA** | Full landing, `/demo`, public recap, SEO, manifest, service worker, offline, install prompt, push — ◐ **partly built**: the landing, `/demo`, SEO and the static pages (`/security`, `/privacy`, `/terms`, `/download`) are built; **the manifest, service worker, offline mode and install prompt are not** (so nothing is installable and push has nothing to deliver through), and the landing page says so | Shareable and installable |
 | **6: Linear** | OAuth, issue creation, mapping, two-way sync, failure handling — ✅ **built** with a personal API key instead of OAuth (encrypted AES-256-GCM), the mapping editable on `/integrations`, a queue the request never waits on, pull and signed webhook through one conflict rule, and per-ticket retry; comments, attachments and sub-issues are not synced | Work lands where teams already track it |
 | **7: Intelligence** | Ask Prepo, Necessity / Clarity scores, insights, evals in CI | ◐ **Partly built:** extraction from a transcript (OpenRouter, grounded, budgeted, with the Suggest/Assist/Autopilot split), the Clarity score and Insights are built — extraction runs from `db:extract` or the meeting page, not Inngest. Ask Prepo, Necessity scoring and evals in CI are not built |
-| **8: Desktop app** | Tauri shell, tray, global shortcut, native notifications, deep links, signed updater, release pipeline, `/download` | Real installable software |
+| **8: Desktop app** | Tauri shell, tray, global shortcut, native notifications, deep links, signed updater, release pipeline, `/download` — ✅ **built** as `apps/desktop`: Tauri 2, tray menu, global shortcut, workspace-qualified `prepo://` links, notifications, single instance, remembered window state, and non-app origins handed to the system browser. **Installers, the release pipeline and the signed updater are not built** (no endpoint, no signing key, nothing published), no capability is granted to the window so no plugin command is reachable from the page, there is no IndexedDB offline cache (the web app has no service worker to build on), and `/download` says all of it | Real installable software |
 | **9: Polish** | Accessibility and performance pass, security checklist, docs, demo recording | Production-ready |
 
 ### 12.1 Portfolio showcase checklist

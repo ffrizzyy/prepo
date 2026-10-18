@@ -28,16 +28,16 @@ const TILES: Tile[] = [
   {
     icon: DeviceMobile,
     title: "Install the app",
-    body: "Add Prepo to your home screen or desktop from the browser. Offline reads and push included.",
-    cta: { label: "Install app", href: "/download", variant: "primary" },
+    body: "Not built yet: a browser will only install a site with a manifest and a service worker, and Prepo has neither — so there is no install prompt and nothing works offline.",
+    cta: { label: "What's missing", href: "/download#install", variant: "outline" },
   },
   {
     icon: Desktop,
-    title: "Download for desktop",
-    body: "A native window for macOS, Windows, and Linux with a tray, global shortcut, and notifications.",
+    title: "Build the desktop shell",
+    body: "A native window with a tray, a global shortcut, prepo:// links and notifications. The source is in the repository; no installer is published, so you build it yourself.",
     cta: {
-      label: "Download",
-      href: "/download",
+      label: "Build it",
+      href: "/download#desktop",
       variant: "outline",
       icon: <ArrowDown size={15} weight="bold" />,
     },

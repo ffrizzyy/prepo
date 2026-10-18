@@ -20,11 +20,11 @@ const QUESTIONS = [
   },
   {
     q: "Can I self-host it?",
-    a: "Not in v1. The stack is built to run on Vercel, Neon, Upstash, Inngest, and Cloudflare R2, with a Docker Compose setup for local development.",
+    a: "You can run it on your own machine today: PGlite means no database to install, and docker-compose.yml is there if you want a real Postgres instead. Deploying it to a host is not something this repository has done or tested.",
   },
   {
     q: "Does it work offline?",
-    a: "The installed app keeps recent tickets and meetings readable offline and queues your edits. Audio and raw transcripts are not stored offline by default.",
+    a: "No. Offline reads and queued edits need a service worker, and Prepo does not ship one — the same missing piece is why push is not offered.",
   },
   {
     q: "Do I need an account to try it?",
