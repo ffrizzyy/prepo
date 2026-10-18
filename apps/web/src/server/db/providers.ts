@@ -141,8 +141,8 @@ const PROBES: Probe[] = [
   {
     name: "linear",
     variable: "LINEAR_API_KEY",
-    what: "two-way ticket sync (milestone 6, not built)",
-    unconfigured: "expected — milestone 6 has not started",
+    what: "two-way ticket sync (milestone 6)",
+    unconfigured: "expected — the integrations page refuses to connect without one",
     live: (key) => ({
       url: "https://api.linear.app/graphql",
       init: {
