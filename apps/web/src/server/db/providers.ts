@@ -64,8 +64,13 @@ async function liveCheck({ url, init, describe }: Live) {
   }
 }
 
+/**
+ * Enough to recognise *which* key it is (`sk-or-…` versus `lin_api_…`) and how
+ * long it is, without the shape of the secret itself. A real key should not be
+ * half-printed into a terminal log or a paste.
+ */
 const mask = (value: string) =>
-  value.length <= 8 ? "•••" : `${value.slice(0, 4)}…${value.slice(-4)}`;
+  `${value.slice(0, 6)}… (${value.length} chars)`;
 
 const PROBES: Probe[] = [
   {
@@ -106,16 +111,30 @@ const PROBES: Probe[] = [
     }),
   },
   {
-    name: "anthropic",
-    variable: "ANTHROPIC_API_KEY",
+    name: "openrouter",
+    variable: "OPENROUTER_API_KEY",
     what: "meeting → tickets extraction (milestone 7, not built)",
     unconfigured: "expected — extraction does not exist yet, so the key just sits here",
     live: (key) => ({
-      url: "https://api.anthropic.com/v1/models",
-      init: { headers: { "x-api-key": key, "anthropic-version": "2023-06-01" } },
+      url: "https://openrouter.ai/api/v1/key",
+      init: { headers: { Authorization: `Bearer ${key}` } },
       describe: (body) => {
-        const models = (body as { data?: unknown[] } | null)?.data ?? [];
-        return `key accepted · ${models.length} model(s) listed`;
+        const info = (
+          body as {
+            data?: { usage?: number; limit?: number | null; is_free_tier?: boolean };
+          } | null
+        )?.data;
+        const usage = typeof info?.usage === "number" ? info.usage : null;
+        const limit = typeof info?.limit === "number" ? info.limit : null;
+        const spend =
+          usage === null
+            ? "credit balance not reported"
+            : limit === null
+              ? `$${usage.toFixed(2)} used, no spend limit set`
+              : `$${usage.toFixed(2)} used of $${limit.toFixed(2)}`;
+        return `key accepted · ${spend}${
+          info?.is_free_tier ? " · free tier" : ""
+        }`;
       },
     }),
   },

@@ -4,15 +4,17 @@ Prepo is a portfolio project, not a product with a support contract. It holds me
 by design, so it is built as though it holds yours — and this file records what is actually in
 place, what is not, and how to report a problem.
 
-**Status: milestone 5.** Authentication (password + TOTP two-factor), tenant isolation, the
+**Status: milestone 6.** Authentication (password + TOTP two-factor), tenant isolation, the
 writable core loop, the audio path (recording, upload, transcript import, speaker mapping,
-retention) and the follow-up engine (escalation ladder, job, quiet hours, digest, notification
-centre) are implemented and tested. Two providers are wired but **unconfigured on this
-deployment** — speech-to-text (no `DEEPGRAM_API_KEY`) and email (no `RESEND_API_KEY`) — so
-recordings are stored and never sent anywhere, and an email is attempted, then recorded as
-**failed with the reason** rather than quietly marked sent. Push is never queued, because there is
-no service worker. Extraction, integrations and the desktop shell are not built yet; where the
-table below mentions them, it says so.
+retention), the follow-up engine (escalation ladder, job, quiet hours, digest, notification
+centre) and the Linear integration (encrypted token, queue, pull, signed webhook) are implemented
+and tested. Two providers are wired and **unconfigured on this deployment** — speech-to-text (no
+`DEEPGRAM_API_KEY`) and email, where a `RESEND_API_KEY` is set but the account has **no verified
+sending domain**, so Resend accepts only the account's own address and every other recipient comes
+back `403`. Either way an email is attempted, then recorded as **failed with the reason** rather
+than quietly marked sent, while the in-app half of the same rung is still delivered. Push is never
+queued, because there is no service worker. Extraction and the desktop shell are not built yet;
+where the table below mentions them, it says so.
 
 ## Reporting a vulnerability
 
@@ -50,6 +52,10 @@ there is no payment to offer — only a fix and credit in the commit if you want
 | Follow-up content | The message is generated from the ticket row, so it carries the key, title, due date and lateness — the same facts for every tone. No user-supplied text is interpolated into a subject line, and the link is built from the workspace slug and ticket key rather than from stored input |
 | Notification centre | Notifications are read per person (`user_id`), and marking one read or all read is scoped by the caller's own user id, so one member cannot read or clear another's inbox. The unread count is a `count` query, not a cached number |
 | Quiet hours | The window is evaluated in the recipient's own IANA timezone via `Intl`; an unknown zone falls back to UTC instead of throwing. A held message is **deferred and kept**, never dropped, and the row records that it was held and why |
+| Integration credentials | A Linear token and the webhook signing secret are encrypted with **AES-256-GCM** under `INTEGRATION_ENCRYPTION_KEY`, which lives in the environment rather than the database, and stored as `v1.<iv>.<ciphertext>.<tag>` with a fresh IV per value. Without that key, connecting is **refused** — there is no plaintext fallback — and a value that will not decrypt is reported as unusable instead of being used. The token is tried against Linear's `viewer` before it is stored, so a wrong key fails at the boundary. Changing the connection (connect, team, mapping, source of truth, secret, disconnect) requires `owner` or `admin`; other members see the page but cannot save |
+| Integration queue | A local write never calls Linear. The ticket is marked `pending` in the same transaction as the change, and only `pending` tickets, or failed ones past their backoff, are ever pushed — so an unconnected workspace queues nothing at all. A push records `linear_synced_at` and marks the ticket `synced`, and the echoed webhook for that push re-applies the same values and reports "unchanged" |
+| Webhook authenticity | `POST /api/integrations/linear/webhook` verifies **HMAC-SHA256 over the exact bytes** in constant time against the secret stored for that workspace, and refuses a `webhookTimestamp` more than 60 seconds from now, so a captured delivery cannot be replayed. A missing secret is a `400`, not "verification skipped". The payload is parsed before verification only to learn which team — and therefore which secret — to check against; nothing is written until the signature holds. A team this deployment does not mirror is answered `200` with a reason, because a 4xx would have Linear retry it forever |
+| Integration tenancy | The team-to-workspace lookup is the only read in the app that happens before a workspace scope is set, and it reads only the integration row. The change itself is applied through `withWorkspace`, so row-level security decides what can be touched, and a delivery cannot reach a ticket in another workspace. Disconnecting keeps the tickets and the issues, and clears the links with an event saying why |
 
 ## What is **not** implemented
 
@@ -58,14 +64,15 @@ remain. None of them are secret; the goal of this list is that nobody has to gue
 
 | Area | Gap |
 |---|---|
-| **A02** Cryptographic failures | No application-layer encryption at rest (integration tokens, when integrations land, are specified as AES-256-GCM with the key outside the database). No encrypted backups. TLS/HSTS are the host's responsibility |
+| **A02** Cryptographic failures | Integration tokens and webhook secrets are encrypted (AES-256-GCM, key outside the database), but nothing else is: the PGlite directory and any backup are unencrypted, and stored audio relies on filesystem permissions. No encrypted backups. TLS/HSTS are the host's responsibility |
 | **A05** Security misconfiguration | The strict CSP with nonces from the specification is not configured; no environment schema validation; no `Permissions-Policy`, COOP or CORP. None of the security headers in the spec are set yet — they belong with the hosting setup |
 | **A06** Vulnerable components | No Dependabot, CodeQL or SBOM job in CI yet; `pnpm audit` is not wired into the pipeline |
 | **A07** Auth failures | No passkeys, OAuth or magic links; no email verification, password reset, or breached-password check (no mail provider); no CAPTCHA/bot challenge; no replay protection within a single TOTP step; no session invalidation on password change |
-| **A08** Data integrity | No webhook signature verification (there are no webhooks yet) and no signed desktop updates (no desktop build) |
+| **A08** Data integrity | Webhook signatures **are** verified now (HMAC-SHA256, constant time, 60-second window; see above), and a push records the remote issue id and timestamp so an echoed delivery is idempotent. There are still no signed desktop updates (no desktop build), and no integrity check on stored audio bytes beyond the SHA-256 recorded at ingest |
 | **A09** Logging & monitoring | No Sentry or alerting; `auth_events` and `audit_logs` are append-only but there is no anomaly detection, no "impossible travel" alert, and logs are not shipped anywhere. The follow-up job prints a per-row decision line, but there is no metric or alert on a run that fails wholesale |
-| **A10** SSRF | The transcription call is a fixed host with a body of bytes, and the email sender is a fixed host with a server-built body, so there is nothing to steer. When extraction (milestone 7) adds a second provider, the same rule applies: no user-supplied URLs, and no fetching a meeting's "source link" |
-| Follow-up delivery | There is no email provider key on this machine, so **no email has ever actually been delivered** by this build — the failure path is what is tested. There is no bounce or complaint handling, no unsubscribe link, no per-recipient send rate limit beyond the ladder itself, and no retry with backoff: a failed message stays failed. The job is a script meant for a scheduler; there is no queue, no worker, no exactly-once guarantee and no scheduled-job auth, so whoever can run it can send |
+| **A10** SSRF | The transcription call is a fixed host with a body of bytes, the email sender is a fixed host with a server-built body, and the Linear client is a fixed host (`api.linear.app`) with a server-built GraphQL document — so there is nothing to steer from user input, and applying a webhook never triggers an outbound fetch. When extraction (milestone 7) adds another provider, the same rule applies: no user-supplied URLs, and no fetching a meeting's "source link" |
+| **Linear integration** | The credential is a **personal API key, not OAuth**: it carries the key owner's whole Linear access, cannot be narrowed by scope, and revoking it is done in Linear rather than in Prepo. The webhook reads the body with `request.text()` before the signature is checked, so a large unauthenticated POST costs memory; there is no explicit size cap, no per-IP rate limit and no allow-list of Linear's addresses on that route. The signing secret is pasted by hand rather than registered through Linear's API. Exactly one team and one project are mirrored per workspace. Tickets that predate connecting are not backfilled, so there is no queue entry and no retry for them until they are moved. Linear's `canceled` state has no Prepo equivalent and is left unmapped rather than guessed, and comments, attachments, sub-issues, cycles, estimates and Linear's own labels are neither read nor written |
+| Follow-up delivery | The `RESEND_API_KEY` is set, but the account has **no verified sending domain**, so Resend refuses every recipient except the account's own address with `403`. **No email has ever actually been delivered** by this build — the refusal is what the suite records and what the ticket timeline shows. There is no bounce or complaint handling, no unsubscribe link, no per-recipient send rate limit beyond the ladder itself, and no retry with backoff: a failed message stays failed. The job is a script meant for a scheduler; there is no queue, no worker, no exactly-once guarantee and no scheduled-job auth, so whoever can run it can send |
 | Push notifications | Not implemented at all: no service worker, no subscription table, no Web Push keys. The ladder lists push on the nudge rung, and the code refuses to write a push row while no device is subscribed, so nothing is pretended |
 | Object storage | The R2 presigned-PUT flow in the spec is not implemented — there is no Cloudflare account on this machine, so audio uses a local filesystem driver behind the same `StorageDriver` interface. The interface has no presign method at all, which is why the "no publicly addressable URLs" claim holds here; moving to R2 would need the access route re-reviewed |
 | Antivirus / content scanning | Uploaded audio is validated by format and size, not scanned. Transcripts are parsed as text only — `.docx` and `.pdf` are refused rather than parsed, so there is no document parser to attack |
@@ -82,6 +89,7 @@ pnpm --filter @prepo/web db:auth     # hashing, throttling, sessions, TOTP again
 pnpm --filter @prepo/web db:audio    # parsing, sniffing, chunk assembly, retention, tenant boundary
 pnpm --filter @prepo/web db:retention  # the retention job, runnable from a scheduler
 pnpm --filter @prepo/web db:followup-smoke  # the ladder, quiet hours, digest and the job
+pnpm --filter @prepo/web db:linear-smoke    # crypto, mapping, queue, push, pull, webhook, tenancy
 ```
 
 `db:verify` and `db:smoke` run against the embedded engine and a real Postgres (set
@@ -92,21 +100,39 @@ recorded-shape payload, the storage driver (including a key trying to escape the
 chunked assembly and its refusal of an out-of-order piece, the retention clock and the sweep, the
 ingest writes, speaker mapping, and the cross-tenant attempts. Ninety checks pass.
 
-`db:followup-smoke` covers the security-relevant half of the chaser directly: that an unconfigured
-email is recorded `failed` **with the reason** and never as `sent`; that the in-app half of the
-same rung is still delivered; that quiet hours defer rather than drop, in the recipient's own zone,
-with an unknown zone falling back instead of throwing; that a message a person moved is not
-re-cancelled by its own move, while a rung left behind by a due-date change is; that a finished
-ticket cancels what was pending; that a digest is never placed twice; that marking an inbox read
-touches only the caller's own rows; and that a cancellation in one tenant cannot reach another.
-Ninety-two checks pass.
+`db:followup-smoke` covers the security-relevant half of the chaser directly: that a refused email is
+recorded `failed` **with the reason** and never as `sent`; that the in-app half of the same rung is
+still delivered; that quiet hours defer rather than drop, in the recipient's own zone, with an
+unknown zone falling back instead of throwing; that a message a person moved is not re-cancelled by
+its own move, while a rung left behind by a due-date change is; that a finished ticket cancels what
+was pending; that a digest is never placed twice; that marking an inbox read touches only the
+caller's own rows; and that a cancellation in one tenant cannot reach another. Ninety-three checks
+pass, in either email environment: with a provider configured the recorded reason is the provider's
+own words, and without one it names the missing variable.
+
+`db:linear-smoke` is the integration's equivalent, run against an in-memory Linear that really holds
+state. One hundred and fourteen checks: the encryption round-trip and its refusals (a wrong key, a
+truncated tag, a value that is not `v1`); the mapping arithmetic in both directions; HMAC signatures,
+including a replayed body and a stale timestamp; the queue refusing to write a `pending` state while
+no connection exists; push as create-then-update rather than a duplicate; a refused push recording
+the reason, backing off, and recovering; pull applying status and assignee, treating `canceled` as
+unmapped, and keeping a removed issue's ticket; both source-of-truth orders, including the override
+being written to the timeline; the echoed webhook staying idempotent; the job's counts; the webhook
+secret being encrypted at rest; a second workspace's ticket being unreachable; and disconnect
+keeping the tickets. What it cannot prove is that Linear itself answers: the network is a fixture.
 
 On top of the committed suites, the flows were exercised end-to-end over HTTP against the
 production build: 46 sign-in checks and 23 two-factor checks while milestone 3 was built, 73
 audio checks while milestone 4 was — including refusal of a renamed file and of an upload without
 consent, the 25 MB cap, a three-piece chunked upload, `206`/`416` byte ranges, and another
-tenant's owner getting `404` on both the stream route and the speaker mapping — and 42 follow-up
-checks while milestone 5 was, including the unread count on the bell matching the inbox, the
-email-is-not-configured notice naming the variable to set, push admitted to be unqueued, a
-failure's reason rendered on its own row, and another tenant's owner getting `404` on both the
-timeline and the inbox.
+tenant's owner getting `404` on both the stream route and the speaker mapping — 42 follow-up
+checks while milestone 5 was, including the unread count on the bell matching the inbox, a
+failure's reason rendered on its own row, push admitted to be unqueued, and another tenant's owner
+getting `404` on both the timeline and the inbox — and 27 Linear checks while milestone 6 was,
+including the integrations page naming the missing `INTEGRATION_ENCRYPTION_KEY` instead of offering
+a connect that could not be stored, no webhook address shown before a connection exists, no Linear
+card on a ticket in an unconnected workspace, and the public route answering `405` to a `GET`, `400`
+to an empty, non-JSON, team-less or stale body, and `200` with a reason for a team nobody mirrors
+(which is why a forged signature there changes nothing). The `401` branch itself — a real secret,
+a wrong signature — is covered by the committed suite rather than by that live pass, because
+reaching it over HTTP needs a connected workspace.

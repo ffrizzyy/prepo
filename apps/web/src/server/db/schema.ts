@@ -84,6 +84,16 @@ export const integrationStatus = pgEnum("integration_status", [
   "error",
   "disconnected",
 ]);
+/**
+ * Per-ticket Linear sync state. `null` means the ticket has never been offered
+ * to Linear, which is different from `pending` (it is linked, or about to be,
+ * and the change has not landed yet).
+ */
+export const linearSyncState = pgEnum("linear_sync_state", [
+  "pending",
+  "synced",
+  "failed",
+]);
 export const savedViewScope = pgEnum("saved_view_scope", [
   "board",
   "tickets",
@@ -418,6 +428,17 @@ export const tickets = pgTable(
     linearIssueId: text("linear_issue_id"),
     linearUrl: text("linear_url"),
     linearSyncedAt: timestamp("linear_synced_at", { withTimezone: true }),
+    /** Never attempted when null; set as soon as Linear is told about it. */
+    linearSyncState: linearSyncState("linear_sync_state"),
+    /**
+     * Why the last attempt failed, in the words of whoever refused it. A ticket
+     * with this set is shown as "sync failed" and can be retried by hand — a
+     * failed sync is never silently dropped.
+     */
+    linearSyncError: text("linear_sync_error"),
+    linearSyncAttempts: integer("linear_sync_attempts").notNull().default(0),
+    /** Backoff: the job will not try this ticket again before this moment. */
+    linearRetryAfter: timestamp("linear_retry_after", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -425,6 +446,11 @@ export const tickets = pgTable(
   (table) => [
     uniqueIndex("tickets_ws_key_idx").on(table.workspaceId, table.key),
     index("tickets_ws_status_idx").on(table.workspaceId, table.status),
+    /** One Prepo ticket per Linear issue, so a replay cannot link twice. */
+    index("tickets_ws_linear_issue_idx").on(
+      table.workspaceId,
+      table.linearIssueId,
+    ),
   ],
 );
 
@@ -558,12 +584,24 @@ export const integrations = pgTable(
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
     provider: integrationProvider("provider").notNull(),
-    /** AES-256-GCM ciphertext; the key lives outside the database. */
-    encryptedToken: text("encrypted_token").notNull(),
+    /**
+     * AES-256-GCM ciphertext; the key lives outside the database. Null once the
+     * integration is disconnected: a revoked token is not kept "just in case".
+     */
+    encryptedToken: text("encrypted_token"),
+    /** Ciphertext of Linear's webhook signing secret, same key as the token. */
+    encryptedWebhookSecret: text("encrypted_webhook_secret"),
     teamId: text("team_id"),
+    projectId: text("project_id"),
     mapping: jsonb("mapping").notNull().default({}),
     sourceOfTruth: text("source_of_truth").notNull().default("prepo"),
     status: integrationStatus("status").notNull().default("connected"),
+    connectedById: uuid("connected_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    /** The last failure at the connection level; per-ticket state lives on the ticket. */
+    lastError: text("last_error"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -714,6 +752,7 @@ export type FollowupChannel = (typeof followupChannel.enumValues)[number];
 export type FollowupStatus = (typeof followupStatus.enumValues)[number];
 export type IntegrationProvider = (typeof integrationProvider.enumValues)[number];
 export type IntegrationStatus = (typeof integrationStatus.enumValues)[number];
+export type LinearSyncState = (typeof linearSyncState.enumValues)[number];
 export type SavedViewScope = (typeof savedViewScope.enumValues)[number];
 
 /* ------------------------------------------------------- inferred rows */

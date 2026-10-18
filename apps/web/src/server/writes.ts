@@ -4,6 +4,7 @@ import { uuidv7 } from "./db/ids";
 import * as t from "./db/schema";
 import type { WorkspaceSettings } from "./db/schema";
 import { cancelPendingFollowups, scheduleTicketLadder } from "./followups/engine";
+import { markTicketPending, queueForLinear } from "./linear/queue";
 
 /**
  * The write path, with the tenant, the acting user and the settings all passed
@@ -46,6 +47,13 @@ export async function moveTicket(input: {
       .update(t.tickets)
       .set({ status: input.status, version: ticket.version + 1 })
       .where(eq(t.tickets.id, ticket.id));
+
+    // Queued, not sent: the board move returns immediately and `db:linear` does
+    // the talking. Nothing happens at all unless Linear is connected.
+    await queueForLinear(tx, {
+      workspaceId: input.workspaceId,
+      ticketId: ticket.id,
+    });
 
     // Finishing the work stops the chaser. Anything still pending is cancelled
     // rather than left to fire against a ticket nobody needs to hear about.
@@ -139,6 +147,10 @@ export async function approveActionItems(input: {
           source: "meeting",
         },
       });
+
+      // A brand new ticket is exactly what Linear wants to hear about, if the
+      // workspace has a connection.
+      await queueForLinear(tx, { workspaceId: input.workspaceId, ticketId });
 
       // The whole ladder, from the due date: reminders before and on the day, a
       // nudge when it slips, and an escalation to whoever ran the meeting.
@@ -726,5 +738,39 @@ export async function markNotificationsRead(input: {
       .returning({ id: t.notifications.id });
 
     return read.length;
+  });
+}
+
+/**
+ * Puts a ticket back in the Linear queue by hand, after a failure. The bug it
+ * guards against is a failed sync that nobody notices: the badge on the ticket
+ * says so, and this is the one click that answers it (PREPO.md 8.6).
+ */
+export async function queueTicketForLinear(input: {
+  workspaceId: string;
+  actorId: string;
+  ticketId: string;
+}): Promise<boolean> {
+  return withWorkspace(input.workspaceId, async (tx) => {
+    const [ticket] = await tx
+      .select({ id: t.tickets.id, key: t.tickets.key })
+      .from(t.tickets)
+      .where(eq(t.tickets.id, input.ticketId));
+
+    if (!ticket) return false;
+
+    await markTicketPending(tx, {
+      workspaceId: input.workspaceId,
+      ticketId: ticket.id,
+    });
+
+    await audit(tx, {
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      action: "integration.linear.retry_queued",
+      target: ticket.key,
+    });
+
+    return true;
   });
 }

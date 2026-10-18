@@ -10,27 +10,29 @@ This repository is being built against the specification in [`PREPO.md`](./PREPO
 
 ## Status
 
-**Milestone 5 — the follow-up engine.** The schema, migrations, tenant isolation and seed are
+**Milestone 6 — Linear, two-way.** The schema, migrations, tenant isolation and seed are
 complete and verified against two engines; the app reads and writes Postgres; authentication is
 real — password sign-in, per-device sessions with revoke, throttling, and TOTP two-factor with
-single-use recovery codes; and the audio path (milestone 4) records, uploads and transcribes.
-**Milestone 5 makes the agent chase.** Approving an action item now schedules a real escalation
-ladder off the ticket's due date, a job works the queue and delivers it, a notification centre
-carries the in-app half per person, and every pending message can be moved, cancelled, snoozed or
-stopped before it sends.
+single-use recovery codes; the audio path (milestone 4) records, uploads and transcribes; and the
+follow-up engine (milestone 5) chases. **Milestone 6 mirrors tickets into Linear and takes
+Linear's changes back**, through a queue that never makes a local write wait on the network.
 
-The follow-up engine is honest about what it can and cannot deliver here. There is no
-`RESEND_API_KEY` on this machine, so an email is **attempted, then recorded as failed with the
-reason** — never quietly marked sent — while the in-app half is delivered to the notification
-centre, and Settings and the follow-ups page both say email is not configured. Push is listed on
-the nudge rung because the ladder advertises it, but **no push row is ever queued**: that needs an
-installed app with a subscription and there is no service worker. Quiet hours **defer** a message
-until the window ends, in the recipient's own timezone, rather than dropping it.
+The follow-up engine is honest about what it can and cannot deliver here. A `RESEND_API_KEY` is
+configured, but the account has **no verified sending domain**, so Resend accepts a send only to
+the account's own address; anything else comes back `403` and is **recorded as failed with
+Resend's own words**, never quietly marked sent, while the in-app half is delivered to the
+notification centre. Whether the key is set or not, a refused email always carries a reason. Push
+is listed on the nudge rung because the ladder advertises it, but **no push row is ever queued**:
+that needs an installed app with a subscription and there is no service worker. Quiet hours
+**defer** a message until the window ends, in the recipient's own timezone, rather than dropping
+it.
 
 Two older gaps stay as they were, and the UI still says so: there is no `DEEPGRAM_API_KEY`, so
 nothing is sent anywhere for speech-to-text; and turning a meeting into tickets is the
 **extraction** step (milestone 7), which needs a language model, so a new import is stored as
-`ready` with a complete transcript and no invented summary or action items.
+`ready` with a complete transcript and no invented summary or action items. An
+`OPENROUTER_API_KEY` is configured and accepted by the provider, but the step that would call it
+does not exist yet — a key on the machine is not a feature.
 
 The links under the landing page are real routes now — `/security`, `/privacy`, `/terms` and
 `/download` — and so are the 404 and 500 states. [`SECURITY.md`](./SECURITY.md) records what is
@@ -68,12 +70,18 @@ implemented next to the OWASP gaps that are still open, so nothing has to be tak
 | Follow-up job: quiet hours per person, digest, cancellation on completion | Done |
 | Notification centre, per-person unread count, mark one / mark all read | Done |
 | Ticket controls: chase now, snooze, stop chasing | Done |
+| Linear — connect with a personal API key, token encrypted (AES-256-GCM), never stored in the clear | Done |
+| Linear — choose a team (and optional project), editable priority/status/label/owner mapping | Done |
+| Linear — local writes queue, `db:linear` (or "Sync now") does the network, failures back off and retry | Done |
+| Linear — pull and signed webhook share one conflict rule; `canceled` is reported as unmapped | Done |
+| Linear — link, sync status and one-click retry on the ticket page | Done |
+| Linear OAuth 2.0 | Not implemented — the personal API key path was built instead (see **Linear** below) |
 | Speech-to-text provider (Deepgram) | Wired, **unconfigured without a key** |
 | Extraction of summary / decisions / action items (meeting → tickets) | Not started (milestone 7) |
 | Tab-audio capture (`getDisplayMedia`), `.docx`/`.pdf` transcripts | Not implemented — recorder is mic-only; transcripts are parsed as text |
-| Email delivery (Resend) | Wired, **unconfigured without a key** — failures are recorded with the reason |
+| Email delivery (Resend) | Wired; a key is set but **no verified sending domain**, so only the account's own address can receive — refusals are recorded with Resend's reason |
 | Push notifications | Not implemented — no service worker, so no push row is ever queued |
-| Linear, Ask Prepo, insights | Not started |
+| Ask Prepo, insights | Not started |
 | Desktop (Tauri) shell | Not started — requires Rust, absent on the build machine |
 | Docs — `PREPO.md`, `SECURITY.md` (posture + OWASP gaps) | Done |
 
@@ -219,6 +227,74 @@ workspace see different inboxes; marking one message read, or all of them, only 
 rows. The ticket page has `Chase now`, `Snooze 3 days` and `Stop chasing`, and the follow-ups page
 lets you move or cancel any pending message individually.
 
+## Linear
+
+The plan (`PREPO.md` §8.6) says OAuth. What is built is a **personal API key**, because it is the
+same integration with one fewer moving part: paste the key on `/[workspace]/integrations`, and
+Prepo tries it against Linear's `viewer` before storing anything. A wrong key is refused on the
+spot instead of being discovered later by a failed sync. The seam is a `LinearClient` interface
+that takes an auth style, so an OAuth token would slot into the same place.
+
+The token is encrypted at rest with **AES-256-GCM** under `INTEGRATION_ENCRYPTION_KEY` (32 bytes,
+base64 or 64 hex) and stored as `v1.<iv>.<ciphertext>.<tag>`. Without that variable, connecting is
+**refused outright** — there is no plaintext fallback and no "just this once" path — and a token
+encrypted under a different key is reported as unusable on the page rather than crashing it.
+Changing the connection is one of the few actions restricted to `owner` and `admin`.
+
+**Nothing local waits on Linear.** Moving a ticket on the board, approving an action item or
+snoozing a chase writes the change *and* marks the ticket `linear_sync_state = 'pending'` in one
+transaction; the network happens in `runLinearSync()`. That function is exposed as a job —
+
+```bash
+pnpm --filter @prepo/web db:linear     # one pass: pull what changed, push what is queued
+```
+
+— and the **Sync now** button on the integrations page calls the very same function inside the
+request, so pressing it proves what a scheduler would do rather than describing it. Tickets that
+existed **before** connecting are not swept up: there is no board backfill, so an old ticket is
+offered to Linear the next time it is moved or its action item is approved. The page says that.
+
+**The mapping** is editable, and the defaults are Linear's own scale: priority `p0…p3` → Urgent /
+High / Medium / Low, and status → workflow state *type* (`in_review` lands in `started`, because
+Linear has no review type). Labels map by name unless a row overrides one, and owners map by
+email — both are `prepo=linear` lists. A label with no row is sent under its own name, and an
+assignee with no Linear counterpart is left unassigned rather than guessed at.
+
+**The conflict rule lives in one function.** `applyRemoteChange()` is used by both the pull and
+the webhook, so a poll and a delivery cannot disagree about the same change. A field the payload
+does not carry is never touched; a field that is present and `null` clears. With **Prepo first**
+(the default), a ticket that is still queued keeps its local edit and the override is written into
+the ticket's timeline as a conflict. With **Linear first**, the same change is applied along with
+title, priority and due date. Linear's `canceled` state has **no Prepo equivalent**, so the ticket
+is left alone and the state is reported as unmapped — instead of pretending the work finished.
+
+**The webhook** is a shortcut, not a requirement: without one, the job still pulls the same
+changes. Point a Linear webhook at `/api/integrations/linear/webhook` and paste the signing secret
+Linear shows you. Deliveries are checked with **HMAC-SHA256 in constant time** against the secret
+stored *per workspace*, and a delivery whose `webhookTimestamp` is more than 60 seconds old is
+refused, so a captured request cannot be replayed later. The handler parses the body first — the
+team in it is what names the secret to check against — but nothing is acted on until the signature
+holds. A delivery for a team this deployment does not mirror is answered `200` with a reason
+rather than an error, because that is a configuration choice and a 4xx would make Linear retry it
+forever.
+
+**When Linear refuses**, the ticket records Linear's own words, an attempt count and a backoff —
+`1m, 5m, 15m, 1h, 6h`, capped — and the job retries it once past that. The ticket page shows the
+error and offers a retry, which **queues** the ticket rather than sending from the page. A push
+that succeeds clears the error and the count. Loops are prevented by recording `linear_synced_at`
+and marking the ticket `synced`: the echoed webhook for that push re-applies the same values and
+reports "unchanged", and only `pending` tickets (or failed ones past their backoff) are pushed.
+
+**Not synced, and the page says so:** comments and attachments; sub-issues, cycles, estimates and
+Linear's own labels; and exactly one team and one project are mirrored per workspace.
+
+**How this is verified.** `pnpm --filter @prepo/web db:linear-smoke` runs **114 checks** against an
+in-memory Linear that really holds state, so a refused call, a deleted issue, a replayed webhook
+and both source-of-truth orders are all exercised — but Linear is not what answers. The real API is
+only touched by `db:providers -- --live`, which makes one authenticated **read** (`viewer`) and
+creates nothing. Nothing in this repository can prove that a real push lands in a real team until
+someone points it at one, and the README will not claim otherwise.
+
 ## Requirements
 
 - Node.js ≥ 22 (developed on 24)
@@ -267,6 +343,8 @@ pnpm --filter @prepo/web db:audio-fixture # give the seeded meeting real audio b
 pnpm --filter @prepo/web db:retention  # run the retention sweep (scheduler entry point)
 pnpm --filter @prepo/web db:followups  # work the follow-up queue (scheduler entry point)
 pnpm --filter @prepo/web db:followup-smoke    # exercise the ladder, quiet hours and the engine
+pnpm --filter @prepo/web db:linear      # work the Linear queue: pull what changed, push what is queued
+pnpm --filter @prepo/web db:linear-smoke # exercise crypto, mapping, queue, push, pull and the webhook
 pnpm --filter @prepo/web db:providers        # which keys are set, and whether they work
 pnpm --filter @prepo/web db:studio     # browse the data
 ```
@@ -420,10 +498,11 @@ prepo/
 │     ├─ src/components/marketing/  # landing sections
 │     ├─ src/components/app/   # shell, badges, tables, board, detail views
 │     ├─ src/components/auth/  # auth layout, forms, sessions panel
-│     ├─ src/app/api/          # upload, chunk, transcript, audio stream, retry, delete, speakers
+│     ├─ src/app/api/          # upload, chunk, transcript, audio stream, retry, delete, speakers, linear webhook
 │     ├─ src/lib/              # cn() and the shared date/initial formatters
 │     ├─ src/server/           # context (workspace + viewer), queries, actions, writes
 │     ├─ src/server/audio/     # storage driver, validation, parsers, provider, ingest, retention
+│     ├─ src/server/linear/    # crypto, mapping, GraphQL client + fixture, queue, webhook, sync
 │     ├─ src/server/auth/      # passwords, TOTP, challenges, sessions, throttle, identity audit, DAL
 │     ├─ src/server/db/        # Drizzle schema, client, migrations, seed, verify, repo
 │     └─ drizzle/              # generated migrations + hand-written RLS/policy SQL
@@ -467,11 +546,14 @@ Milestones follow section 12 of `PREPO.md`:
    storage and streaming, prompt-free provider seam, retention and the sweep. The provider is
    unconfigured without a key, and extraction stays in milestone 7 where its model lives
 5. ✅ Follow-up engine — the ladder, the job, quiet hours and the digest, cancellation on
-   completion, the notification centre and the per-ticket controls. Email is wired but
-   unconfigured without a key: failures are recorded with the reason rather than faked, and push
-   is not queued because there is no service worker
-6. Linear two-way sync
-6. Linear two-way sync
+   completion, the notification centre and the per-ticket controls. Email is wired, and a key is
+   configured, but the account has no verified sending domain: a refusal is recorded with Resend's
+   own words rather than faked, and push is not queued because there is no service worker
+6. ✅ Linear two-way sync — personal API key encrypted at rest, team/project pick, editable mapping,
+   a queue the request never waits on, a job and a Sync now button that call the same function,
+   pull and signed webhook through one conflict rule, per-ticket link/status/retry, and disconnect
+   that keeps both sides. OAuth, comments, attachments and sub-issues are not part of it, and the
+   page says so
 7. Ask Prepo, scores, insights, evals
 8. Desktop app (Tauri)
 9. Polish and security checklist

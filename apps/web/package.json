@@ -20,6 +20,8 @@
     "db:audio-fixture": "tsx src/server/db/audio-fixture.ts",
     "db:totp-fixture": "tsx src/server/db/totp-fixture.ts",
     "db:providers": "tsx src/server/db/providers.ts",
+    "db:linear": "tsx src/server/db/linear.ts",
+    "db:linear-smoke": "tsx src/server/db/linear-smoke.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

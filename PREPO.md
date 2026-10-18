@@ -95,7 +95,7 @@ The move from table discussion to field execution becomes instant. Every team me
 | File / audio storage | Cloudflare R2 (S3-compatible), private bucket, presigned URLs, lifecycle auto-delete. **As built:** a local filesystem driver behind a `StorageDriver` interface, because there is no R2 account on the build machine. The interface deliberately has **no presign method**, so audio is never publicly addressable — playback is an authorization-checked route that streams byte ranges |
 | Speech-to-text | **Deepgram** (speaker diarization + word timestamps), behind a `TranscriptionProvider` interface so OpenAI or others can be swapped in. **As built:** the interface is `transcribe(bytes, opts)` rather than `transcribe(audioUrl, opts)` — bytes keep a user-supplied URL from ever becoming an outbound request. The provider is unconfigured without `DEEPGRAM_API_KEY` |
 | Linear | `@linear/sdk` (OAuth 2.0 app, GraphQL, signed webhooks) |
-| Email | Resend + React Email. **As built:** Resend, called from the chaser with a key read from the environment. With no `RESEND_API_KEY` the row is marked `failed` with the reason instead of being marked sent, and the in-app half of the same rung is still delivered |
+| Email | Resend + React Email. **As built:** Resend, called from the chaser with a key read from the environment. With no `RESEND_API_KEY` the row is marked `failed` with the reason instead of being marked sent, and the in-app half of the same rung is still delivered. With a key but no verified sending domain, Resend refuses every recipient but the account's own and the refusal is recorded verbatim |
 | Web Push | `web-push` with self-generated VAPID keys (no third-party service). **As built:** not implemented — no subscription table, no VAPID keys, no service worker. The ladder still lists push on the nudge rung, and the engine refuses to write a push row while no device is subscribed, so nothing is pretended |
 | Rate limiting | Upstash Redis + `@upstash/ratelimit` |
 | Document parsing | `mammoth` (.docx), `pdf-parse` (.pdf), native parsers for `.txt .md .vtt .srt`. **As built:** the native parsers only. `.docx` and `.pdf` are refused with a reason ("paste the text instead") rather than parsed, so no document parser is installed and there is no parser to attack |
@@ -117,8 +117,8 @@ The move from table discussion to field execution becomes instant. Every team me
 
 | Item | Choice |
 |---|---|
-| SDK | Vercel AI SDK (`ai`, `@ai-sdk/anthropic`), provider-agnostic |
-| Model | Claude via `ANTHROPIC_API_KEY` (server-side only). Model IDs live in env (`AI_MODEL_EXTRACT`, `AI_MODEL_FAST`) and are checked against current docs before first run |
+| SDK | Vercel AI SDK (`ai`) with OpenRouter as the provider, so the vendor is a model id rather than a dependency |
+| Model | Reached through `OPENROUTER_API_KEY` (server-side only). Model IDs live in env (`AI_MODEL_EXTRACT`, `AI_MODEL_FAST`) and are checked against current docs before first run |
 | Structured output | `generateObject` / `streamObject` with Zod |
 | Agent tools | Typed tool calls with a hard allow-list: `create_ticket`, `assign_owner`, `schedule_followup`, `search_meetings` |
 | Observability | Langfuse (or an `ai_runs` table): prompts, latency, tokens, cost, eval scores |
@@ -145,7 +145,7 @@ pnpm dlx shadcn@latest init
 pnpm add motion gsap @phosphor-icons/react geist zod react-hook-form @hookform/resolvers \
   @tanstack/react-query @tanstack/react-table zustand @dnd-kit/core @dnd-kit/sortable date-fns date-fns-tz \
   drizzle-orm @neondatabase/serverless better-auth inngest resend @react-email/components \
-  @upstash/redis @upstash/ratelimit ably ai @ai-sdk/anthropic @deepgram/sdk @linear/sdk \
+  @upstash/redis @upstash/ratelimit ably ai @openrouter/ai-sdk-provider @deepgram/sdk @linear/sdk \
   @aws-sdk/client-s3 @aws-sdk/s3-request-presigner web-push @serwist/next mammoth pdf-parse
 pnpm add -D drizzle-kit serwist vitest @testing-library/react msw playwright @axe-core/playwright \
   eslint-plugin-security husky lint-staged @commitlint/cli simple-icons @tauri-apps/cli
@@ -396,7 +396,7 @@ BETTER_AUTH_SECRET=
 GOOGLE_CLIENT_ID= / GOOGLE_CLIENT_SECRET=
 GITHUB_CLIENT_ID= / GITHUB_CLIENT_SECRET=
 # AI  (you provide these; server-side only, never exposed to the browser)
-ANTHROPIC_API_KEY=
+OPENROUTER_API_KEY=              # one key, model chosen by id
 AI_MODEL_EXTRACT=
 AI_MODEL_FAST=
 DEEPGRAM_API_KEY=
@@ -408,6 +408,7 @@ RESEND_API_KEY=
 INNGEST_EVENT_KEY= / INNGEST_SIGNING_KEY=
 ABLY_API_KEY=                    # server only; clients receive short-lived tokens
 LINEAR_CLIENT_ID= / LINEAR_CLIENT_SECRET= / LINEAR_WEBHOOK_SECRET=
+LINEAR_API_KEY=                  # linear's personal-key path; see 8.6 as built
 VAPID_PUBLIC_KEY= / VAPID_PRIVATE_KEY= / VAPID_SUBJECT=
 TURNSTILE_SECRET_KEY= / NEXT_PUBLIC_TURNSTILE_SITE_KEY=
 SENTRY_DSN=
@@ -415,7 +416,7 @@ SENTRY_DSN=
 INTEGRATION_ENCRYPTION_KEY=      # 32-byte key for AES-256-GCM token encryption
 ```
 
-Env is validated at boot with a Zod schema. The app refuses to start if anything is missing or malformed. No embeddings variable exists.
+Env is validated at boot with a Zod schema. The app refuses to start if anything is missing or malformed. No embeddings variable exists. `APP_URL` is optional and used only to print an absolute webhook address; nothing depends on it being set.
 
 ### 4.4 Repo structure (monorepo)
 
@@ -451,13 +452,13 @@ prepo/
 | `audio_assets` | id, meeting_id, r2_key, duration_s, size_bytes, status, delete_after, consent_confirmed_by |
 | `transcript_segments` | meeting_id, idx, speaker_label, speaker_user_id?, start_ms, end_ms, text, tsv |
 | `action_items` | id, meeting_id, title, description, owner_id?, owner_raw, due_at?, priority, confidence, source_segment_ids[], status (`proposed/approved/rejected/ticketed`) |
-| `tickets` | id, key (`PRE-142`), action_item_id, title, description, assignee_id, status, priority, due_at, labels[], position, version, **linear_issue_id, linear_url, linear_synced_at** |
+| `tickets` | id, key (`PRE-142`), action_item_id, title, description, assignee_id, status, priority, due_at, labels[], position, version, **linear_issue_id, linear_url, linear_synced_at, linear_sync_state (`pending/synced/failed`), linear_sync_error, linear_sync_attempts, linear_retry_after** |
 | `ticket_events` | ticket_id, actor (user or `prepo-agent`), type, payload |
 | `comments` | ticket_id, user_id, body (sanitized) |
 | `followups` | ticket_id (**null for a workspace-level digest**), recipient_id, kind (`reminder/nudge/escalation/digest`), channel (`email/in_app/push`), scheduled_for, sent_at, status (`scheduled/sent/failed/cancelled`), detail (why a send failed, or why a row was moved) |
 | `notifications` | user_id, type, payload, read_at |
 | `push_subscriptions` | user_id, session_id, endpoint, keys (encrypted), created_at |
-| `integrations` | workspace_id, provider (`linear`), encrypted_token, team_id, mapping (JSON), status |
+| `integrations` | workspace_id, provider (`linear`), encrypted_token (**nullable — null after a disconnect**), **encrypted_webhook_secret, project_id, connected_by_id, last_synced_at, last_error**, team_id, mapping (JSON), source_of_truth, status |
 | `api_keys` | workspace_id, name, prefix, hash, scopes, last_used_at, revoked_at |
 | `share_links` | id, meeting_id, token_hash, created_by, expires_at, revoked_at, view_count |
 | `saved_views` | id, user_id, scope (`board/tickets/meetings`), filters (JSON), is_shared |
@@ -769,6 +770,53 @@ These routes are top-level (not under `/{workspace-slug}/…`).
 | Source of truth | Configurable: **Prepo-first** (default) or **Linear-first** (Linear owns status once the issue exists) |
 | Disconnect | Keeps Prepo tickets, unlinks issues, revokes the token |
 
+**As built (milestone 6).** The credential is a **personal API key**, not OAuth: pasted on the
+integrations page, tried against Linear's `viewer` before anything is stored, then encrypted with
+AES-256-GCM under `INTEGRATION_ENCRYPTION_KEY` (32 bytes, base64 or hex) as `v1.<iv>.<ciphertext>.<tag>`.
+Without that variable connecting is refused outright — there is no plaintext fallback — and a token
+encrypted under a different key is reported as unusable rather than crashing the page. The mapping
+table is editable on `/integrations` rather than in Settings, and it is where the team and optional
+project are chosen too: team, project, mapping, source of truth, webhook secret and the connection
+itself are one subject and read better together.
+
+Nothing local waits on Linear. A board move, an approved action item or a snooze marks the ticket
+`linear_sync_state = 'pending'` in the same transaction as the change; the network happens in
+`runLinearSync()`, exposed as `db:linear` for a scheduler, and "Sync now" on the integrations page
+calls the same function in the request. Tickets that existed before connecting are **not** backfilled —
+there is no sweep of the board — so an old ticket is offered to Linear the next time it is moved or
+its action item is approved, which the page states rather than implies.
+
+The conflict rule lives in exactly one function, `applyRemoteChange()`, used by both the pull and the
+webhook, so a poll and a delivery cannot disagree. A field the payload does not carry is never
+touched; a field that is present and null clears. With Prepo first, a ticket that is still queued keeps
+its local edit and the override is written into the ticket's timeline as a conflict; with Linear first,
+the same change is applied along with title, priority and due date. Linear's `canceled` state has no
+Prepo equivalent, so it is left alone and reported as unmapped instead of being recorded as work that
+finished.
+
+The webhook handler verifies HMAC-SHA256 in constant time against the secret stored *per workspace*,
+and refuses a delivery whose `webhookTimestamp` is more than 60 seconds old, so a captured request
+cannot be replayed. It parses the body before verifying — the pairing of team to workspace is what
+names the secret — but nothing is acted on until the signature holds. A delivery for a team this
+deployment does not mirror is answered `200` with a reason rather than a 4xx, because a team nobody
+mirrors is a configuration choice and Linear would otherwise retry it forever.
+
+A refused push is recorded on the ticket with Linear's own words, an attempt count and a backoff
+(`1m, 5m, 15m, 1h, 6h`, capped); the job retries it once past that, and the ticket page offers a
+one-click retry that queues it rather than sending from the page. A push that succeeds clears the error
+and the count. Loops are prevented by recording `linear_synced_at` and marking the ticket `synced`: the
+echoed webhook for that push re-applies the same values and is reported as unchanged, and only
+`pending` tickets (or failed ones past their backoff) are ever pushed.
+
+Disconnecting keeps every ticket and every issue: the token and the signing secret are nulled, the row
+stays as `disconnected`, and the tickets' issue links are cleared with an event saying why.
+
+**What the suite does not prove.** `db:linear-smoke` is 114 checks against an in-memory Linear that
+really holds state — so Prepo's own behaviour is exercised, including a refused call and a deleted
+issue — but Linear is not what answers. `db:providers --live` makes one authenticated **read** per
+configured provider (for Linear, `viewer`); it does not create an issue. Nothing in this repository
+can prove that a real push lands in a real team until someone points it at one.
+
 ### 8.7 Follow-ups (`/followups`)
 
 - Timeline of scheduled and sent follow-ups with status. Edit or cancel any pending message before it sends.
@@ -957,7 +1005,7 @@ OWASP **ASVS Level 2**, **Top 10 (2021)**, **API Security Top 10**, **Top 10 for
 | **A07 Identification & Auth Failures** | Passkeys + TOTP, breached-password check, Turnstile, lockout + rate limits, generic errors, session rotation on login and privilege change, idle and absolute timeouts, single-use magic links |
 | **A08 Software & Data Integrity** | HMAC-signed webhooks (Linear in, Prepo out) with timestamp replay window. Deepgram callbacks verified with a secret. Pinned CI actions. **Signed desktop updates (signature verified before install)**. No `eval` |
 | **A09 Logging & Monitoring Failures** | Append-only `audit_logs` (auth events, role changes, exports, share links, recordings, AI side effects, Linear sync). Sentry alerts. PII-scrubbed structured logs. Anomaly alerts (impossible travel, mass export) |
-| **A10 SSRF** | Outbound calls only to allow-listed hosts (Anthropic, Deepgram, Linear, Resend, Ably, R2). Block private/link-local ranges. Audio is fetched by the provider from a presigned URL, never from a user-supplied URL |
+| **A10 SSRF** | Outbound calls only to allow-listed hosts (OpenRouter, Deepgram, Linear, Resend, Ably, R2). Block private/link-local ranges. Audio is fetched by the provider from a presigned URL, never from a user-supplied URL |
 
 ### 9.3.1 Additional controls
 
@@ -1065,9 +1113,9 @@ All endpoints: Zod-validated, rate-limited, role-authorized, consistent error en
 | **1: Foundation** | Monorepo, CI, design tokens, auth (password + OAuth + passkey + 2FA), workspaces, RLS, security headers | Secure shell |
 | **2: Core loop** | Text ingest → extraction → review → tickets → board | Three core capabilities working |
 | **3: Audio** | R2 uploads, in-app recorder, Deepgram pipeline, speaker mapping, synced player, retention — ✅ **built** with the local storage driver instead of R2, the recorder mic-only, and the provider unconfigured without a key | Recordings become transcripts |
-| **4: Follow-up engine** | Scheduler, escalation ladder, email, in-app notifications, realtime sync (Ably), device management — ✅ **built** with the chaser as a scheduler-invoked script (`db:followups`) instead of Inngest, email wired but unconfigured without a key (failures recorded with the reason), push not queued at all, and the notification centre per person; **Ably realtime sync is not built** | The agent chases for you |
+| **4: Follow-up engine** | Scheduler, escalation ladder, email, in-app notifications, realtime sync (Ably), device management — ✅ **built** with the chaser as a scheduler-invoked script (`db:followups`) instead of Inngest, email wired with a key set but no verified sending domain (a refusal is recorded with Resend's own words), push not queued at all, and the notification centre per person; **Ably realtime sync is not built** | The agent chases for you |
 | **5: Landing + demo + PWA** | Full landing, `/demo`, public recap, SEO, manifest, service worker, offline, install prompt, push | Shareable and installable |
-| **6: Linear** | OAuth, issue creation, mapping, two-way sync, failure handling | Work lands where teams already track it |
+| **6: Linear** | OAuth, issue creation, mapping, two-way sync, failure handling — ✅ **built** with a personal API key instead of OAuth (encrypted AES-256-GCM), the mapping editable on `/integrations`, a queue the request never waits on, pull and signed webhook through one conflict rule, and per-ticket retry; comments, attachments and sub-issues are not synced | Work lands where teams already track it |
 | **7: Intelligence** | Ask Prepo, Necessity / Clarity scores, insights, evals in CI | The "wow" layer |
 | **8: Desktop app** | Tauri shell, tray, global shortcut, native notifications, deep links, signed updater, release pipeline, `/download` | Real installable software |
 | **9: Polish** | Accessibility and performance pass, security checklist, docs, demo recording | Production-ready |
@@ -1100,7 +1148,7 @@ All endpoints: Zod-validated, rate-limited, role-authorized, consistent error en
 
 | Topic | Assumption |
 |---|---|
-| AI | Anthropic Claude via the Vercel AI SDK, key in `ANTHROPIC_API_KEY` |
+| AI | A model through OpenRouter via the Vercel AI SDK, key in `OPENROUTER_API_KEY` |
 | Speech-to-text | **Deepgram** (needs its own API key: `DEEPGRAM_API_KEY`). Chosen for built-in speaker labels and word timestamps, swappable through the provider interface |
 | Language | English UI and landing. Meetings in other languages are still processed best-effort |
 | Realtime | Ably (free tier is enough for a portfolio) |

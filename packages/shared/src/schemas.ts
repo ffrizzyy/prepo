@@ -55,6 +55,15 @@ export const ticketSchema = z.object({
   dueAt: z.string().nullable(),
   labels: z.array(z.string()),
   linearUrl: z.string().nullable(),
+  /**
+   * Linear sync state. Optional because not every producer of a `Ticket` knows
+   * about it (the static sample data predates the integration), and a value of
+   * `undefined` reads as "not asked" rather than "not synced".
+   */
+  linearIssueId: z.string().nullable().optional(),
+  linearSyncState: z.enum(["pending", "synced", "failed"]).nullable().optional(),
+  linearSyncError: z.string().nullable().optional(),
+  linearRetryAfter: z.string().nullable().optional(),
   meetingId: z.string().nullable(),
   sourceQuote: z.string().nullable(),
   createdAt: z.string(),

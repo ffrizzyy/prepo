@@ -1,6 +1,7 @@
 import { TicketDetail } from "@/components/app/ticket-detail";
 import { EmptyState } from "@/components/app/page-header";
 import { requireWorkspace } from "@/server/context";
+import { integrationSummary } from "@/server/linear/sync";
 import {
   getMeetingView,
   getTicketView,
@@ -35,11 +36,13 @@ export default async function TicketDetailPage({
     );
   }
 
-  const [meeting, comments, events, followups] = await Promise.all([
+  const [meeting, comments, events, followups, linear] = await Promise.all([
     ticket.meetingId ? getMeetingView(context.id, ticket.meetingId) : null,
     listTicketComments(context.id, ticket.id),
     listTicketEvents(context.id, ticket.id),
     listTicketFollowups(context.id, ticket.id),
+    // Only used to decide whether the Linear card belongs on the page at all.
+    integrationSummary(context.id),
   ]);
 
   return (
@@ -51,6 +54,7 @@ export default async function TicketDetailPage({
       events={events}
       followups={followups}
       viewerName={context.viewer.name}
+      linearConnected={linear.connected}
     />
   );
 }

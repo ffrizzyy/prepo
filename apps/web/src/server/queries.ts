@@ -249,6 +249,10 @@ export async function listTicketsView(workspaceId: string): Promise<Ticket[]> {
         dueAt: iso(ticket.dueAt),
         labels: ticket.labels,
         linearUrl: ticket.linearUrl,
+        linearIssueId: ticket.linearIssueId,
+        linearSyncState: ticket.linearSyncState,
+        linearSyncError: ticket.linearSyncError,
+        linearRetryAfter: iso(ticket.linearRetryAfter),
         meetingId: origin?.meetingId ?? null,
         sourceQuote: quoteId ? (quotes.get(quoteId)?.text ?? null) : null,
         createdAt: ticket.createdAt.toISOString(),
@@ -623,4 +627,32 @@ export async function listMeetingLoad(
       clarityScore: meeting.clarityScore,
     }))
     .sort((a, b) => a.heldAt.localeCompare(b.heldAt));
+}
+
+/* --------------------------------------------------------------- linear */
+
+/**
+ * What the Linear job would act on right now, counted rather than described.
+ * "Pending" means queued and not yet sent; "failed" means a refused push that is
+ * waiting out its backoff (PREPO.md §8.6).
+ */
+export async function linearQueueSummary(workspaceId: string): Promise<{
+  linked: number;
+  pending: number;
+  failed: number;
+}> {
+  const rows = await withWorkspace(workspaceId, (tx) =>
+    tx
+      .select({
+        state: t.tickets.linearSyncState,
+        issueId: t.tickets.linearIssueId,
+      })
+      .from(t.tickets),
+  );
+
+  return {
+    linked: rows.filter((row) => row.issueId !== null).length,
+    pending: rows.filter((row) => row.state === "pending").length,
+    failed: rows.filter((row) => row.state === "failed").length,
+  };
 }

@@ -17,6 +17,7 @@ import type {
 } from "@/server/queries";
 import { PriorityBadge, StatusBadge } from "./badges";
 import { TicketChase } from "./followup-controls";
+import { TicketLinearSync } from "./integration-controls";
 import { Card, EmptyState } from "./page-header";
 
 export function TicketDetail({
@@ -27,6 +28,7 @@ export function TicketDetail({
   events,
   followups,
   viewerName,
+  linearConnected,
 }: {
   workspace: string;
   ticket: Ticket;
@@ -35,6 +37,8 @@ export function TicketDetail({
   events: TicketEventView[];
   followups: FollowupView[];
   viewerName: string;
+  /** Whether this workspace has a usable Linear connection (PREPO.md §8.5). */
+  linearConnected: boolean;
 }) {
   const [optimisticStatus, applyStatus] = useOptimistic(
     ticket.status,
@@ -245,6 +249,18 @@ export function TicketDetail({
             </dl>
           </Card>
 
+          {linearConnected ? (
+            <Card title="Linear">
+              <TicketLinearSync
+                workspace={workspace}
+                ticketId={ticket.id}
+                state={ticket.linearSyncState}
+                error={ticket.linearSyncError}
+                url={ticket.linearUrl}
+              />
+            </Card>
+          ) : null}
+
           <Card title="Follow-ups">
             <TicketChase
               workspace={workspace}
@@ -355,6 +371,31 @@ function describeEvent(event: TicketEventView): string {
     const to = String(event.payload.to ?? "?");
     return `Status moved ${from.replace(/_/g, " ")} → ${to.replace(/_/g, " ")}.`;
   }
+
+  // Linear events carry what changed, so the timeline can say it rather than
+  // just naming the integration (PREPO.md §8.6).
+  if (event.type === "linear_linked") {
+    const identifier = event.payload.identifier;
+    return typeof identifier === "string"
+      ? `Sent to Linear as ${identifier}.`
+      : "Sent to Linear.";
+  }
+  if (event.type === "linear_synced") {
+    return "Changes sent to Linear.";
+  }
+  if (event.type === "linear_updated_here") {
+    const change = event.payload.change;
+    return typeof change === "string" && change.length > 0
+      ? `Linear changed this ticket: ${change}.`
+      : "Changed by Linear.";
+  }
+  if (event.type === "linear_conflict") {
+    return "Linear changed this at the same time, and Prepo's queued edit was kept. It will be pushed.";
+  }
+  if (event.type === "linear_unlinked") {
+    return "The Linear issue was deleted. The ticket was kept.";
+  }
+
   return event.type.replace(/_/g, " ");
 }
 

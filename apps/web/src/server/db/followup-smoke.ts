@@ -437,10 +437,24 @@ runCli("followup-smoke.ts", async () => {
       })
       .from(t.tickets),
   );
-  const target = seededTickets.find(
-    (ticket) => ticket.status !== "done" && ticket.dueAt && ticket.assigneeId,
-  )!;
-  check("the seed provides an open ticket with a date and an owner", Boolean(target));
+  // The ticket the engine tests work on. It has to be one whose due date is still
+  // ahead of NOW, because the rebuild further down is about *replacing pending*
+  // rungs: a ticket whose whole ladder is already in the past has nothing left to
+  // cancel, and that check would pass without testing anything. Sorting fixes the
+  // choice too — the select has no ORDER BY, so the row order is not a promise.
+  const target = seededTickets
+    .filter(
+      (ticket) =>
+        ticket.status !== "done" &&
+        ticket.dueAt !== null &&
+        ticket.dueAt.getTime() > NOW.getTime() &&
+        ticket.assigneeId !== null,
+    )
+    .sort((a, b) => a.dueAt!.getTime() - b.dueAt!.getTime())[0]!;
+  check(
+    "the seed provides an open ticket, with a date ahead of now and an owner",
+    Boolean(target),
+  );
 
   const dueBefore = await withWorkspace(northwind, (tx) =>
     tx
@@ -500,11 +514,21 @@ runCli("followup-smoke.ts", async () => {
       .from(t.followups)
       .where(eq(t.followups.channel, "email")),
   );
+  // Two environments, one claim: a refused email always says why. With a provider
+  // configured the reason is the provider's own words; without one it is that the
+  // variable is missing. The earlier check pins the second wording; this one is
+  // about never recording a failure with nothing to explain it.
+  const providerConfigured = emailSender() !== null;
+  const failedEmails = emailRows.filter((row) => row.status === "failed");
   check(
     "every attempted email says why it did not go out",
-    emailRows
-      .filter((row) => row.status === "failed")
-      .every((row) => row.detail?.includes("RESEND_API_KEY")),
+    failedEmails.length > 0 &&
+      failedEmails.every((row) =>
+        providerConfigured
+          ? (row.detail ?? "").length > 0
+          : (row.detail ?? "").includes("RESEND_API_KEY"),
+      ),
+    `${failedEmails.length} failed, provider ${providerConfigured ? "configured" : "absent"}`,
   );
   check(
     "a failed message is stamped with the attempt time and a reason",
@@ -707,6 +731,38 @@ runCli("followup-smoke.ts", async () => {
   /* ------------------------------------------------- the ticket and the person */
 
   const nearDue = new Date(NOW.getTime() + HOUR);
+
+  // Give the ticket a ladder that is entirely ahead of it first. Which ticket
+  // `target` is comes from the seed's row order, and the steps above may already
+  // have consumed its rungs — scheduling one here is what makes the next check
+  // about cancellation rather than luck.
+  await refreshLadder({
+    workspaceId: northwind,
+    actorId: lena.id,
+    ticketId: target.id,
+    dueAt: new Date(NOW.getTime() + 30 * 24 * HOUR),
+    now: NOW,
+  });
+
+  const pendingBefore = await withWorkspace(northwind, async (tx) =>
+    (
+      await tx
+        .select({ id: t.followups.id })
+        .from(t.followups)
+        .where(
+          and(
+            eq(t.followups.ticketId, target.id),
+            eq(t.followups.status, "scheduled"),
+          ),
+        )
+    ).length,
+  );
+  check(
+    "a ladder scheduled ahead of the due date is pending",
+    pendingBefore > 0,
+    `${pendingBefore} pending`,
+  );
+
   const ladderTotal = await refreshLadder({
     workspaceId: northwind,
     actorId: lena.id,
@@ -716,8 +772,8 @@ runCli("followup-smoke.ts", async () => {
   });
   check(
     "rebuilding the ladder cancels the old rungs and schedules the new ones",
-    ladderTotal >= 4,
-    `${ladderTotal} rows`,
+    ladderTotal >= 4 && pendingBefore > 0,
+    `${ladderTotal} new row(s), ${pendingBefore} replaced`,
   );
   const rebuilt = await withWorkspace(northwind, (tx) =>
     tx
@@ -731,11 +787,12 @@ runCli("followup-smoke.ts", async () => {
   );
   check(
     "the old rungs are cancelled, not deleted",
-    rebuilt.some(
+    rebuilt.filter(
       (row) =>
         row.status === "cancelled" &&
         row.detail === "Replaced when the schedule changed.",
-    ),
+    ).length >= pendingBefore,
+    `${pendingBefore} pending → cancelled`,
   );
   check(
     "the new rungs sit on the new due date",

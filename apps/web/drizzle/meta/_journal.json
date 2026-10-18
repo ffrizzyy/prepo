@@ -29,6 +29,13 @@
       "when": 1792205392029,
       "tag": "0003_tired_rocket_raccoon",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792209458390,
+      "tag": "0004_curly_stingray",
+      "breakpoints": true
     }
   ]
 }

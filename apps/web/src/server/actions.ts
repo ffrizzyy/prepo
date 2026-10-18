@@ -15,6 +15,7 @@ import {
   cancelFollowup as cancelFollowupWrite,
   markNotificationsRead as markNotificationsReadWrite,
   moveTicket as moveWrite,
+  queueTicketForLinear,
   rejectActionItem as rejectWrite,
   rescheduleFollowup as rescheduleFollowupWrite,
   setDigestWeekday as setDigestWeekdayWrite,
@@ -22,6 +23,14 @@ import {
   stopChasing as stopChasingWrite,
   updateSettings,
 } from "./writes";
+import { readMapping } from "./linear/mapping";
+import {
+  connectLinear as connectLinearWrite,
+  disconnectLinear as disconnectLinearWrite,
+  setLinearTeam as setLinearTeamWrite,
+  syncWorkspace,
+  updateLinearSettings as updateLinearSettingsWrite,
+} from "./linear/sync";
 
 /**
  * Writes. A client only ever sends the slug that is already in its URL; the
@@ -379,4 +388,220 @@ export async function markNotificationsRead(input: {
   });
 
   revalidateWorkspace(parsed.workspace);
+}
+
+/* --------------------------------------------------------------- Linear */
+
+/**
+ * The connection is a credential, so changing it is an owner/admin action. The
+ * rest of the app only checks membership, but storing a token that talks to
+ * another system is a different kind of write.
+ */
+function requireLinearAdmin(role: string): void {
+  if (role !== "owner" && role !== "admin") {
+    throw new Error(
+      "Only an owner or an admin can change the Linear connection.",
+    );
+  }
+}
+
+/**
+ * Deliberately loose at the edges: the keys are Prepo's own vocabulary
+ * (priorities and statuses), so the mapping is merged over the defaults by
+ * `readMapping` rather than trusted as a whole. Sizes are bounded so a huge
+ * payload cannot be stored in a jsonb column.
+ */
+const mappingRowLimit = 200;
+
+const linearMappingSchema = z
+  .object({
+    priority: z.record(z.string(), z.number().int().min(0).max(4)),
+    status: z.record(z.string(), z.string().min(1).max(64)),
+    labels: z.record(z.string(), z.string().min(1).max(120)),
+    owners: z.record(z.string(), z.string().min(3).max(320)),
+  })
+  .refine(
+    (value) =>
+      Object.keys(value.priority).length +
+        Object.keys(value.status).length +
+        Object.keys(value.labels).length +
+        Object.keys(value.owners).length <=
+      mappingRowLimit,
+    { message: `A mapping table holds at most ${mappingRowLimit} rows.` },
+  );
+
+/** Connects Linear with a personal API key. Nothing is stored until it works. */
+export async function connectLinear(input: {
+  workspace: string;
+  token: string;
+}): Promise<{ ok: boolean; reason?: string }> {
+  const parsed = z
+    .object({ workspace: slug, token: z.string().min(10).max(500) })
+    .parse(input);
+
+  const context = await requireWorkspace(parsed.workspace);
+  requireLinearAdmin(context.viewer.role);
+
+  const result = await connectLinearWrite({
+    workspaceId: context.id,
+    actorId: context.viewer.userId,
+    token: parsed.token,
+  });
+
+  revalidateWorkspace(parsed.workspace);
+  return result.ok ? { ok: true } : { ok: false, reason: result.reason };
+}
+
+export async function chooseLinearTeam(input: {
+  workspace: string;
+  teamId: string;
+  projectId: string | null;
+}): Promise<{ ok: boolean; reason?: string }> {
+  const parsed = z
+    .object({
+      workspace: slug,
+      teamId: z.string().min(1).max(64),
+      projectId: z.string().min(1).max(64).nullable(),
+    })
+    .parse(input);
+
+  const context = await requireWorkspace(parsed.workspace);
+  requireLinearAdmin(context.viewer.role);
+
+  const result = await setLinearTeamWrite({
+    workspaceId: context.id,
+    actorId: context.viewer.userId,
+    teamId: parsed.teamId,
+    projectId: parsed.projectId,
+  });
+
+  revalidateWorkspace(parsed.workspace);
+  return result.ok ? { ok: true } : { ok: false, reason: result.reason };
+}
+
+export async function saveLinearMapping(input: {
+  workspace: string;
+  mapping: unknown;
+}): Promise<{ ok: boolean; reason?: string }> {
+  const parsed = z
+    .object({ workspace: slug, mapping: linearMappingSchema })
+    .parse(input);
+
+  const context = await requireWorkspace(parsed.workspace);
+  requireLinearAdmin(context.viewer.role);
+
+  const result = await updateLinearSettingsWrite({
+    workspaceId: context.id,
+    actorId: context.viewer.userId,
+    mapping: readMapping(parsed.mapping),
+  });
+
+  revalidateWorkspace(parsed.workspace);
+  return result.ok ? { ok: true } : { ok: false, reason: result.reason };
+}
+
+export async function setLinearSourceOfTruth(input: {
+  workspace: string;
+  value: string;
+}): Promise<{ ok: boolean; reason?: string }> {
+  const parsed = z
+    .object({ workspace: slug, value: z.enum(["prepo", "linear"]) })
+    .parse(input);
+
+  const context = await requireWorkspace(parsed.workspace);
+  requireLinearAdmin(context.viewer.role);
+
+  const result = await updateLinearSettingsWrite({
+    workspaceId: context.id,
+    actorId: context.viewer.userId,
+    sourceOfTruth: parsed.value,
+  });
+
+  revalidateWorkspace(parsed.workspace);
+  return result.ok ? { ok: true } : { ok: false, reason: result.reason };
+}
+
+export async function setLinearWebhookSecret(input: {
+  workspace: string;
+  secret: string;
+}): Promise<{ ok: boolean; reason?: string }> {
+  const parsed = z
+    .object({
+      workspace: slug,
+      secret: z.string().max(200),
+    })
+    .parse(input);
+
+  const context = await requireWorkspace(parsed.workspace);
+  requireLinearAdmin(context.viewer.role);
+
+  const result = await updateLinearSettingsWrite({
+    workspaceId: context.id,
+    actorId: context.viewer.userId,
+    webhookSecret: parsed.secret.trim() || null,
+  });
+
+  revalidateWorkspace(parsed.workspace);
+  return result.ok ? { ok: true } : { ok: false, reason: result.reason };
+}
+
+export async function disconnectLinear(input: {
+  workspace: string;
+}): Promise<{ unlinked: number }> {
+  const parsed = z.object({ workspace: slug }).parse(input);
+
+  const context = await requireWorkspace(parsed.workspace);
+  requireLinearAdmin(context.viewer.role);
+
+  const result = await disconnectLinearWrite({
+    workspaceId: context.id,
+    actorId: context.viewer.userId,
+  });
+
+  revalidateWorkspace(parsed.workspace);
+  return { unlinked: result.unlinked };
+}
+
+/** One click on a ticket whose sync failed. It is queued, not sent here. */
+export async function retryTicketSync(input: {
+  workspace: string;
+  ticketId: string;
+}): Promise<void> {
+  const parsed = z
+    .object({ workspace: slug, ticketId: uuid })
+    .parse(input);
+
+  const context = await requireWorkspace(parsed.workspace);
+
+  await queueTicketForLinear({
+    workspaceId: context.id,
+    actorId: context.viewer.userId,
+    ticketId: parsed.ticketId,
+  });
+
+  revalidateWorkspace(parsed.workspace);
+}
+
+/**
+ * Runs one pass now, in the request. This is the same function the scheduler
+ * runs, so pressing the button proves what the cron would do — but it is a
+ * request that makes network calls, so it is offered rather than automatic.
+ */
+export async function syncLinearNow(input: {
+  workspace: string;
+}): Promise<{ connected: boolean; pushed: number; failed: number; details: string[] }> {
+  const parsed = z.object({ workspace: slug }).parse(input);
+
+  const context = await requireWorkspace(parsed.workspace);
+  requireLinearAdmin(context.viewer.role);
+
+  const report = await syncWorkspace({ workspaceId: context.id });
+
+  revalidateWorkspace(parsed.workspace);
+  return {
+    connected: report.connected,
+    pushed: report.pushed,
+    failed: report.failed,
+    details: report.details,
+  };
 }
