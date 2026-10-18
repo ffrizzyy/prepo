@@ -228,8 +228,8 @@ export default async function FollowupsPage({
             <p className="mt-4 text-xs text-text-subtle">
               Quiet hours hold a message back until they end, in the
               recipient&apos;s own timezone, rather than dropping it. Push is listed
-              on the nudge rung but is never queued here: it needs an installed app
-              with a subscription, and this build has no service worker.
+              on the nudge rung but is never queued here: it needs a subscription
+              and a key to send from, and this build has neither.
             </p>
           </Card>
 

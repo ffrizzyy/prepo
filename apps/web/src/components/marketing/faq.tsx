@@ -8,7 +8,7 @@ const QUESTIONS = [
   },
   {
     q: "How is audio handled and deleted?",
-    a: "Audio lands in a private bucket and is transcribed. By default it is deleted 30 days after transcription, and you can set it to delete immediately. Transcripts stay until the meeting is deleted.",
+    a: "Audio is written to storage the app controls: the local filesystem by default, or your own object store when one is configured in front of the same driver. It is never publicly addressable — playback goes through a route that checks your membership first. By default audio is deleted 30 days after transcription, and you can set it to delete immediately. Transcripts stay until the meeting is deleted.",
   },
   {
     q: "Which tools does it connect to?",
@@ -24,7 +24,7 @@ const QUESTIONS = [
   },
   {
     q: "Does it work offline?",
-    a: "No. Offline reads and queued edits need a service worker, and Prepo does not ship one — the same missing piece is why push is not offered.",
+    a: "Only in the sense that you get a real page instead of the browser's error page. Prepo's service worker exists, and it is what makes the app installable, but it deliberately stores no rendered page — a browser cache is shared by everyone who uses that profile, so a cached board would show one person's tickets to the next. Offline reads and queued edits are not built.",
   },
   {
     q: "Do I need an account to try it?",

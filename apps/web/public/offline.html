@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b0b0c" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>Offline · Prepo</title>
+    <!--
+      The one page Prepo serves without a network, and the only page the service
+      worker stores. It is deliberately self-contained: no stylesheet, font or
+      script from the app, so it renders identically with nothing cached except
+      itself. It says what is true - there is no offline copy of your data -
+      rather than implying the board is somewhere in here.
+    -->
+    <style>
+      :root {
+        --bg: #09090b;
+        --surface: #111113;
+        --border: #27272a;
+        --text: #fafafa;
+        --text-muted: #a1a1aa;
+        --accent: #ff7a7a;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #fafafa;
+          --surface: #ffffff;
+          --border: #e4e4e7;
+          --text: #09090b;
+          --text-muted: #52525b;
+          --accent: #c2272d;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        background: var(--bg);
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        line-height: 1.6;
+      }
+      main {
+        width: 100%;
+        max-width: 27rem;
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        background: var(--surface);
+        padding: 1.75rem;
+      }
+      .mark {
+        display: block;
+        width: 40px;
+        height: 40px;
+        border-radius: 9px;
+        background: #0b0b0c;
+        margin-bottom: 1.25rem;
+      }
+      .mark span {
+        display: block;
+        text-align: center;
+        font: 700 26px/40px ui-sans-serif, system-ui, sans-serif;
+        color: #ff6b6b;
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.25rem;
+        letter-spacing: -0.02em;
+      }
+      p {
+        margin: 0.6rem 0 0;
+        color: var(--text-muted);
+        font-size: 0.925rem;
+      }
+      a.retry {
+        display: inline-block;
+        margin-top: 1.25rem;
+        padding: 0.55rem 1rem;
+        border-radius: 0.6rem;
+        background: var(--accent);
+        color: #09090b;
+        font-size: 0.925rem;
+        font-weight: 500;
+        text-decoration: none;
+      }
+      p.fine {
+        margin-top: 1rem;
+        font-size: 0.8125rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="mark" aria-hidden="true"><span>P</span></span>
+      <h1>You’re offline</h1>
+      <p>
+        Prepo needs a connection: tickets, meetings and transcripts live in your
+        workspace database and are rendered when you ask for them. There is no
+        offline copy of them to show you.
+      </p>
+      <a class="retry" href="/">Try again</a>
+      <p class="fine">
+        This page is the only thing Prepo stores on your device. Your data is
+        never kept in the browser cache, so signing out really does sign out.
+      </p>
+    </main>
+  </body>
+</html>

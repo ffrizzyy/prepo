@@ -28,8 +28,8 @@ const TILES: Tile[] = [
   {
     icon: DeviceMobile,
     title: "Install the app",
-    body: "Not built yet: a browser will only install a site with a manifest and a service worker, and Prepo has neither — so there is no install prompt and nothing works offline.",
-    cta: { label: "What's missing", href: "/download#install", variant: "outline" },
+    body: "Built: the manifest, icons and service worker a browser needs to install a site, so Prepo can open in its own window. Offline reads are not built — offline you get a page that says so.",
+    cta: { label: "How installing works", href: "/download#install", variant: "outline" },
   },
   {
     icon: Desktop,

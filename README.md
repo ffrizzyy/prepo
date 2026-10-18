@@ -10,7 +10,7 @@ This repository is being built against the specification in [`PREPO.md`](./PREPO
 
 ## Status
 
-**Milestone 8 — the desktop shell.** The schema, migrations, tenant isolation and seed are
+**Milestone 9 — the installable app.** The schema, migrations, tenant isolation and seed are
 complete and verified against two engines; the app reads and writes Postgres; authentication is
 real — password sign-in, per-device sessions with revoke, throttling, and TOTP two-factor with
 single-use recovery codes; the audio path (milestone 4) records, uploads and transcribes; the
@@ -20,11 +20,15 @@ Linear's changes back**, through a queue that never makes a local write wait on 
 grounded in the transcript before a single row is written. **Milestone 8 adds `apps/desktop`**: a
 Tauri 2 window around the web app with a tray, a global shortcut, `prepo://` links and native
 notifications — compiled, unit-tested, and checked, but **not packaged or published**, and with no
-bridge from the page in the window back into the shell.
+bridge from the page in the window back into the shell. **Milestone 9 makes the web app
+installable**: a manifest, real icons and a service worker, so a browser will offer to install it
+and it opens in its own window.
 
-There is still **no installable web app**: no web app manifest and no service worker, so browsers
-will not offer to install Prepo and nothing is cached offline. The `/download` page and the FAQ say
-so plainly instead of implying otherwise.
+Installing gives you the app, not your data. The service worker's fetch policy is written to cache
+**no rendered page at all** — a browser cache is shared by everyone who uses that browser profile,
+so a stored board would show one person's tickets to the next — which means offline you get an
+offline page that says so, not your tickets. Offline reads, queued edits and push notifications are
+not built; the `/download` page, the FAQ and the "Get the app" section each say exactly that.
 
 The extraction step is deliberately conservative. The transcript is sent as JSON and treated as
 untrusted data; the reply has to pass the same Zod schema the prompt describes; every action item
@@ -46,7 +50,7 @@ were accepted to the account's own address (`01a14cdb-…`, Resend's ids) and ei
 `403` because the demo members are not that address. The refused rows on the follow-ups page carry
 Resend's message verbatim. Whether the key is set or not, a refused email always carries a reason.
 Push is listed on the nudge rung because the ladder advertises it, but **no push row is ever
-queued**: that needs an installed app with a subscription and there is no service worker. Quiet
+queued**: that needs a subscription and a key to send from, and neither exists. Quiet
 hours **defer** a message until the window ends, in the recipient's own timezone, rather than
 dropping it — an early run at 17:00 UTC moved its messages to the next working morning and said so.
 
@@ -58,6 +62,13 @@ list and free to run at this size, so a real extraction needs no credit.
 The links under the landing page are real routes now — `/security`, `/privacy`, `/terms` and
 `/download` — and so are the 404 and 500 states. [`SECURITY.md`](./SECURITY.md) records what is
 implemented next to the OWASP gaps that are still open, so nothing has to be taken on trust.
+
+One correction is worth naming. The specification suggested launching on a free `*.vercel.app`
+name, and the metadata, sitemap and robots.txt had `https://prepo.vercel.app` hardcoded — which
+turns out to answer `200` with an **unrelated application**. No page claims it any more: the origin
+comes from `APP_URL` (`src/lib/site-url.ts`), and with that unset the site describes itself as
+`http://localhost:3000`, which is where an undeployed checkout genuinely runs. `pwa:check` fails if
+a sitemap entry or a robots rule names that domain again.
 
 | Area | State |
 |---|---|
@@ -107,8 +118,8 @@ implemented next to the OWASP gaps that are still open, so nothing has to be tak
 | Speech-to-text provider (Deepgram) | Wired, **unconfigured without a key** |
 | Tab-audio capture (`getDisplayMedia`), `.docx`/`.pdf` transcripts | Not implemented — recorder is mic-only; transcripts are parsed as text |
 | Email delivery (Resend) | Wired and used live: 3 messages accepted to the account's own address, 8 refused `403` (no verified sending domain) with Resend's reason recorded on the row |
-| Push notifications | Not implemented - no service worker, so no push row is ever queued |
-| Installable app (PWA) | Not implemented - no web app manifest and no service worker; `/download`, the FAQ and the "Get the app" section say so |
+| Push notifications | Not implemented — no subscription flow and no VAPID key; being installable is not subscribing, so no push row is ever queued |
+| Installable app (PWA) - manifest, icons, service worker, install offer | Done - `pwa:check` 55/55 against the production build. The worker caches **no rendered page**, so offline reads are not built and offline is a page that says so |
 | Ask Prepo, insights | Not started |
 | Desktop (Tauri 2) shell - native window, tray, global shortcut, `prepo://` links, notifications, single instance, window state, external links kept out of the app window | Done - `cargo test` 22/22, `desktop:verify` 48/48. **No installer is built or published**, there is no update endpoint or signing key, and no command is exposed to the page in the window |
 | Docs — `PREPO.md`, `SECURITY.md` (posture + OWASP gaps) | Done |
@@ -241,9 +252,10 @@ that decision per row, so a scheduler log is readable rather than a shrug.
   RESEND_API_KEY)`, and the in-app half of the same rung still goes out. Only a 2xx response marks
   a message `sent`. Set the key and the same code path delivers.
 - **Push is never queued.** The nudge rung lists push because that is the ladder the product
-  advertises, but `pushAvailable` is false until a device is actually subscribed, and there is no
-  service worker in this build — so no push row is ever written, and the page says that instead of
-  implying a notification you would never receive.
+  advertises, but `pushAvailable` is false until a device is actually subscribed — and nothing
+  subscribes one: there is no subscription flow and no VAPID key to send from. The app is
+  installable now, but installing is not subscribing, so no push row is ever written, and the page
+  says that instead of implying a notification you would never receive.
 - **The digest.** Owners and admins get a weekly summary — what is late, what is due in the next
   week, and how much is waiting for review — on a weekday you choose, at 09:00 in each person's own
   zone. It is `in_app` + `email` rows with no ticket, so it appears in the same timeline, and a
@@ -434,6 +446,57 @@ does not have, is the target origin actually allowed by `connect-src`. Neither i
 prove the window looks right or that a tray click does what the menu says; that needs a person and a
 desktop, and has not been done.
 
+## The installable app
+
+The web app installs. Four things make that true, and each one is served by the production build:
+
+| Piece | Where it lives | What it decides |
+|---|---|---|
+| Manifest | `src/app/manifest.ts` → `/manifest.webmanifest` | the name, the description, `start_url: "/"`, `display: standalone`, the theme colour, and the three icons a browser looks for |
+| Icons | `public/icons/*.png`, `src/app/icon.png`, `src/app/apple-icon.png` | the same mark as the desktop shell — an ink rounded square with a coral P — at 192px, 512px, a 512px **maskable** rendering whose background bleeds to every edge, the 64px favicon and the 180px Apple touch icon |
+| Service worker | `public/sw.js` | the fetch policy below, plus `skipWaiting`/`clients.claim` so a new policy is not stuck behind an open tab |
+| Install offer | `src/components/pwa/install-button.tsx` + a capture script in `src/app/layout.tsx` | a button that appears **only when the browser has actually offered installation**, and never otherwise |
+
+The fetch policy is the part worth reading, because it is where a service worker usually goes wrong:
+
+| Request | What happens |
+|---|---|
+| A navigation (any HTML) | network first; **never stored**; on failure, the offline page |
+| `/_next/static/*` | cache first — the filenames contain a content hash |
+| `/icons/*`, `/manifest.webmanifest`, `/offline.html` | cache first |
+| Anything that is not `GET` | untouched |
+| Another origin | untouched |
+| A `Range` request | untouched — audio is streamed in pieces, and piece ranges are not cacheable responses |
+| Everything else (`/api`, server actions, RSC payloads) | untouched |
+
+**No HTML response is ever put in a cache.** A browser cache belongs to the profile, not the
+session: a stored board would be one person's tickets shown to the next person who signs in at that
+machine. Caching the app shell is the usual advice and the reason most service workers leak; here the
+trade is deliberate — you get an install, and offline you get a page that says you are offline. The
+cache holds only public, versioned bytes, is bounded at 200 entries, skips any response that sets a
+cookie, and is discarded wholesale when the worker's version constant changes.
+
+```bash
+pnpm --filter @prepo/web build
+pnpm --filter @prepo/web start      # the worker only registers in a production build
+pnpm --filter @prepo/web pwa:check  # 55 checks against the running server
+```
+
+`pwa:check` asks for these the way a browser would: it fetches the manifest, reads each icon's
+**actual PNG header** to confirm it is the size the manifest claims, checks the worker is served
+uncached and allowed to control `/`, compiles the served worker bytes to prove a browser will not
+reject them, and reads the worker's own policy out of its source — that a navigation is never
+stored, that no non-`GET` is touched, that the precache list contains only public paths.
+
+Two of its checks were verified by making them fail on purpose: a workspace route smuggled into the
+precache list, and a write added to the navigation path. Both were caught (the second only after the
+check was tightened — it had looked for one variable name, and the injected code used another).
+
+**What is not built:** offline **reads** (there is no client-side data store, so there is nothing to
+read), queued edits, and push (no subscription flow, no VAPID key). Nothing in this repository has
+run the worker in a browser: the policy above is asserted against its source, and whether the install
+prompt appears is the browser's decision, on a secure origin, at runtime.
+
 ## Requirements
 
 - Node.js ≥ 22 (developed on 24)
@@ -495,6 +558,7 @@ pnpm --filter @prepo/web db:extract      # extract every ready meeting with no m
 pnpm --filter @prepo/web db:extract-smoke # exercise the schema gate, grounding, autonomy and refusals
 pnpm --filter @prepo/web db:providers        # which keys are set, and whether they work
 pnpm --filter @prepo/web db:studio     # browse the data
+pnpm --filter @prepo/web pwa:check     # the installable app, against a running production server
 ```
 
 `db:verify` migrates, seeds, then asserts the tenant boundary at the database level: each
@@ -654,6 +718,10 @@ prepo/
 │     ├─ src/server/ai/        # extraction provider (OpenRouter), prompt, schema, grounding, run
 │     ├─ src/server/auth/      # passwords, TOTP, challenges, sessions, throttle, identity audit, DAL
 │     ├─ src/server/db/        # Drizzle schema, client, migrations, seed, verify, repo
+│     ├─ src/server/pwa/       # the installable-app check that runs against a served build
+│     ├─ public/sw.js          # the service worker: the fetch policy, in one file
+│     ├─ public/offline.html   # the offline page, self-contained so it renders with nothing cached
+│     ├─ public/icons/         # the manifest icons
 │     └─ drizzle/              # generated migrations + hand-written RLS/policy SQL
 ├─ packages/
 │  ├─ shared/                  # Zod schemas, constants, sample meeting data
@@ -700,7 +768,7 @@ Milestones follow section 12 of `PREPO.md`:
    configured, and the chaser has been run against the live API: three messages were accepted to the
    account's own address and eight refused `403` because the account has no verified sending domain.
    A refusal is recorded with Resend's own words rather than faked, and push is not queued because
-   there is no service worker
+   there is no subscription flow to queue it for
 6. ✅ Linear two-way sync — personal API key encrypted at rest, team/project pick, editable mapping,
    a queue the request never waits on, a job and a Sync now button that call the same function,
    pull and signed webhook through one conflict rule, per-ticket link/status/retry, and disconnect
@@ -714,4 +782,7 @@ Milestones follow section 12 of `PREPO.md`:
    single instance, window state and external-link handling. Compiled and tested (22 Rust tests,
    48 configuration checks). Not packaged: no installer, no signing key, no update endpoint, and no
    bridge from the page in the window into the shell
-9. Polish and security checklist
+9. ✅ Installable web app — manifest, icons, a service worker and an install offer, all served and
+   all checked (`pwa:check`, 55 checks). The worker caches no rendered page, so offline reads,
+   queued edits and push are still absent, and every page that mentions them says so
+10. Polish and security checklist

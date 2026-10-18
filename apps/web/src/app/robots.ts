@@ -1,6 +1,5 @@
 import type { MetadataRoute } from "next";
-
-const BASE_URL = "https://prepo.vercel.app";
+import { siteUrl } from "@/lib/site-url";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -9,6 +8,8 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/api/", "/r/", "/demo"],
     },
-    sitemap: `${BASE_URL}/sitemap.xml`,
+    // APP_URL decides the origin (lib/site-url.ts); the spec's suggested
+    // `*.vercel.app` name turned out to belong to an unrelated app.
+    sitemap: `${siteUrl()}/sitemap.xml`,
   };
 }

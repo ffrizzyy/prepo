@@ -12,6 +12,7 @@
     "desktop:build": "pnpm --filter @prepo/desktop build",
     "desktop:check": "pnpm --filter @prepo/desktop check",
     "desktop:test": "pnpm --filter @prepo/desktop test",
-    "desktop:verify": "pnpm --filter @prepo/desktop verify"
+    "desktop:verify": "pnpm --filter @prepo/desktop verify",
+    "pwa:check": "pnpm --filter @prepo/web pwa:check"
   }
 }

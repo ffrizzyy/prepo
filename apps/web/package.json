@@ -24,7 +24,8 @@
     "db:providers": "tsx src/server/db/providers.ts",
     "db:linear": "tsx src/server/db/linear.ts",
     "db:linear-smoke": "tsx src/server/db/linear-smoke.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "pwa:check": "tsx src/server/pwa/check.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.10",

@@ -7,13 +7,14 @@ import {
   Prose,
   StaticPage,
 } from "@/components/marketing/static-page";
+import { InstallButton } from "@/components/pwa/install-button";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Download",
   description:
-    "What runs today: the web app, the desktop shell's source, and the repository you can run on your own machine.",
+    "What runs today: the web app, the installable app, the desktop shell's source, and the repository you can run on your own machine.",
 };
 
 const OPTIONS = [
@@ -26,8 +27,8 @@ const OPTIONS = [
   {
     icon: DeviceMobile,
     title: "Install it as an app",
-    body: "Not built yet. A browser will only install a site that ships a web app manifest and a service worker, and Prepo has neither — so there is no install prompt and nothing works offline.",
-    cta: { label: "What's missing", href: "#install", variant: "outline" as const },
+    body: "Built. Prepo ships the manifest, the icons and the service worker a browser requires before it will install a site, so it can live in its own window. Offline it shows an offline page — your tickets are not held on the device.",
+    cta: { label: "How installing works", href: "#install", variant: "outline" as const },
   },
   {
     icon: Desktop,
@@ -65,7 +66,7 @@ export default function DownloadPage() {
     <StaticPage
       eyebrow="Download"
       title="Get Prepo running"
-      intro="Prepo is a web app first, and the desktop shell is source you build yourself. Nothing here is downloadable yet, and this page says what each option really gives you today."
+      intro="Prepo is a web app first, and it can be installed from your browser. The desktop shell is source you build yourself, and there are still no installer files to download — this page says what each option really gives you today."
     >
       <div className="space-y-14">
         <div className="grid gap-4 md:grid-cols-3">
@@ -98,19 +99,68 @@ export default function DownloadPage() {
 
         <div id="install" className="scroll-mt-24">
           <Prose>
-            <h2>Installing as an app is not built</h2>
+            <h2>Install it as an app</h2>
             <p>
-              An installable web app needs four pieces: a manifest describing the name, icons and
-              window, a service worker to serve the shell offline, icons in the sizes each platform
-              asks for, and a prompt that offers the install without nagging. Prepo has none of
-              them, so no browser will offer to install it and no page will load without a network.
-            </p>
-            <p>
-              It is not a trick of the build: <code>public/</code> is empty and there is no service
-              worker anywhere in the source. The same missing service worker is why nothing is
-              pushed to your devices — push subscriptions are delivered through one.
+              Prepo now ships the four things a browser asks for before it will offer to install a
+              site: a manifest that names it and its window, a 192px icon, a 512px icon and a
+              maskable one, a service worker with a fetch handler, and an install offer that appears
+              only when the browser makes one. Installed, it opens in its own window without the
+              address bar.
             </p>
           </Prose>
+          <div className="mt-5">
+            <InstallButton />
+          </div>
+          <Prose className="mt-5">
+            <p>
+              If no button appears above, the browser has not offered installation — not every
+              browser does, and none of them do on a page that has not been loaded from
+              <code>https</code> or <code>localhost</code>. Use the browser&apos;s own menu instead:{" "}
+              <em>Install app</em> (or <em>Install Prepo</em>) in Chrome and Edge,{" "}
+              <em>Share → Add to Home Screen</em> in Safari, <em>Install</em> in Firefox on Android.
+              There is no nagging prompt, and no install banner that reappears.
+            </p>
+            <p>
+              <strong>What installing does not give you:</strong> your work, offline. The service
+              worker never stores a page it rendered — a browser cache is shared by whoever uses that
+              browser profile, so a cached board would be one person&apos;s tickets shown to the next
+              — which means the only thing you get offline is a page that says you are offline, and
+              offers to try again.
+            </p>
+            <p>
+              Push notifications are also not built, and installing does not change that: there is no
+              subscription flow and no VAPID key, so nothing is sent to your devices. The reminders
+              that do exist arrive by email.
+            </p>
+          </Prose>
+          <div className="mt-6">
+            <FactList
+              rows={[
+                {
+                  label: "Manifest",
+                  value: <code>/manifest.webmanifest</code>,
+                },
+                {
+                  label: "Worker",
+                  value: <code>/sw.js</code>,
+                },
+                {
+                  label: "Caches",
+                  value:
+                    "The build's own hashed assets, the icons, the manifest and the offline page. No HTML response is ever stored.",
+                },
+                {
+                  label: "Offline",
+                  value:
+                    "An offline page instead of the browser's error page. Offline reads of tickets and meetings are not implemented.",
+                },
+                {
+                  label: "Checked by",
+                  value: <code>pnpm --filter @prepo/web pwa:check</code>,
+                },
+              ]}
+            />
+          </div>
         </div>
 
         <div id="desktop" className="scroll-mt-24">

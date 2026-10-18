@@ -17,7 +17,7 @@
 | Realtime | **Ably** (recommended pick) |
 | Follow-up channels | **Email + in-app** (+ native push/desktop notifications, which come free with an installable app) |
 | Language | **English only** for UI and landing. i18n layer removed |
-| Domain | Not required now. Works on a free `*.vercel.app` URL (caveat in 12.2) |
+| Domain | Not required now. Works on a free `*.vercel.app` URL (caveat in 12.2). **As built:** the name this row suggested is taken by another app, so the origin is `APP_URL`, defaulting to localhost |
 
 ---
 
@@ -77,7 +77,7 @@ The move from table discussion to field execution becomes instant. Every team me
 | **Client state** | Zustand (UI-only) | Tiny |
 | **Tables / DnD** | TanStack Table · dnd-kit | Dense tables, accessible kanban |
 | **Date/time** | date-fns + date-fns-tz (user timezone auto-detected) | Timezone-aware follow-ups |
-| **PWA** | Serwist (`@serwist/next`) service worker + Web App Manifest | Installable, offline reads, push |
+| **PWA** | Serwist (`@serwist/next`) service worker + Web App Manifest | Installable, offline reads, push. **As built:** a web app manifest (`app/manifest.ts`), generated icons and a **hand-written** service worker at `public/sw.js` — no Serwist, and therefore no build-time precache manifest to trust. Installing is real; **offline reads and push are not built**, because the worker deliberately caches no rendered page (see 3.1) |
 | **Desktop shell** | **Tauri 2** (Rust) wrapping the hosted web app | Small installer, strong security model |
 | **Audio capture** | `MediaRecorder` API + `getDisplayMedia` (tab audio where supported) | In-browser recording |
 
@@ -96,7 +96,7 @@ The move from table discussion to field execution becomes instant. Every team me
 | Speech-to-text | **Deepgram** (speaker diarization + word timestamps), behind a `TranscriptionProvider` interface so OpenAI or others can be swapped in. **As built:** the interface is `transcribe(bytes, opts)` rather than `transcribe(audioUrl, opts)` — bytes keep a user-supplied URL from ever becoming an outbound request. The provider is unconfigured without `DEEPGRAM_API_KEY` |
 | Linear | `@linear/sdk` (OAuth 2.0 app, GraphQL, signed webhooks) |
 | Email | Resend + React Email. **As built:** Resend, called from the chaser with a key read from the environment. With no `RESEND_API_KEY` the row is marked `failed` with the reason instead of being marked sent, and the in-app half of the same rung is still delivered. With a key but no verified sending domain, Resend refuses every recipient but the account's own and the refusal is recorded verbatim |
-| Web Push | `web-push` with self-generated VAPID keys (no third-party service). **As built:** not implemented — no subscription table, no VAPID keys, no service worker. The ladder still lists push on the nudge rung, and the engine refuses to write a push row while no device is subscribed, so nothing is pretended |
+| Web Push | `web-push` with self-generated VAPID keys (no third-party service). **As built:** not implemented — no subscription table, no VAPID keys, no `push_subscriptions` rows, nothing to send with. The service worker from 3.1 exists but is not a subscription: the ladder still lists push on the nudge rung, and the engine refuses to write a push row while no device is subscribed, so nothing is pretended |
 | Rate limiting | Upstash Redis + `@upstash/ratelimit` |
 | Document parsing | `mammoth` (.docx), `pdf-parse` (.pdf), native parsers for `.txt .md .vtt .srt`. **As built:** the native parsers only. `.docx` and `.pdf` are refused with a reason ("paste the text instead") rather than parsed, so no document parser is installed and there is no parser to attack |
 | Bot protection | Cloudflare Turnstile on auth and public endpoints |
@@ -315,6 +315,34 @@ One codebase, three ways to run it.
 - Web Push (VAPID) for follow-ups and review requests. On iOS this works only for the installed app.
 - On logout or remote session revoke, all caches and IndexedDB data are cleared.
 
+**As built (milestone 9).** The manifest is `src/app/manifest.ts`, served at
+`/manifest.webmanifest`: real name, description, `start_url: "/"`, `scope: "/"`, `display:
+standalone`, the app's own `--ink` as theme and background colour, and three icons — 192px, 512px,
+and a 512px maskable rendering that bleeds to every edge. The mark is the desktop shell's mark. The
+service worker is `public/sw.js`, hand-written rather than Serwist, and its policy is the one thing
+here worth reading:
+
+| Request | What the worker does |
+|---|---|
+| Any navigation (HTML) | network first, **never stored**, the offline page on failure |
+| `/_next/static/*`, `/icons/*`, `/manifest.webmanifest`, `/offline.html` | cache first (hashed or versioned bytes) |
+| not `GET`, another origin, or a `Range` request | untouched |
+| everything else (`/api`, server actions, RSC payloads) | untouched |
+
+**No HTML response is ever stored**, which is the deliberate opposite of the usual "precache the app
+shell" advice: a browser cache belongs to the profile, not the session, so a stored board would show
+one person's tickets to the next person who signs in on that machine. The consequence is stated
+rather than hidden — `public/offline.html` is a self-contained page that says there is no offline
+copy of your data, and it is the only page offline.
+
+The install offer appears only when the browser actually offers installation (the event is captured
+in the root layout before hydration, so a late offer is not missed), and never as a banner. What is
+**not** built, from the list above: `shortcuts`, `share_target`, the post-first-meeting prompt,
+stale-while-revalidate read endpoints, offline reads, queued edits, the offline write banner, the
+new-version toast, Web Push, and the logout cache purge (there is nothing user-specific cached to
+purge — which is the point). The worker's policy is asserted against its own source by
+`pnpm --filter @prepo/web pwa:check` (55 checks); nothing here has run the worker in a browser.
+
 ### 3.2 Desktop app (Tauri 2)
 
 The shell is a thin native window pointing at the hosted app. This keeps one source of truth, and server features (RSC, Server Actions, auth) keep working.
@@ -369,12 +397,17 @@ that the window renders or that a tray click does what its label says.
 |---|:-:|:-:|:-:|
 | Full product | ✓ | ✓ | ✓ |
 | Install icon / own window | | ✓ | ✓ |
-| Offline reads + queued edits | | ✓ | ✓ (app cache) |
-| Push / native notifications | partial | ✓ | ✓ |
+| Offline reads + queued edits | | **not built** | **not built** |
+| Push / native notifications | partial | **not built** | ✓ native |
 | Mic recording | ✓ | ✓ | ✓ |
 | Tab-audio capture | Chromium only | Chromium only | Planned (system audio) |
 | Tray + global shortcut | | | ✓ |
 | Auto-update | instant | instant | signed updater |
+
+**As built (milestones 8–9):** the matrix is the specification's target; two PWA cells above are
+therefore marked rather than ticked — installing works, and the offline data layer and push behind it
+do not exist. The desktop column's `✓` rows are built but **not run by hand** and not packaged, so
+"signed updater" and "auto-update" are configuration, not deliveries.
 
 ---
 
@@ -561,7 +594,7 @@ Image slots stay labeled until real assets or generated images are supplied.
 | **Upload a recording** | `.mp3 .m4a .wav .webm .ogg .mp4` (audio track extracted), size and duration caps per plan. **As built:** the container is sniffed from the bytes (WAVE, an MPEG frame sync, Matroska, ISO-BMFF brands) and the claimed extension is ignored; caps are 25 MB a file, 4 MB a piece, 4 hours a recording. The audio track is not extracted from `.mp4`/video — the file is stored as sent and the provider would decode it |
 | **Upload a transcript** | `.vtt .srt .txt .md` (e.g., exported from Zoom, Meet, or Teams). `.docx` and `.pdf` are not parsed; the page tells you to paste instead |
 | **Paste text** | Raw minutes. Parsed as `Speaker: line` paragraphs, stored untimed (`start_ms` null) so nothing pretends to know when it was said |
-| **Share target (PWA)** | Share a file to Prepo from the OS share sheet. **Not built** — there is no service worker or manifest installed yet |
+| **Share target (PWA)** | Share a file to Prepo from the OS share sheet. **Not built** — the manifest (3.1) exists, but it declares no `share_target`, and receiving a shared file would need the upload path behind it |
 
 ### 6.2 Pipeline
 
@@ -940,8 +973,9 @@ is stored on the row in Resend's words, never quietly marked sent, while the in-
 rung is delivered to the notification centre. That was exercised against the live API, not assumed:
 three messages were accepted (Resend ids `01a14cdb-…`) and eight were refused `403`, and the
 follow-ups page shows both outcomes. Only a 2xx marks a row `sent`.
-Push is listed on the nudge rung but **never queued**: there is no service worker and no
-subscription table, and the engine refuses to write a push row while no device is subscribed. The
+Push is listed on the nudge rung but **never queued**: there is no subscription flow, no
+`push_subscriptions` rows and no VAPID key, and the engine refuses to write a push row while no device
+is subscribed. Installability (3.1) does not change that: a service worker is not a subscription. The
 weekly digest is per owner/admin recipient, on a chosen weekday at 09:00 in their own zone, as
 `in_app` + `email` rows with no ticket, and a pending digest is never placed twice.
 
@@ -1208,10 +1242,10 @@ All endpoints: Zod-validated, rate-limited, role-authorized, consistent error en
 | **2: Core loop** | Text ingest → extraction → review → tickets → board | Three core capabilities working |
 | **3: Audio** | R2 uploads, in-app recorder, Deepgram pipeline, speaker mapping, synced player, retention — ✅ **built** with the local storage driver instead of R2, the recorder mic-only, and the provider unconfigured without a key | Recordings become transcripts |
 | **4: Follow-up engine** | Scheduler, escalation ladder, email, in-app notifications, realtime sync (Ably), device management — ✅ **built** with the chaser as a scheduler-invoked script (`db:followups`) instead of Inngest, email wired with a key set but no verified sending domain (a refusal is recorded with Resend's own words), push not queued at all, and the notification centre per person; **Ably realtime sync is not built** | The agent chases for you |
-| **5: Landing + demo + PWA** | Full landing, `/demo`, public recap, SEO, manifest, service worker, offline, install prompt, push — ◐ **partly built**: the landing, `/demo`, SEO and the static pages (`/security`, `/privacy`, `/terms`, `/download`) are built; **the manifest, service worker, offline mode and install prompt are not** (so nothing is installable and push has nothing to deliver through), and the landing page says so | Shareable and installable |
+| **5: Landing + demo + PWA** | Full landing, `/demo`, public recap, SEO, manifest, service worker, offline, install prompt, push — ◐ **mostly built**: the landing, `/demo`, SEO, the static pages (`/security`, `/privacy`, `/terms`, `/download`), and the **installable app** — manifest, icons, service worker, install prompt and an offline page — are built and checked (`pwa:check`, 55 checks). **Offline reads, queued edits and push are not built**: the worker stores no rendered page, so offline is a page that says so, and push has no subscription or key. The landing page, the FAQ and `/download` say exactly that | Shareable and installable |
 | **6: Linear** | OAuth, issue creation, mapping, two-way sync, failure handling — ✅ **built** with a personal API key instead of OAuth (encrypted AES-256-GCM), the mapping editable on `/integrations`, a queue the request never waits on, pull and signed webhook through one conflict rule, and per-ticket retry; comments, attachments and sub-issues are not synced | Work lands where teams already track it |
 | **7: Intelligence** | Ask Prepo, Necessity / Clarity scores, insights, evals in CI | ◐ **Partly built:** extraction from a transcript (OpenRouter, grounded, budgeted, with the Suggest/Assist/Autopilot split), the Clarity score and Insights are built — extraction runs from `db:extract` or the meeting page, not Inngest. Ask Prepo, Necessity scoring and evals in CI are not built |
-| **8: Desktop app** | Tauri shell, tray, global shortcut, native notifications, deep links, signed updater, release pipeline, `/download` — ✅ **built** as `apps/desktop`: Tauri 2, tray menu, global shortcut, workspace-qualified `prepo://` links, notifications, single instance, remembered window state, and non-app origins handed to the system browser. **Installers, the release pipeline and the signed updater are not built** (no endpoint, no signing key, nothing published), no capability is granted to the window so no plugin command is reachable from the page, there is no IndexedDB offline cache (the web app has no service worker to build on), and `/download` says all of it | Real installable software |
+| **8: Desktop app** | Tauri shell, tray, global shortcut, native notifications, deep links, signed updater, release pipeline, `/download` — ✅ **built** as `apps/desktop`: Tauri 2, tray menu, global shortcut, workspace-qualified `prepo://` links, notifications, single instance, remembered window state, and non-app origins handed to the system browser. **Installers, the release pipeline and the signed updater are not built** (no endpoint, no signing key, nothing published), no capability is granted to the window so no plugin command is reachable from the page, there is no IndexedDB offline cache (the web app's service worker from phase 5 caches no data either), and `/download` says all of it | Real installable software |
 | **9: Polish** | Accessibility and performance pass, security checklist, docs, demo recording | Production-ready |
 
 ### 12.1 Portfolio showcase checklist
@@ -1229,7 +1263,7 @@ All endpoints: Zod-validated, rate-limited, role-authorized, consistent error en
 
 | Topic | Decision for now |
 |---|---|
-| **Domain** | Not required. Launch on a free `*.vercel.app` URL. **One caveat:** passkeys and installed PWAs are tied to the domain. If you move to a custom domain later, users must re-register passkeys and reinstall the PWA, so pick the final domain before inviting real users (fine to wait for a portfolio demo) |
+| **Domain** | Not required. Launch on a free `*.vercel.app` URL. **One caveat:** passkeys and installed PWAs are tied to the domain. If you move to a custom domain later, users must re-register passkeys and reinstall the PWA, so pick the final domain before inviting real users (fine to wait for a portfolio demo). **As built:** the name suggested by this row was taken — `prepo.vercel.app` answers 200 with an unrelated app — so nothing hardcodes it. Metadata, `sitemap.xml`, `robots.txt` and the Linear backlink take the origin from `APP_URL`, which defaults to `http://localhost:3000` because that is where an undeployed checkout runs |
 | **Desktop code signing** | macOS notarization needs an Apple Developer account (paid) and Windows signing needs a certificate. For a portfolio, ship unsigned builds first with a clear "unsigned" note on `/download`, then sign when budget allows. The updater's own signature (free) is still enforced |
 | **Billing** | Out of scope |
 | **Other channels** | Slack, WhatsApp, Jira, GitHub Issues are intentionally out of scope |
