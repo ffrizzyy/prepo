@@ -44,7 +44,7 @@ export function MeetingsTable({
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search meetings"
             aria-label="Search meetings"
-            className="h-10 w-full rounded-[10px] border border-border bg-surface pl-9 pr-3 text-sm outline-none placeholder:text-text-subtle"
+            className="h-10 w-full rounded-[10px] border border-border bg-surface pl-9 pr-3 text-sm placeholder:text-text-subtle"
           />
         </div>
         <label className="sr-only" htmlFor="source-filter">

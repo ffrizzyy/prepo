@@ -73,7 +73,7 @@ a sitemap entry or a robots rule names that domain again.
 | Area | State |
 |---|---|
 | pnpm monorepo (`apps/web`, `apps/desktop`, `packages/shared`, `packages/config`) | Done |
-| Design tokens (coral + near-black, light/dark) | Done |
+| Design tokens (coral + near-black, light/dark, radius scale, one elevation) | Done - direction and dials in [`DESIGN.md`](DESIGN.md) |
 | Landing page, all 11 sections | Done |
 | Static pages — `/security`, `/privacy`, `/terms`, `/download` | Done |
 | Designed states — 404 (`not-found.tsx`) and 500 (`error.tsx`, `global-error.tsx`) | Done |
@@ -120,9 +120,11 @@ a sitemap entry or a robots rule names that domain again.
 | Email delivery (Resend) | Wired and used live: 3 messages accepted to the account's own address, 8 refused `403` (no verified sending domain) with Resend's reason recorded on the row |
 | Push notifications | Not implemented — no subscription flow and no VAPID key; being installable is not subscribing, so no push row is ever queued |
 | Installable app (PWA) - manifest, icons, service worker, install offer | Done - `pwa:check` 55/55 against the production build. The worker caches **no rendered page**, so offline reads are not built and offline is a page that says so |
-| Ask Prepo, insights | Not started |
+| Delete a meeting, its transcript, its recording and its recap links (owner/admin, audited) | Done - `db:meeting-delete` 24/24 on a throwaway database. Tickets created from the meeting are **kept** and unlinked |
+| Insights - status mix, meeting to ticket conversion, clarity trend, meeting load grid | Done - every figure is computed from the workspace's own rows; no sample numbers are drawn |
+| Ask Prepo (question answering over a workspace) | Not started |
 | Desktop (Tauri 2) shell - native window, tray, global shortcut, `prepo://` links, notifications, single instance, window state, external links kept out of the app window | Done - `cargo test` 22/22, `desktop:verify` 48/48. **No installer is built or published**, there is no update endpoint or signing key, and no command is exposed to the page in the window |
-| Docs — `PREPO.md`, `SECURITY.md` (posture + OWASP gaps) | Done |
+| Docs - `PREPO.md`, `SECURITY.md` (posture + OWASP gaps), `DESIGN.md` (direction, dials, reasons) | Done |
 
 The app runs at **`/northwind`** on the seeded "Northwind Studio" workspace. Sign in
 (see below) and everything you see is read from Postgres. Approving an action item writes a
@@ -556,6 +558,7 @@ pnpm --filter @prepo/web db:linear      # work the Linear queue: pull what chang
 pnpm --filter @prepo/web db:linear-smoke # exercise crypto, mapping, queue, push, pull and the webhook
 pnpm --filter @prepo/web db:extract      # extract every ready meeting with no minutes (scheduler entry point)
 pnpm --filter @prepo/web db:extract-smoke # exercise the schema gate, grounding, autonomy and refusals
+pnpm --filter @prepo/web db:meeting-delete # delete a meeting and its derived data, on a throwaway database
 pnpm --filter @prepo/web db:providers        # which keys are set, and whether they work
 pnpm --filter @prepo/web db:studio     # browse the data
 pnpm --filter @prepo/web pwa:check     # the installable app, against a running production server
@@ -565,6 +568,15 @@ pnpm --filter @prepo/web pwa:check     # the installable app, against a running 
 workspace sees only its own rows, an unscoped session sees nothing, a cross-tenant read by
 explicit id returns nothing, and a cross-tenant **write** is rejected by RLS. All ten checks
 pass on both PGlite and Postgres.
+
+`db:meeting-delete` is the one check that deliberately does **not** touch the working
+database: deleting a meeting is destructive, and a check that reseeded `.pglite` to prove it
+would take the Linear connection and the auth/audio fixtures with it. It creates a temporary
+directory, migrates and seeds into it, and removes it afterwards. Its 24 checks cover the
+counted impact, the tenant boundary (a meeting in another workspace is not found, so not
+deleted), and the rule the feature is built around: the transcript, the action items, the
+audio row and the recap links go, while a ticket created from one of those items survives
+with its link cleared, and the audit entry outlives the meeting it describes.
 
 `db:smoke` reseeds, then drives the same write functions the server actions call — approving
 action items, moving a ticket, rejecting one, commenting, changing a setting — and reads the
@@ -732,14 +744,26 @@ prepo/
 
 ## Design system
 
+The direction, the three dials it is held to (ENERGY 2 / RHYTHM 2 / MOTION 1), the reason
+behind each visual decision, and everything this pass deliberately left undone are in
+[`DESIGN.md`](DESIGN.md). That file is the thing to read before changing a colour, a radius
+or a typeface.
+
 Tokens live in `apps/web/src/app/globals.css` as CSS variables, exposed to Tailwind v4
 through `@theme inline`. Light is the default; `.dark` overrides, set by an inline script
 that reads `prefers-color-scheme` and a stored preference (no flash).
 
-- **Accent:** Prepo Coral `#FF6B6B` (dark `#FF7A7A`), with `--accent-fg` near-black text.
+- **Accent:** Prepo Coral `#FF6B6B` (dark `#FF7A7A`), with `--accent-fg` near-black text
+  and a named `--accent-hover`. One accent fill per screen.
 - **Neutrals:** one Zinc family, driven by `--bg`, `--surface`, `--border`, `--text`.
+- **Semantics:** `--danger` and `--success`, deliberately not the accent colour.
 - **Ink:** `#0B0B0C` for the wordmark bar and footer lockup.
+- **Radius:** a three step scale (`--radius-1` inner, `--radius-2` controls, `--radius-3`
+  surfaces) instead of one value on everything.
+- **Elevation:** one shadow (`--shadow-1`) for a surface that really floats; cards are
+  separated by a hairline.
 - **Type:** Geist Sans / Geist Mono via `next/font`, self-hosted through the `geist` package.
+  Mono is for identifiers (ticket keys, timestamps), never for numbers read as values.
 - **Icons:** Phosphor only (SSR entry in server components, main entry in client components).
 
 ## Sample data

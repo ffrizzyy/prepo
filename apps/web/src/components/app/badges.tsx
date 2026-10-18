@@ -19,13 +19,13 @@ export const STATUS_META: Record<
   in_review: { label: "In review", className: "text-text", Icon: Eye },
   done: {
     label: "Done",
-    className: "text-[#15803d] dark:text-[#4ade80]",
+    className: "text-success",
     Icon: CheckCircle,
   },
 };
 
 const PRIORITY_META: Record<PriorityId, string> = {
-  p0: "bg-[#b91c1c]/10 text-[#b91c1c] dark:text-[#f87171]",
+  p0: "bg-danger/10 text-danger",
   p1: "bg-accent-soft text-accent-ink",
   p2: "bg-surface-2 text-text-muted",
   p3: "bg-surface-2 text-text-subtle",
@@ -63,7 +63,7 @@ export function PriorityBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide",
+        "inline-flex items-center rounded-1 px-1.5 py-0.5 text-[10px] font-medium uppercase",
         PRIORITY_META[priority],
         className,
       )}
@@ -77,7 +77,7 @@ export function OverdueBadge({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 text-xs font-medium text-[#b91c1c] dark:text-[#f87171]",
+        "inline-flex items-center gap-1 text-xs font-medium text-danger",
         className,
       )}
     >
@@ -102,7 +102,7 @@ export function ScoreMeter({
       <div>
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-xs text-text-muted">{label}</span>
-          <span className="font-mono text-sm text-text-subtle">—</span>
+          <span className="text-xs text-text-subtle">Not scored</span>
         </div>
         <p className="mt-2 text-xs text-text-subtle">{hint}</p>
       </div>
@@ -110,17 +110,13 @@ export function ScoreMeter({
   }
 
   const tone =
-    value >= 70
-      ? "text-[#15803d] dark:text-[#4ade80]"
-      : value >= 45
-        ? "text-accent-ink"
-        : "text-[#b91c1c] dark:text-[#f87171]";
+    value >= 70 ? "text-success" : value >= 45 ? "text-accent-ink" : "text-danger";
 
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-xs text-text-muted">{label}</span>
-        <span className={cn("font-mono text-sm", tone)}>{value}</span>
+        <span className={cn("text-sm tabular-nums", tone)}>{value}</span>
       </div>
       <div
         className={cn(

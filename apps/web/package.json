@@ -19,6 +19,7 @@
     "db:followup-smoke": "tsx src/server/db/followup-smoke.ts",
     "db:extract": "tsx src/server/db/extract.ts",
     "db:extract-smoke": "tsx src/server/db/extract-smoke.ts",
+    "db:meeting-delete": "tsx src/server/db/meeting-delete-smoke.ts",
     "db:audio-fixture": "tsx src/server/db/audio-fixture.ts",
     "db:totp-fixture": "tsx src/server/db/totp-fixture.ts",
     "db:providers": "tsx src/server/db/providers.ts",

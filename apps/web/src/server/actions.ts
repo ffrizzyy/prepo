@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { AUDIO_RETENTION_CHOICES } from "./audio/retention";
+import { AUDIO_RETENTION_CHOICES, removeAudioBlob } from "./audio/retention";
 import { extractMeeting, type ExtractionReport } from "./ai/extract";
 import { requireWorkspace } from "./context";
 import * as t from "./db/schema";
@@ -14,6 +14,7 @@ import {
   addComment as addCommentWrite,
   approveActionItems as approveWrite,
   cancelFollowup as cancelFollowupWrite,
+  deleteMeeting as deleteMeetingWrite,
   markNotificationsRead as markNotificationsReadWrite,
   moveTicket as moveWrite,
   queueTicketForLinear,
@@ -129,6 +130,38 @@ export async function extractMeetingNow(input: {
 
   revalidateWorkspace(parsed.workspace);
   return report;
+}
+
+/**
+ * Destroys a meeting and the data derived from it (PREPO.md §8.9). Owner or
+ * admin only: it is irreversible, it removes other people's transcript and
+ * recording, and it is the same class of write as storing the Linear token, so
+ * it goes through the same gate. Tickets created from the meeting are kept and
+ * unlinked, which is why this is safe to offer at all.
+ */
+export async function deleteMeeting(input: {
+  workspace: string;
+  meetingId: string;
+}): Promise<{ deleted: boolean }> {
+  const parsed = z.object({ workspace: slug, meetingId: uuid }).parse(input);
+  const context = await requireWorkspace(parsed.workspace);
+  requireAdmin(context.viewer.role, "delete a meeting");
+
+  const impact = await deleteMeetingWrite({
+    workspaceId: context.id,
+    actorId: context.viewer.userId,
+    meetingId: parsed.meetingId,
+  });
+
+  if (!impact) return { deleted: false };
+
+  // The row cascade cannot reach the filesystem, so the bytes go after the
+  // database has committed the deletion. A failure here leaves an orphan file,
+  // never a meeting that claims to exist but has no rows behind it.
+  if (impact.storageKey) await removeAudioBlob(impact.storageKey);
+
+  revalidateWorkspace(parsed.workspace);
+  return { deleted: true };
 }
 
 export async function rejectActionItem(input: {
@@ -423,14 +456,16 @@ export async function markNotificationsRead(input: {
 /**
  * The connection is a credential, so changing it is an owner/admin action. The
  * rest of the app only checks membership, but storing a token that talks to
- * another system is a different kind of write.
+ * another system is a different kind of write, and so is destroying data.
  */
-function requireLinearAdmin(role: string): void {
+function requireAdmin(role: string, what: string): void {
   if (role !== "owner" && role !== "admin") {
-    throw new Error(
-      "Only an owner or an admin can change the Linear connection.",
-    );
+    throw new Error(`Only an owner or an admin can ${what}.`);
   }
+}
+
+function requireLinearAdmin(role: string): void {
+  requireAdmin(role, "change the Linear connection");
 }
 
 /**

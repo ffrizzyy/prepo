@@ -13,12 +13,28 @@
   --text-subtle: #71717a;
   --ink: #0b0b0c;
   --accent: #ff6b6b;
+  --accent-hover: #f2555c;
   --accent-fg: #09090b;
   --accent-ink: #c2272d;
   --accent-soft: #ffe9e9;
   --accent-note: #ffb3b3;
   --ring: #ff6b6b;
+  /* The two semantic colours, so a red is a word (danger) rather than a hex
+     repeated in a dozen components. Sage, not the accent: an overdue ticket
+     must not read as the one thing the accent points at. */
+  --danger: #b91c1c;
+  --success: #15803d;
   --hairline: 0 0 0;
+
+  /* One radius scale. Inner things (chips, small inputs) are tight, controls sit
+     in the middle, surfaces are the only generous corner. */
+  --radius-1: 6px;
+  --radius-2: 10px;
+  --radius-3: 14px;
+
+  /* The single elevation, for a surface that floats above the page (a menu, a
+     modal). Cards are separated by a hairline instead, so nothing else floats. */
+  --elev-1: 0 1px 2px rgb(9 9 11 / 0.06), 0 8px 24px rgb(9 9 11 / 0.06);
 }
 
 .dark {
@@ -32,11 +48,14 @@
   --text-subtle: #8b8b94;
   --ink: #0b0b0c;
   --accent: #ff7a7a;
+  --accent-hover: #ff8f8f;
   --accent-fg: #09090b;
   --accent-ink: #ff9a9a;
   --accent-soft: #2a1415;
   --accent-note: #5a2427;
   --ring: #ff7a7a;
+  --danger: #f87171;
+  --success: #4ade80;
   --hairline: 0 0 0;
 }
 
@@ -51,11 +70,19 @@
   --color-text-subtle: var(--text-subtle);
   --color-ink: var(--ink);
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
   --color-accent-fg: var(--accent-fg);
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
   --color-accent-note: var(--accent-note);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
   --color-ring: var(--ring);
+
+  --radius-1: var(--radius-1);
+  --radius-2: var(--radius-2);
+  --radius-3: var(--radius-3);
+  --shadow-1: var(--elev-1);
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
@@ -84,9 +111,18 @@
     outline-offset: 2px;
   }
 
+  /* MOTION is dial 1, so the only motion is hover and focus feedback. Anyone who
+     has asked the system for less of it gets none of that either. */
   @media (prefers-reduced-motion: reduce) {
     html {
       scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
     }
   }
 }

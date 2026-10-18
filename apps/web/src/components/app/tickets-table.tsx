@@ -57,7 +57,7 @@ export function TicketsTable({
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search tickets"
             aria-label="Search tickets"
-            className="h-10 w-full rounded-[10px] border border-border bg-surface pl-9 pr-3 text-sm outline-none placeholder:text-text-subtle"
+            className="h-10 w-full rounded-[10px] border border-border bg-surface pl-9 pr-3 text-sm placeholder:text-text-subtle"
           />
         </div>
 
@@ -98,7 +98,7 @@ export function TicketsTable({
             id="sort"
             value={sort}
             onChange={(event) => setSort(event.target.value as SortKey)}
-            className="h-10 bg-transparent text-sm outline-none"
+            className="h-10 bg-transparent text-sm"
           >
             <option value="due">Due date</option>
             <option value="key">Ticket ID</option>

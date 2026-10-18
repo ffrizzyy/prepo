@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 export const inputClass =
-  "w-full rounded-[10px] border border-border bg-surface-2 px-3 py-2 text-sm outline-none transition-colors placeholder:text-text-subtle focus:border-accent focus:bg-surface disabled:opacity-60";
+  "w-full rounded-[10px] border border-border bg-surface-2 px-3 py-2 text-sm transition-colors placeholder:text-text-subtle focus:border-accent focus:bg-surface disabled:opacity-60";
 
 export const primaryButtonClass =
   "inline-flex w-full items-center justify-center gap-2 rounded-[10px] bg-accent px-4 py-2.5 text-sm font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-60";

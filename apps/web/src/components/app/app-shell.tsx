@@ -434,7 +434,7 @@ function CommandPalette({
             }
           }}
           placeholder="Jump to…"
-          className="w-full border-b border-border bg-transparent px-4 py-3 text-sm outline-none"
+          className="w-full border-b border-border bg-transparent px-4 py-3 text-sm"
         />
         <ul className="max-h-72 overflow-y-auto p-2">
           {results.map((item) => (

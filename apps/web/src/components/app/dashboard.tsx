@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useTransition } from "react";
-import { ArrowRight, ArrowUpRight, Clock } from "@phosphor-icons/react";
+import { Clock } from "@phosphor-icons/react";
 import {
   TICKET_STATUSES,
   type Ticket,
@@ -57,30 +57,28 @@ export function Dashboard({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-3">
-        {[
-          { label: "Open tickets", value: open.length },
-          { label: "Overdue", value: overdueCount, tone: "danger" as const },
-          { label: "Completed", value: doneCount },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-2xl border border-border bg-surface p-5"
+      {/* One focal number, not three equal cards. The screen's job is "what is
+          late", so overdue is the largest thing here and the other counts defer
+          to it. Three identical tiles would make the reader do the ranking. */}
+      <section className="flex flex-wrap items-baseline gap-x-8 gap-y-1 rounded-3 border border-border bg-surface px-5 py-4">
+        <p className="flex items-baseline gap-2">
+          <span
+            className={cn(
+              "text-2xl font-medium tabular-nums",
+              overdueCount > 0 ? "text-danger" : "text-text",
+            )}
           >
-            <p className="text-xs text-text-muted">{stat.label}</p>
-            <p
-              className={cn(
-                "mt-2 font-mono text-3xl tracking-tight",
-                stat.tone === "danger" &&
-                  stat.value > 0 &&
-                  "text-[#b91c1c] dark:text-[#f87171]",
-              )}
-            >
-              {stat.value}
-            </p>
-          </div>
-        ))}
-      </div>
+            {overdueCount}
+          </span>
+          <span className="text-sm text-text-muted">overdue</span>
+        </p>
+        <p className="flex items-baseline gap-2 text-sm text-text-muted">
+          <span className="tabular-nums text-text">{open.length}</span> open
+        </p>
+        <p className="flex items-baseline gap-2 text-sm text-text-muted">
+          <span className="tabular-nums text-text">{doneCount}</span> done
+        </p>
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="space-y-6">
@@ -89,10 +87,9 @@ export function Dashboard({
             action={
               <a
                 href={`/${workspace}/board`}
-                className="inline-flex items-center gap-1 text-xs text-accent-ink hover:underline"
+                className="text-xs text-accent-ink hover:underline"
               >
                 Open board
-                <ArrowRight size={13} weight="bold" />
               </a>
             }
           >
@@ -135,7 +132,7 @@ export function Dashboard({
                       onChange={(event) =>
                         move(ticket.id, event.target.value as TicketStatusId)
                       }
-                      className="rounded-[10px] border border-border bg-surface-2 px-2 py-1.5 text-xs"
+                      className="rounded-2 border border-border bg-surface-2 px-2 py-1.5 text-xs"
                     >
                       {TICKET_STATUSES.map((status) => (
                         <option key={status.id} value={status.id}>
@@ -154,10 +151,9 @@ export function Dashboard({
             action={
               <a
                 href={`/${workspace}/meetings`}
-                className="inline-flex items-center gap-1 text-xs text-accent-ink hover:underline"
+                className="text-xs text-accent-ink hover:underline"
               >
                 All meetings
-                <ArrowRight size={13} weight="bold" />
               </a>
             }
           >
@@ -171,10 +167,9 @@ export function Dashboard({
             action={
               <a
                 href={`/${workspace}/followups`}
-                className="inline-flex items-center gap-1 text-xs text-accent-ink hover:underline"
+                className="text-xs text-accent-ink hover:underline"
               >
-                All
-                <ArrowRight size={13} weight="bold" />
+                All follow-ups
               </a>
             }
           >
@@ -223,23 +218,20 @@ export function Dashboard({
                     {meeting.clarityScored ? (
                       <span
                         className={cn(
-                          "shrink-0 font-mono text-sm",
+                          "shrink-0 text-sm tabular-nums",
                           meeting.clarityScore >= 70
-                            ? "text-[#15803d] dark:text-[#4ade80]"
+                            ? "text-success"
                             : meeting.clarityScore >= 45
                               ? "text-accent-ink"
-                              : "text-[#b91c1c] dark:text-[#f87171]",
+                              : "text-danger",
                         )}
                         title="Clarity score"
                       >
                         {meeting.clarityScore}
                       </span>
                     ) : (
-                      <span
-                        className="shrink-0 font-mono text-sm text-text-subtle"
-                        title="No clarity score yet"
-                      >
-                        —
+                      <span className="shrink-0 text-xs text-text-subtle">
+                        Not scored
                       </span>
                     )}
                   </a>
@@ -248,10 +240,9 @@ export function Dashboard({
             </ul>
             <a
               href={`/${workspace}/insights`}
-              className="mt-4 inline-flex items-center gap-1 text-xs text-accent-ink hover:underline"
+              className="mt-4 inline-block text-xs text-accent-ink hover:underline"
             >
               See insights
-              <ArrowUpRight size={13} weight="bold" />
             </a>
           </Card>
         </div>

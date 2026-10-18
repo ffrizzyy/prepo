@@ -1002,7 +1002,7 @@ those is an audit event.
 | Integrations | Linear (8.6) |
 | API & webhooks | API keys (hash stored, shown once, scoped), outbound HMAC-signed webhooks |
 | Audit log | Searchable, exportable, append-only (admins) |
-| Data | Export workspace (JSON), delete a meeting and all derived data including audio, delete account / workspace (grace period) |
+| Data | Export workspace (JSON), delete a meeting and all derived data including audio, delete account / workspace (grace period). **As built:** deleting a meeting is built and lives on the meeting page rather than in Settings: owner or admin only, a confirmation that names the real counts before anything happens, one transactional delete, the audio bytes removed after it commits, and an audit entry that outlives the meeting. Tickets created from that meeting are kept and unlinked, because deleting the source of a task is not deleting the task. **Export and account/workspace deletion are not built**, and the Settings page does not offer them |
 | Billing | Out of scope for v1 |
 
 ### 8.10 Insights (`/insights`)

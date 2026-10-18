@@ -62,6 +62,7 @@ there is no payment to offer — only a fix and credit in the commit if you want
 | Recording consent | A recording cannot be stored without an explicit consent confirmation, which is recorded against the person who gave it. The API refuses the upload — rather than trusting the form — if the flag is absent |
 | Chunked uploads | Pieces are staged on disk and assembled only on the final piece; the row is never written unless assembly succeeds. Staging older than an hour is reclaimed, and an unfinished upload with no retention date is reclaimed after 90 days |
 | Retention | The delete date is set when the audio is stored and recomputed when it is transcribed, so "delete as soon as it is transcribed" means exactly that. The sweep deletes bytes and marks the row; the transcript and everything derived from it stay |
+| Destructive deletes | Deleting a meeting is offered only to `owner` or `admin`, and it is a single transaction: transcript segments, action items, recap links and the audio row go with the meeting, while tickets created from its items are **kept** with their link cleared. The confirmation panel shows the real counts read from the same scope (not a template sentence) before anything happens, and the audio bytes are removed only after the delete commits, so a failure leaves an orphan file rather than a row pointing at nothing. Every delete writes a `meeting.deleted` audit entry that survives the meeting it describes, because `audit_logs` has no foreign key to `meetings`. `db:meeting-delete` checks 24 of these, including that a meeting in another workspace is simply not found, since row-level security makes "not yours" and "does not exist" the same answer |
 | Provider egress | The transcription provider is handed **bytes, not a URL**, so there is no user-controlled outbound request and no SSRF surface. The only host contacted is the provider's fixed endpoint, and only when a key is configured |
 | Follow-up delivery | A message is only ever sent by the job, never inline in a request. Email goes to Resend's fixed endpoint from server-side code with a key read from the environment; only a 2xx marks a message `sent`, and anything else is stored as `failed` **with the reason**. With no key configured, every email rung fails loudly and the in-app half is still delivered — nothing is marked sent that was not. A person with a workspace read scope can cancel, move, snooze or stop any pending message in their own workspace, and each of those is an audit event |
 | Follow-up content | The message is generated from the ticket row, so it carries the key, title, due date and lateness — the same facts for every tone. No user-supplied text is interpolated into a subject line, and the link is built from the workspace slug and ticket key rather than from stored input |
@@ -116,13 +117,17 @@ pnpm --filter @prepo/web db:retention  # the retention job, runnable from a sche
 pnpm --filter @prepo/web db:followup-smoke  # the ladder, quiet hours, digest and the job
 pnpm --filter @prepo/web db:linear-smoke    # crypto, mapping, queue, push, pull, webhook, tenancy
 pnpm --filter @prepo/web db:extract-smoke   # schema gate, grounding, dates, autonomy, refusals
+pnpm --filter @prepo/web db:meeting-delete   # deleting a meeting: counts, cascades, kept tickets, audit
 pnpm --filter @prepo/web pwa:check     # the installable app, against a running production server
 pnpm --filter @prepo/desktop verify   # the shell's configuration: CSP, capabilities, scheme, updater, icons
 pnpm --filter @prepo/desktop test     # the shell's rules: target refusal, the prepo:// grammar, workspace detection
 ```
 
 `db:verify` and `db:smoke` run against the embedded engine and a real Postgres (set
-`DATABASE_URL`). `db:auth` pins the TOTP implementation against all six RFC 6238 test vectors.
+`DATABASE_URL`). `db:meeting-delete` runs against neither of the configured ones: it creates a
+temporary database directory of its own, because a destructive check that reseeded the working
+database would take the live connections and fixtures with it. Twenty-four checks pass there,
+and the working `.pglite` is untouched by a run. `db:auth` pins the TOTP implementation against all six RFC 6238 test vectors.
 `db:audio` is the audio equivalent for the part that does not need a provider: the VTT/SRT/plain
 parsers, magic-byte sniffing and the size/duration caps, the Deepgram response mapping against a
 recorded-shape payload, the storage driver (including a key trying to escape the storage root),

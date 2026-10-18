@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { withWorkspace, type Db } from "./db/client";
 import { uuidv7 } from "./db/ids";
 import * as t from "./db/schema";
@@ -543,6 +543,141 @@ export async function markAudioDeleted(input: {
     });
 
     return { storageKey: asset.r2Key };
+  });
+}
+
+/* ---------------------------------------------------------------- meetings */
+
+/**
+ * What deleting a meeting would take with it, counted rather than described.
+ * The counts come from the same tenant scope the delete runs in, so they cannot
+ * promise to remove something the delete will not see.
+ */
+export type MeetingDeletionImpact = {
+  meetingId: string;
+  title: string;
+  segments: number;
+  actionItems: number;
+  /** Tickets created from this meeting's items. They are kept, not deleted. */
+  ticketsKept: number;
+  shareLinks: number;
+  /** The stored recording, when one still exists. Its bytes are the caller's. */
+  audioAssetId: string | null;
+  storageKey: string | null;
+};
+
+async function countDeletionImpact(
+  tx: Db,
+  meetingId: string,
+): Promise<Omit<MeetingDeletionImpact, "meetingId" | "title">> {
+  const [segments] = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(t.transcriptSegments)
+    .where(eq(t.transcriptSegments.meetingId, meetingId));
+
+  const [items] = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(t.actionItems)
+    .where(eq(t.actionItems.meetingId, meetingId));
+
+  const [kept] = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(t.tickets)
+    .innerJoin(t.actionItems, eq(t.tickets.actionItemId, t.actionItems.id))
+    .where(eq(t.actionItems.meetingId, meetingId));
+
+  const [links] = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(t.shareLinks)
+    .where(eq(t.shareLinks.meetingId, meetingId));
+
+  const [asset] = await tx
+    .select({
+      id: t.audioAssets.id,
+      r2Key: t.audioAssets.r2Key,
+      status: t.audioAssets.status,
+    })
+    .from(t.audioAssets)
+    .where(eq(t.audioAssets.meetingId, meetingId));
+
+  // A recording already marked deleted has no bytes left to reclaim, so it is
+  // not offered as something the caller should go and remove.
+  const bytesRemain = asset !== undefined && asset.status !== "deleted";
+
+  return {
+    segments: segments?.count ?? 0,
+    actionItems: items?.count ?? 0,
+    ticketsKept: kept?.count ?? 0,
+    shareLinks: links?.count ?? 0,
+    audioAssetId: bytesRemain ? asset.id : null,
+    storageKey: bytesRemain ? asset.r2Key : null,
+  };
+}
+
+/**
+ * The counts behind the confirmation panel. Exported separately from the delete
+ * so the page can show real numbers before anyone commits to anything.
+ */
+export async function meetingDeletionImpact(input: {
+  workspaceId: string;
+  meetingId: string;
+}): Promise<MeetingDeletionImpact | null> {
+  return withWorkspace(input.workspaceId, async (tx) => {
+    const [meeting] = await tx
+      .select({ id: t.meetings.id, title: t.meetings.title })
+      .from(t.meetings)
+      .where(eq(t.meetings.id, input.meetingId));
+
+    if (!meeting) return null;
+
+    return {
+      meetingId: meeting.id,
+      title: meeting.title,
+      ...(await countDeletionImpact(tx, meeting.id)),
+    };
+  });
+}
+
+/**
+ * Deletes a meeting and everything derived from it (PREPO.md §8.9): the
+ * transcript, the audio row, the proposed and rejected action items, and any
+ * recap links. Tickets already created from its items are kept, and their link
+ * back to the meeting is set to null, because deleting the source of a task does
+ * not delete the task.
+ *
+ * Returns null when the meeting is not in this workspace, which RLS makes the
+ * same statement as "it does not exist".
+ */
+export async function deleteMeeting(input: {
+  workspaceId: string;
+  actorId: string;
+  meetingId: string;
+}): Promise<MeetingDeletionImpact | null> {
+  return withWorkspace(input.workspaceId, async (tx) => {
+    const [meeting] = await tx
+      .select({ id: t.meetings.id, title: t.meetings.title })
+      .from(t.meetings)
+      .where(eq(t.meetings.id, input.meetingId));
+
+    if (!meeting) return null;
+
+    const impact = await countDeletionImpact(tx, meeting.id);
+
+    // Written first, and it survives: audit_logs has no foreign key to meetings,
+    // so the record of the deletion outlives what it describes. It is written
+    // inside the same transaction, so a rollback takes the claim with it.
+    await audit(tx, {
+      workspaceId: input.workspaceId,
+      actorId: input.actorId,
+      action: "meeting.deleted",
+      target: `${meeting.id}:${meeting.title}:${impact.segments}seg:${impact.actionItems}items:${impact.ticketsKept}tickets kept`,
+    });
+
+    // One statement. The cascades in the schema do the rest, and the caller
+    // removes the audio bytes after this commits.
+    await tx.delete(t.meetings).where(eq(t.meetings.id, meeting.id));
+
+    return { meetingId: meeting.id, title: meeting.title, ...impact };
   });
 }
 

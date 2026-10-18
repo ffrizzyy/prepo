@@ -32,7 +32,7 @@ export function Card({
   className?: string;
 }) {
   return (
-    <section className={`rounded-2xl border border-border bg-surface ${className ?? ""}`}>
+    <section className={`rounded-3 border border-border bg-surface ${className ?? ""}`}>
       {title ? (
         <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
           <h2 className="text-sm font-medium">{title}</h2>
@@ -54,7 +54,7 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border px-6 py-12 text-center">
+    <div className="flex flex-col items-center justify-center rounded-3 border border-dashed border-border px-6 py-12 text-center">
       <p className="text-sm font-medium">{title}</p>
       <p className="mt-1 max-w-[42ch] text-sm text-text-muted">{description}</p>
       {action ? <div className="mt-4">{action}</div> : null}

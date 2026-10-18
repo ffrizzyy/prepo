@@ -12,7 +12,9 @@ import type {
   MeetingView,
   SpeakerLabelView,
 } from "@/server/queries";
+import type { MeetingDeletionImpact } from "@/server/writes";
 import { ScoreMeter } from "./badges";
+import { DeleteMeeting } from "./delete-meeting";
 import { ExtractButton } from "./extract-button";
 import { Card } from "./page-header";
 import { ReviewList } from "./review-list";
@@ -42,6 +44,8 @@ export function MeetingDetail({
   retention,
   extraction,
   canExtract,
+  impact,
+  canDelete,
 }: {
   workspace: string;
   meeting: MeetingView;
@@ -57,6 +61,10 @@ export function MeetingDetail({
   extraction: { ready: boolean; reason: string | null };
   /** Viewers can read the meeting but cannot spend a model call on it. */
   canExtract: boolean;
+  /** Real counts of what a delete would remove, for the confirmation panel. */
+  impact: MeetingDeletionImpact | null;
+  /** Owner or admin, and not a viewer: the same gate as destroying anything else. */
+  canDelete: boolean;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<MeetingTab>(initialTab);
@@ -84,7 +92,7 @@ export function MeetingDetail({
               : "Stored the recording."
         : segments.length
           ? `Imported ${segments.length} segments from a transcript or minutes.`
-          : "Imported minutes — no transcript segments were stored.",
+          : "Imported minutes, with no transcript segments stored.",
       when: formatDate(meeting.heldAt),
     },
     {
@@ -111,7 +119,7 @@ export function MeetingDetail({
       </div>
 
       {notice ? (
-        <p className="rounded-2xl border border-border bg-surface p-4 text-sm leading-relaxed text-text-muted">
+        <p className="rounded-3 border border-border bg-surface p-4 text-sm leading-relaxed text-text-muted">
           {notice}
         </p>
       ) : null}
@@ -155,8 +163,8 @@ export function MeetingDetail({
               <div className="max-w-[65ch]">
                 <p className="text-sm leading-relaxed text-text-muted">
                   No summary was produced for this meeting. Summaries come from the extraction
-                  step, which needs a language model and is not configured on this deployment —
-                  the transcript on the next tab is complete and quotable.
+                  step, which needs a language model and is not configured on this deployment.
+                  The transcript on the next tab is complete and quotable.
                 </p>
                 <p className="mt-3 text-xs leading-relaxed text-text-subtle">
                   {extraction.reason}. Set both values in{" "}
@@ -167,7 +175,7 @@ export function MeetingDetail({
             ) : segments.length === 0 ? (
               <p className="max-w-[65ch] text-sm leading-relaxed text-text-muted">
                 No minutes yet. Extraction reads a transcript, and this meeting does not have
-                one — upload or paste it on the next tab first.
+                one. Upload or paste it on the next tab first.
               </p>
             ) : (
               <div className="max-w-[65ch]">
@@ -243,7 +251,7 @@ export function MeetingDetail({
             <Card title="Recap">
               <p className="text-sm text-text-muted">
                 Share a signed, expiring read-only recap of the approved summary and actions. Audio
-                is never included. Public recap links are not built yet — this is the milestone
+                is never included. Public recap links are not built yet. This is the milestone
                 that adds them.
               </p>
             </Card>
@@ -286,6 +294,20 @@ export function MeetingDetail({
           </p>
         </Card>
       ) : null}
+
+      {/* Kept outside the tabs on purpose: it is always reachable, and it never
+          looks like part of the meeting's content. */}
+      <section className="border-t border-border pt-6">
+        <h2 className="text-sm font-medium">Delete this meeting</h2>
+        <div className="mt-2">
+          <DeleteMeeting
+            workspace={workspace}
+            meetingId={meeting.id}
+            impact={impact}
+            canDelete={canDelete}
+          />
+        </div>
+      </section>
     </div>
   );
 }

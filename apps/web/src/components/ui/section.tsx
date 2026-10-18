@@ -30,10 +30,13 @@ export function Section({
   );
 }
 
+/**
+ * A kicker, not a label. It stays quiet and sentence-case on purpose: shouting a
+ * restatement of the headline in uppercase mono (HOW IT WORKS above "How it
+ * works") is the tell R-06 and R-09 name, and it adds nothing a reader needs. Use
+ * it only where it carries a fact the headline does not, such as the class of
+ * document a legal page is.
+ */
 export function Eyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="mb-3 font-mono text-xs uppercase tracking-[0.18em] text-accent-ink">
-      {children}
-    </p>
-  );
+  return <p className="mb-3 text-xs font-medium text-text-subtle">{children}</p>;
 }

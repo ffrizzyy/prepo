@@ -197,7 +197,7 @@ export function TicketDetail({
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder="Add a comment or @mention"
                 aria-label="Add a comment"
-                className="h-10 flex-1 rounded-[10px] border border-border bg-surface px-3 text-sm outline-none placeholder:text-text-subtle"
+                className="h-10 flex-1 rounded-[10px] border border-border bg-surface px-3 text-sm placeholder:text-text-subtle"
               />
               <button
                 type="submit"

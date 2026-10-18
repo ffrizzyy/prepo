@@ -13,6 +13,7 @@ import {
   listSegmentsView,
   listSpeakerLabels,
 } from "@/server/queries";
+import { meetingDeletionImpact } from "@/server/writes";
 
 const TABS: Record<string, MeetingTab> = {
   summary: "Summary",
@@ -50,11 +51,12 @@ export default async function MeetingDetailPage({
     );
   }
 
-  const [segments, actionItems, audio, speakers] = await Promise.all([
+  const [segments, actionItems, audio, speakers, impact] = await Promise.all([
     listSegmentsView(context.id, id),
     listActionItemsView(context.id),
     getMeetingAudio(context.id, id),
     listSpeakerLabels(context.id, id),
+    meetingDeletionImpact({ workspaceId: context.id, meetingId: id }),
   ]);
 
   return (
@@ -74,6 +76,8 @@ export default async function MeetingDetailPage({
       retention={`${retentionLabel(context.settings.audioRetentionDays)}.`}
       extraction={extractionReadiness()}
       canExtract={context.viewer.role !== "viewer"}
+      impact={impact}
+      canDelete={context.viewer.role === "owner" || context.viewer.role === "admin"}
     />
   );
 }

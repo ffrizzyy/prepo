@@ -130,7 +130,7 @@ export function NewMeeting({
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                   placeholder="Weekly product sync"
-                  className="mt-1.5 h-10 w-full rounded-[10px] border border-border bg-surface px-3 text-sm outline-none placeholder:text-text-subtle"
+                  className="mt-1.5 h-10 w-full rounded-[10px] border border-border bg-surface px-3 text-sm placeholder:text-text-subtle"
                 />
               </label>
               <label className="block">
@@ -140,7 +140,7 @@ export function NewMeeting({
                   name="heldAt"
                   value={heldAt}
                   onChange={(event) => setHeldAt(event.target.value)}
-                  className="mt-1.5 h-10 w-full rounded-[10px] border border-border bg-surface px-3 text-sm outline-none"
+                  className="mt-1.5 h-10 w-full rounded-[10px] border border-border bg-surface px-3 text-sm"
                 />
               </label>
             </div>
@@ -206,7 +206,7 @@ export function NewMeeting({
                     rows={12}
                     required
                     placeholder={"Lena: We should ship the billing rewrite before the board meeting.\nDmitri: I'll take the migration, due Friday."}
-                    className="block w-full rounded-[10px] border border-border bg-surface px-3 py-2 font-mono text-xs leading-relaxed outline-none placeholder:text-text-subtle"
+                    className="block w-full rounded-[10px] border border-border bg-surface px-3 py-2 font-mono text-xs leading-relaxed placeholder:text-text-subtle"
                   />
                   <p className="mt-2 text-xs text-text-subtle">
                     A line that starts with <code className="font-mono">Name:</code> becomes a
