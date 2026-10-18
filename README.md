@@ -367,7 +367,9 @@ fixture provider: configuration reasons, DST-correct date handling, schema degra
 idempotency, replacement, Assist and Autopilot, the character and budget refusals, an invalid
 reply, and cross-tenant invisibility. Run the scheduler entry point with `db:extract`. A live call
 is the one thing the suite cannot make: one was run once against the configured free model and is
-recorded in `SECURITY.md`, but it is not part of CI and it is not an eval.
+recorded in `SECURITY.md`, but it is not part of CI and it is not an eval. The meeting page itself
+was checked over HTTP (16 checks: the panel, the re-run copy, the first-extraction state, the meter,
+and no key in the HTML), also recorded there.
 
 ## Requirements
 

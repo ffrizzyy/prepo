@@ -159,3 +159,10 @@ configured free OpenRouter model returned three items, resolved Lena, Sam and Pr
 "by Friday" into 2026-10-16 and "tomorrow" into 2026-10-13 (both 17:00 Europe/Berlin), left the
 undated item undated with `no_deadline`, and reported `$0.000000` cost. One run is an anecdote, not
 an eval; it is here because it is the only evidence that the prompt and the free model agree.
+
+The meeting page was also checked over HTTP: 16 checks against the production build, including the
+Extraction panel appearing on a meeting with minutes and offering a re-run whose copy promises that
+proposed items are replaced while ticketed and rejected ones are kept, a meeting with a transcript
+and no minutes offering a first extraction, clarity rendering as a scored meter, necessity saying
+that comparing meetings is not built, the transcript tab still rendering, and no `sk-or-` key
+appearing anywhere in the page.
