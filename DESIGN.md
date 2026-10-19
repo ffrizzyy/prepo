@@ -125,11 +125,13 @@ is not evidence:
 | The skeleton is grey and still | MOTION is dial 1 and the only motion it allows is hover and focus feedback; a pulsing skeleton is ambient motion, so the blocks are flat surface-2 shapes. The file says this in its own comment so nobody "fixes" it |
 | `role="status"` and a "Loading" label on the container | The swap from skeleton to page is invisible to a screen reader unless the container announces itself; the label is the one word that is true |
 | The spec's pre-launch checklist is mapped item by item in `SECURITY.md` | A checkbox list that is mostly not yet checkable is more honest as a state table: what a suite covers, and what is waiting on a hosted origin rather than on code |
+| The security response headers are one invariant policy applied to every route | A CSP that is a single constant string cannot diverge between a cached static page and the server's own answer, which is what makes a config-file policy honest for the marketing and legal pages too; the allowances it grants are read directly out of an origin inventory (no web fonts, no cross-origin scripts, no analytics, no third-party images, no iframes), and `Permissions-Policy` grants exactly what the recorder uses: this app's own microphone |
+| `Content-Security-Policy` keeps the inline allowance only because the marketing pages are static | The specification's strict CSP with nonces needs every page to render for a request (the Next.js guide's nonce section is explicit); the marketing and legal pages are static on purpose, so the nonce upgrade is recorded as a named next step rather than as a claim of strictness this build does not have |
 
 What this increment did not do, and is not claimed to have done: an axe pass, a
-keyboard-only walkthrough, a Lighthouse budget, a ZAP scan, and the security
-headers themselves, which are the next item and need the origin inventory built
-alongside the hosting story.
+keyboard-only walkthrough, a Lighthouse budget, a ZAP scan, the strict-dynamic
+CSP upgrade, and anything browser-enforced (the click-through gap above covers
+why the headers were verified over HTTP, not in a DOM).
 
 ## Assets
 
