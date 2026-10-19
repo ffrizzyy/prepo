@@ -49,18 +49,35 @@ export function parseTimestampMs(value: string): number | null {
   return null;
 }
 
+/** Removes every `<...>` markup span with a scanner, not a replace. */
+function stripTagMarkup(raw: string): string {
+  let out = "";
+  let i = 0;
+  while (i < raw.length) {
+    const open = raw.indexOf("<", i);
+    if (open === -1) {
+      out += raw.slice(i);
+      break;
+    }
+    out += raw.slice(i, open);
+    const close = raw.indexOf(">", open);
+    if (close === -1) {
+      // A dangling "<" with no ">" keeps the rest verbatim, like the span
+      // regex it replaces (which only matched on a closed span).
+      out += raw.slice(open);
+      break;
+    }
+    i = close + 1;
+  }
+  return out.trim();
+}
+
 /** `<v Lena Fischer>`, `Speaker 2:` and a bare line all become a label. */
 function speakerAndText(raw: string, fallback: string): { speakerLabel: string; text: string } {
   const voice = raw.match(VOICE_TAG);
-  // Tag stripping runs to a fix point: a span of markup that was hidden
-  // inside another span (`<scrip<script>`, say) is gone on the next pass,
-  // and the loop stops the moment a pass changes nothing.
-  let withoutTags = raw.replace(/<[^>]+>/g, "").trim();
-  let previous: string;
-  do {
-    previous = withoutTags;
-    withoutTags = withoutTags.replace(/<[^>]+>/g, "").trim();
-  } while (withoutTags !== previous);
+  // The scan consumes nested markup in one pass (`<scrip<script>` is skipped
+  // whole), so nothing re-appears after the strip.
+  const withoutTags = stripTagMarkup(raw);
 
   if (voice) {
     return { speakerLabel: voice[1]!.trim(), text: withoutTags };
