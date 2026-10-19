@@ -990,7 +990,7 @@ runCli("linear-smoke.ts", async () => {
 
   console.log(`${failures} check(s) failed`);
   throw new Error(`${failures} Linear check(s) failed`);
-});
+}, "fresh");
 
 /**
  * Reads a row and turns it into a connection with an arbitrary key, purely to

@@ -185,4 +185,4 @@ runCli("verify.ts", async () => {
   await seed();
   const ok = await verify();
   if (!ok) throw new Error("tenant isolation verification failed");
-});
+}, "fresh");

@@ -1136,4 +1136,4 @@ runCli("followup-smoke.ts", async () => {
 
   console.log(`${failures} check(s) failed`);
   throw new Error(`${failures} follow-up check(s) failed`);
-});
+}, "fresh");

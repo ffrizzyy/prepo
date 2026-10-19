@@ -108,14 +108,17 @@ is not evidence:
 - **A browser click-through.** No browser automation exists in this environment,
   so interactive states were verified by reading the components rather than by
   clicking them. Recorded as a gap in the check report, not as a pass.
-- **The already-seeded local database keeps its old meeting titles.** The seeded
-  constants now read "Q4 Launch, Weekly Sync", but the rows in the working
-  `.pglite` were seeded before the sweep and still hold the old dash-in-title
-  spellings ("Q4 Launch" with the dash). Nothing in the code compares stored titles against the constants except
-  scripts that seed their own throwaway database, so nothing depends on it, but
-  the characters are on disk until the workspace is reseeded. The reseed also
-  drops the live Linear connection and the TOTP and audio fixtures, which is why
-  it was not done as part of this sweep.
+- **The working `.pglite` was reseeded, and that is on the record.** Before the
+  database-kind guard above existed, several check suites ran against the
+  default directory, and their `seed()` truncated every table in it on
+  19 October 2026. The casualties were the rows only a person can make (the
+  Linear connection's encrypted personal key, their browser sessions) and of
+  course any unseeded data; the demo dataset itself was rebuilt identically by
+  the seeds, and the TOTP and audio fixtures were reinstalled from their
+  scripts once the fixture installers stopped truncating. A personal Linear
+  connection cannot be recreated except by the person who pasted the key. The
+  honest consequences the app can still demonstrate afterwards are checked by
+  the same suites.
 
 ## Polish: the first increment
 
@@ -132,6 +135,46 @@ What this increment did not do, and is not claimed to have done: an axe pass, a
 keyboard-only walkthrough, a Lighthouse budget, a ZAP scan, the strict-dynamic
 CSP upgrade, and anything browser-enforced (the click-through gap above covers
 why the headers were verified over HTTP, not in a DOM).
+
+## The security suites: databases that cannot bleed, and the injection matrix
+
+Two things changed about how truth is asserted, both discovered by pressing the
+suites this pass:
+
+- **Check scripts can no longer reach the working database.** The database kind
+  is now said at each script's call site (`runCli(name, fn, "live" | "fresh")`).
+  The operator jobs stay `live`; every check suite is `fresh`: a generated
+  throwaway `PGLITE_DIR` created before any access and deleted after the run,
+  with the file handle closed first so a Windows rm can actually delete it. Two
+  of the older suites each had their own copy of this pattern; the rest trusted
+  the default and *reseeding the workspace was the default*, which is exactly
+  what a suite's seed does: truncate every table. That is how a working
+  `.pglite` loses its connections and fixtures, and it is now impossible to do
+  by accident rather than merely warned about. A consequence worth its own line:
+  the fixture installers (`db:totp-fixture`, `db:audio-fixture`) stopped
+  truncating too, seeding only when the database is empty and dropping their own
+  leftovers instead, so installing one no longer deletes the other.
+- **The injection suite caught a real bug in the schema gate.** The
+  documentation's promise was "if `title` is a number, the run fails and nothing
+  is imported", but `actionItems: z.array(schema).catch([])` swallowed an
+  element-level failure and turned it into `[]`, so a structural break could
+  arrive as a quietly successful zero-item run (minutes written, run recorded,
+  nothing refused). The catch is off the array now: element shapes are
+  structural, the run is refused, and the suite asserts the refusal. The devlog
+  lesson stands: the `catch` that makes a model's preference degrade gracefully
+  (priority, confidence) is a different instrument from the one that should make
+  its structure fail loudly, and gluing them together made the gate weaker than
+  its own description.
+
+The `db:idor-smoke` suite drives the *built production server* over HTTP with
+real sessions and real bytes: 24 checks over audio streaming (401 anonymous,
+byte-identical 404 for "foreign" and "unknown" so a probe learns nothing, 200
+member, 206 seek, 416) and the six form routes (a foreign workspace told 404
+before its body ids are honoured, a refused delete followed by the stream still
+playing). One process at a time owns a PGlite directory, so the suite closes its
+own handle before the server opens the same one. What it does not reach - page
+routes rendered by server components, anything browser-enforced - is said in
+`SECURITY.md`'s mapping, which carries the honest remainder.
 
 ## Assets
 

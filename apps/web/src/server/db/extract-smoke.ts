@@ -905,4 +905,4 @@ runCli("extract-smoke.ts", async () => {
 
   console.log(`${failures} check(s) failed`);
   throw new Error(`${failures} extraction check(s) failed`);
-});
+}, "fresh");

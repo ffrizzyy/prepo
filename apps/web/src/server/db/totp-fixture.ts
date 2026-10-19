@@ -22,6 +22,9 @@ import { migrateAndApply } from "./migrate";
 import { runCli } from "./run";
 import { seed } from "./seed";
 import { createWorkspaceWithOwner } from "./repo";
+import { getDb, rawQuery } from "./client";
+import * as t from "./schema";
+import { eq } from "drizzle-orm";
 
 const FIXTURE = {
   email: "tessa@totp.test",
@@ -36,10 +39,21 @@ const FIXTURE = {
 
 runCli("totp-fixture.ts", async () => {
   await migrateAndApply();
-  await seed();
 
-  // seed() truncates every table, so a leftover from an earlier run cannot
-  // survive to collide with this one.
+  // An empty database needs the demo under it; an installed one keeps it, so
+  // this fixture composes with the audio fixture (and everything else) instead
+  // of truncating it. The fixture's own leftovers are what get dropped here.
+  const existing = await rawQuery<{ n: number }>(
+    "select count(*)::int as n from users",
+  );
+  if ((existing[0]?.n ?? 0) === 0) await seed();
+
+  // A leftover of an earlier installation cannot collide with this one: the
+  // workspace row goes first (its owner reference), then the account, each
+  // cascading to what belongs to it.
+  await getDb().delete(t.workspaces).where(eq(t.workspaces.slug, FIXTURE.workspaceSlug));
+  await getDb().delete(t.users).where(eq(t.users.email, FIXTURE.email));
+
   const passwordHash = await hashPassword(FIXTURE.password);
   const { userId } = await createUserWithPassword({
     email: FIXTURE.email,

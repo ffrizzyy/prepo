@@ -21,6 +21,8 @@
     "db:extract-smoke": "tsx src/server/db/extract-smoke.ts",
     "db:necessity": "tsx src/server/db/necessity.ts",
     "db:ai-smoke": "tsx src/server/db/ai-smoke.ts",
+    "db:injection-smoke": "tsx src/server/db/injection-smoke.ts",
+    "db:idor-smoke": "tsx src/server/db/idor-smoke.ts",
     "db:ask-live": "tsx src/server/db/ask-live.ts",
     "db:meeting-delete": "tsx src/server/db/meeting-delete-smoke.ts",
     "db:audio-fixture": "tsx src/server/db/audio-fixture.ts",

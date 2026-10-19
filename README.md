@@ -637,6 +637,8 @@ pnpm --filter @prepo/web db:extract-smoke # exercise the schema gate, grounding,
 pnpm --filter @prepo/web db:meeting-delete # delete a meeting and its derived data, on a throwaway database
 pnpm --filter @prepo/web db:necessity  # recompute every meeting's necessity score, oldest first
 pnpm --filter @prepo/web db:ai-smoke   # exercise Ask Prepo, citation grounding and necessity scoring
+pnpm --filter @prepo/web db:injection-smoke # the poisoned-transcript suite: boundaries, not model opinions
+pnpm --filter @prepo/web db:idor-smoke # every data route vs no cookie, forged token, foreign member (needs `next build` first)
 pnpm --filter @prepo/web db:ask-live "…" # ask the real provider one question and print the sources
 pnpm --filter @prepo/web db:providers        # which keys are set, and whether they work
 pnpm --filter @prepo/web db:studio     # browse the data
@@ -646,18 +648,22 @@ pnpm --filter @prepo/web pwa:check     # the installable app, against a running 
 `db:verify` migrates, seeds, then asserts the tenant boundary at the database level: each
 workspace sees only its own rows, an unscoped session sees nothing, a cross-tenant read by
 explicit id returns nothing, and a cross-tenant **write** is rejected by RLS. All ten checks
-pass on both PGlite and Postgres.
+pass on PGlite by default; to run them against a real Postgres instead, set both
+`DATABASE_URL` and a scratch `PGLITE_DIR` (the suite keeps any database an operator points
+at, and creates a throwaway only when nothing was pointed anywhere).
 
-`db:meeting-delete` is the one check that deliberately does **not** touch the working
-database: deleting a meeting is destructive, and a check that reseeded `.pglite` to prove it
-would take the Linear connection and the auth/audio fixtures with it. It creates a temporary
-directory, migrates and seeds into it, and removes it afterwards. Its 24 checks cover the
-counted impact, the tenant boundary (a meeting in another workspace is not found, so not
-deleted), and the rule the feature is built around: the transcript, the action items, the
-audio row and the recap links go, while a ticket created from one of those items survives
-with its link cleared, and the audit entry outlives the meeting it describes.
+Every `db:*` check suite (`db:verify`, `db:smoke`, `db:auth`, `db:audio`,
+`db:followup-smoke`, `db:linear-smoke`, `db:extract-smoke`, `db:ai-smoke`,
+`db:injection-smoke`, `db:meeting-delete`, `db:idor-smoke`) runs on a throwaway
+database it generates for the run and deletes afterwards: a suite that reseeds
+would otherwise truncate the working `.pglite`, taking the Linear connection and
+the installed fixtures with it. The operator jobs (`db:seed`, `db:migrate`, the
+fixture installers, the scheduled entry points) are the ones that touch the
+working database, on purpose. `db:idor-smoke` additionally needs a production
+build (`next build`) because it starts `next start` on a scratch port against
+its own throwaway directory.
 
-`db:smoke` reseeds, then drives the same write functions the server actions call — approving
+`db:smoke` drives the same write functions the server actions call — approving
 action items, moving a ticket, rejecting one, commenting, changing a setting — and reads the
 results back through the tenant-scoped queries. It covers key sequencing, idempotent
 approval, reminder scheduling, audit events, and a northwind session failing to move a

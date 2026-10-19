@@ -29,7 +29,11 @@ export const rawExtractionSchema = z.object({
   summary: z.string().catch(""),
   decisions: z.array(z.string()).catch([]),
   openQuestions: z.array(z.string()).catch([]),
-  actionItems: z.array(rawActionItemSchema).catch([]),
+  // No catch on the array: an element that fails its own shape is a structural
+  // break and must refuse the run (see the comment above). A catch here would
+  // turn "the model sent a numeric title" into a quiet zero-item import, which
+  // is exactly the half-imported answer this gate exists to prevent.
+  actionItems: z.array(rawActionItemSchema),
 });
 
 export type RawActionItem = z.infer<typeof rawActionItemSchema>;

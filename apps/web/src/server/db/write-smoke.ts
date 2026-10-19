@@ -39,8 +39,9 @@ function check(label: string, ok: boolean, detail = ""): void {
   if (!ok) failures += 1;
 }
 
-runCli("write-smoke.ts", async () => {
-  await migrateAndApply();
+runCli("write-smoke.ts",
+  async () => {
+    await migrateAndApply();
   await seed();
 
   const northwind = (await resolveWorkspaceId("northwind"))!;
@@ -319,4 +320,4 @@ runCli("write-smoke.ts", async () => {
     failures === 0 ? "all write checks passed" : `${failures} check(s) failed`,
   );
   if (failures > 0) throw new Error("write smoke test failed");
-});
+}, "fresh");

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { audioKey, audioStorage, contentHash } from "../audio/storage";
-import { withWorkspace } from "./client";
+import { rawQuery, withWorkspace } from "./client";
 import { migrateAndApply } from "./migrate";
 import { resolveWorkspaceId } from "./repo";
 import { runCli } from "./run";
@@ -64,7 +64,13 @@ function toneWav(seconds: number): Uint8Array {
 
 runCli("audio-fixture.ts", async () => {
   await migrateAndApply();
-  await seed();
+
+  // An empty database needs the demo under it; an installed one keeps it, so
+  // this fixture composes with the TOTP fixture instead of truncating it.
+  const existing = await rawQuery<{ n: number }>(
+    "select count(*)::int as n from users",
+  );
+  if ((existing[0]?.n ?? 0) === 0) await seed();
 
   const workspaceId = (await resolveWorkspaceId("northwind"))!;
 

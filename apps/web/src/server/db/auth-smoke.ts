@@ -550,4 +550,4 @@ runCli("auth-smoke.ts", async () => {
     `\n${checks.length - failed.length}/${checks.length} auth checks passed`,
   );
   if (failed.length > 0) throw new Error("auth smoke test failed");
-});
+}, "fresh");

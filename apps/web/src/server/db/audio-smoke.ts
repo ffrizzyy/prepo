@@ -567,4 +567,4 @@ runCli("audio-smoke.ts", async () => {
   console.log("");
   console.log(failures === 0 ? "all audio checks passed" : `${failures} check(s) failed`);
   if (failures > 0) throw new Error("audio smoke test failed");
-});
+}, "fresh");
