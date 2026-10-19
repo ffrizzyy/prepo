@@ -1,0 +1,27 @@
+#!/bin/sh
+# Pre-commit secret scan (PREPO.md 9.3 "Secrets: never committed").
+# Scans what is staged for commit. Full git history is scanned in CI (the
+# gitleaks job), so this hook is the fast local gate on top of the backstop.
+#
+# Activation: git config core.hooksPath .githooks
+# The gitleaks binary is taken from PATH, or from .tools/ at the repo root
+# (git-ignored); with neither present the hook says so and passes, so a
+# person without the binary is not blocked and CI still covers history.
+
+set -e
+
+root="$(git rev-parse --show-toplevel)"
+
+if [ -x "$root/.tools/gitleaks.exe" ]; then
+  GITLEAKS="$root/.tools/gitleaks.exe"
+elif [ -x "$root/.tools/gitleaks" ]; then
+  GITLEAKS="$root/.tools/gitleaks"
+elif command -v gitleaks >/dev/null 2>&1; then
+  GITLEAKS="gitleaks"
+else
+  echo "NOTE: gitleaks not found (looked in .tools/ and on PATH)." >&2
+  echo "Committing without the staged secret scan; CI scans full history." >&2
+  exit 0
+fi
+
+"$GITLEAKS" protect --staged --no-banner --redact

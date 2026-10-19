@@ -16,6 +16,9 @@ next-env.d.ts
 .turbo
 pnpm-debug.log*
 
+# gitleaks binary pulled here for the local pre-commit hook (git-ignored)
+.tools/
+
 # Rust / Tauri
 target
 apps/desktop/src-tauri/gen/schemas

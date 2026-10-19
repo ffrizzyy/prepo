@@ -1,0 +1,18 @@
+# Configuration for the gitleaks scans (pre-commit via `.githooks/pre-commit`
+# and full-history in CI). Exactly two findings from this repository are
+# allowed, both fixed strings that hold no credential value:
+#
+# - the base32 of RFC 6238's standard test seed ("12345678901234567890"),
+#   which `db:auth` pins its TOTP implementation against; it is a published
+#   test vector, not a secret
+# - the password of the demo `tessa@totp.test` fixture account printed in the
+#   docs; the account owns nothing and grants nothing beyond demo data
+title = "Prepo - allowed findings"
+[extend]
+useDefault = true
+[allowlist]
+  description = "Fixture constants with no credential value (see SECURITY.md, A06)"
+  regexes = [
+    '''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ(GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ)?''',
+    '''totp-fixture-pass-2026''',
+  ]

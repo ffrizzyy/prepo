@@ -30,6 +30,7 @@
     "db:providers": "tsx src/server/db/providers.ts",
     "db:linear": "tsx src/server/db/linear.ts",
     "db:linear-smoke": "tsx src/server/db/linear-smoke.ts",
+    "db:restore-drill": "tsx src/server/db/restore-drill.ts",
     "db:studio": "drizzle-kit studio",
     "pwa:check": "tsx src/server/pwa/check.ts"
   },
