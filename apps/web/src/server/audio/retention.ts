@@ -43,7 +43,7 @@ export function retentionDeleteAfter(
 ): Date | null {
   const setting = retentionDays ?? DEFAULT_AUDIO_RETENTION_DAYS;
   if (setting === KEEP_FOREVER) return null;
-  if (setting <= 0) return null; // "immediately after transcription" — set when the transcript lands
+  if (setting <= 0) return null; // "immediately after transcription", set when the transcript lands
   return new Date(from.getTime() + days(setting));
 }
 
@@ -68,7 +68,7 @@ export function retentionLabel(retentionDays: number | undefined): string {
 export type SweepResult = {
   deleted: number;
   bytes: number;
-  /** Rows whose bytes had already gone — reported rather than silently counted. */
+  /** Rows whose bytes had already gone, reported rather than silently counted. */
   alreadyGone: number;
   abandoned: number;
   staleUploads: number;

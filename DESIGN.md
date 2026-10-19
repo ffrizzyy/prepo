@@ -93,32 +93,29 @@ Why those dials, in one line each:
 | The necessity meter gained an `invert` tone, and the meeting page passes it | The hint said "higher means the meeting likely repeated earlier ones" while the tone painted a 90 as a success; two signals that disagree are worse than either one alone. Necessity is the one number in the app where up is bad, and the colour now agrees with the words |
 | Ask Prepo is a box and a source list, not a chat | It is retrieval with a model behind it, so it says that in its shape: one box, one answer, one list of passages with their speakers. A bubble and a typing indicator would dress it as something that listens, and would put nothing where the checking happens |
 | Its source list reuses the review queue's evidence shape | The transcript quote, the speaker and the meeting link are the same elements a proposed action item shows, so "check this answer" requires reading the same kind of paragraph the reader already learned to check |
+| Every em dash in code copy was rewritten with the punctuation the sentence actually meant | 192 instance dashes became commas, colons or periods; the sweep covers `apps/web/src`, `packages/shared`, and the desktop offline page, so the codebase holds zero em dashes in text the agent writes |
+| The repeated `#B91C1C` / `#15803D` hexes and their dark twins moved to the tokens | Ten red and twelve green literals across the app tables, the ticket pages, the marketing components and the insights chart now read `text-danger`, `text-success`, `bg-danger/10` and friends; the dark twins disappear because the token already switches |
+| `rounded-2xl` became `rounded-3`, `rounded-[10px]` became `rounded-2`, `rounded-[8px]` became `rounded-1` | Every radius in the codebase now sits on the scale, so a future change to the scale reaches the marketing cards, the modals, the inputs and the inner drop-zone button as well; `rounded-[10px]` is a no-op rewrite of the same 10px, the others tighten onto designed steps |
+| The meetings table's score cell says "Not scored" and its numbers use tabular figures | The meter had already made that change; the table's own copy of it still rendered a bare dash and monospaced numbers, which is the same tell two components apart |
+| `formatDate` renders "No date set" for a null date | A dash in a date cell is a glyph pretending to be a value, the exact placeholder this direction bans; the words say what is missing |
+| The demo meeting titles lost their dashes ("Q4 Launch, Weekly Sync") | Titles are copy too, and the seeded constants and every lookup already travelled together in one commit |
 
 ## What this pass did not do
 
 Recorded rather than left implied, because a design document that only lists wins
 is not evidence:
 
-- **Em dashes in pre-existing copy.** The rule is zero em dashes in text the
-  agent writes. Copy written during this pass has none, and the strings touched
-  in the components below were rewritten. The marketing and legal pages, the
-  integration page and several app strings still contain them from earlier
-  milestones. This is a known open item, not a decision to keep them.
-- **Repeated hex colours outside the app primitives.** `#B91C1C` / `#15803D` and
-  their dark twins still appear literally in the marketing components and in
-  `board.tsx`, `tickets-table.tsx`, `ticket-detail.tsx`, `meetings-table.tsx`,
-  `extract-button.tsx`, the follow-ups page, the integrations page and the
-  insights page. They render correctly; they should move to `text-danger` and
-  `text-success`.
-- **Literal `rounded-[10px]` on inputs.** It is the same 10px as `--radius-2`, so
-  it is visually consistent, but it is not tokenised, so a change to the scale
-  would miss it.
-- **`rounded-2xl` on the marketing cards and the desktop shell modals.** The
-  radius scale is applied to the app primitives; the marketing components and a
-  few modals still carry the old value.
 - **A browser click-through.** No browser automation exists in this environment,
   so interactive states were verified by reading the components rather than by
   clicking them. Recorded as a gap in the check report, not as a pass.
+- **The already-seeded local database keeps its old meeting titles.** The seeded
+  constants now read "Q4 Launch, Weekly Sync", but the rows in the working
+  `.pglite` were seeded before the sweep and still hold the old dash-in-title
+  spellings ("Q4 Launch" with the dash). Nothing in the code compares stored titles against the constants except
+  scripts that seed their own throwaway database, so nothing depends on it, but
+  the characters are on disk until the workspace is reseeded. The reseed also
+  drops the live Linear connection and the TOTP and audio fixtures, which is why
+  it was not done as part of this sweep.
 
 ## Assets
 

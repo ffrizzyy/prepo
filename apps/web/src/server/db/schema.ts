@@ -432,7 +432,7 @@ export const tickets = pgTable(
     linearSyncState: linearSyncState("linear_sync_state"),
     /**
      * Why the last attempt failed, in the words of whoever refused it. A ticket
-     * with this set is shown as "sync failed" and can be retried by hand — a
+     * with this set is shown as "sync failed" and can be retried by hand, a
      * failed sync is never silently dropped.
      */
     linearSyncError: text("linear_sync_error"),
@@ -506,7 +506,7 @@ export const followups = pgTable(
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
     /**
-     * Null for a workspace-level rung — the weekly digest is about the whole
+     * Null for a workspace-level rung, the weekly digest is about the whole
      * workspace, not one ticket.
      */
     ticketId: uuid("ticket_id").references(() => tickets.id, {

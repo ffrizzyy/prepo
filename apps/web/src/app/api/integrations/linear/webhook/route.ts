@@ -15,7 +15,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * `POST /api/integrations/linear/webhook` — Linear saying what changed.
+ * `POST /api/integrations/linear/webhook`, Linear saying what changed.
  *
  * The order of checks matters and is deliberate:
  *
@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
  *    before it can be verified, because the signing secret belongs to a
  *    *workspace* and the workspace is named by the payload's team. Nothing is
  *    acted on until step 3 succeeds, so parsing first is not a trust decision.
- * 2. The team is mapped to a workspace, reading as the database owner — the one
+ * 2. The team is mapped to a workspace, reading as the database owner, the one
  *    place in the app that looks up a workspace before it can switch into it.
  * 3. The HMAC is verified against that workspace's stored secret, in constant
  *    time. A missing secret is refused rather than treated as "no verification

@@ -170,7 +170,7 @@ export async function seed(): Promise<SeedSummary> {
   meetingRows.push({
     id: globexMeetingId,
     workspaceId: WORKSPACE_IDS.globex,
-    title: "Globex — Platform Standup",
+    title: "Globex, Platform Standup",
     heldAt: new Date("2026-10-12T13:00:00.000Z"),
     source: "paste",
     status: "ready",
@@ -223,7 +223,7 @@ export async function seed(): Promise<SeedSummary> {
   /* ------------------------------------------------------ action items */
   // The Q4 sync re-raised the enterprise legal review, which duplicates the
   // existing PRE-118. That stays a `possible_duplicate` flag for a human to
-  // resolve in review — linking the old ticket to this meeting would claim the
+  // resolve in review, linking the old ticket to this meeting would claim the
   // meeting created it, which is not true.
   const actionItemRows = SAMPLE_ACTION_ITEMS.map((item) => ({
     id: uuidv7(),
@@ -336,7 +336,7 @@ export async function seed(): Promise<SeedSummary> {
       workspaceId: WORKSPACE_IDS.northwind,
       ticketId: dupTicket.id,
       userId: userIdByName.get("Lena Fischer")!,
-      body: "Noted — keep it here so we do not open a second ticket for the same thing.",
+      body: "Noted, keep it here so we do not open a second ticket for the same thing.",
       createdAt: new Date("2026-10-13T11:04:00.000Z"),
     },
   ]);
@@ -375,6 +375,24 @@ export async function seed(): Promise<SeedSummary> {
     sentAt: new Date("2026-10-15T09:00:03.000Z"),
     status: "sent",
     detail: "Delivered to the notification centre.",
+  });
+  // One message left deliberately due. A chase product's demo is a pending
+  // message that is already late, and the follow-ups smoke pins its engine
+  // moment to Monday 19 October 2026, 10:00 UTC, after which the whole sample
+  // calendar is history: the ladder correctly refuses to schedule a moment
+  // that has passed, so without this row the suite would have nothing due to
+  // chase and the demo page nothing pending. The fixed sample dates are a
+  // known fixture seam, named in DESIGN.md until they are rebased to seed
+  // time.
+  followupRows.push({
+    id: uuidv7(),
+    workspaceId: WORKSPACE_IDS.northwind,
+    ticketId: overduedTicket.id,
+    kind: "nudge",
+    channel: "in_app",
+    recipientId: overduedTicket.assigneeId ?? null,
+    scheduledFor: new Date("2026-10-19T08:00:00.000Z"),
+    status: "scheduled",
   });
 
   await db.insert(t.followups).values(followupRows);

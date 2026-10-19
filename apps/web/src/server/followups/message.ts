@@ -63,7 +63,7 @@ export function messageSubject(context: MessageContext): string {
 export function messageBody(context: MessageContext): string {
   const lines: string[] = [];
 
-  lines.push(`${opener(context)} ${context.ticketKey} — ${context.ticketTitle}`);
+  lines.push(`${opener(context)} ${context.ticketKey}, ${context.ticketTitle}`);
 
   if (context.dueAt) {
     const late = context.overdueDays > 0 ? ` (${context.overdueDays} day${context.overdueDays === 1 ? "" : "s"} late)` : "";
@@ -89,10 +89,10 @@ export function messageBody(context: MessageContext): string {
   if (normalizeTone(context.tone) === "firm") {
     lines.push("If it is no longer needed, close it and Prepo stops chasing.");
   } else if (normalizeTone(context.tone) === "gentle") {
-    lines.push("No rush if the date moved — just let the ticket know.");
+    lines.push("No rush if the date moved, just let the ticket know.");
   }
 
-  lines.push(`— Prepo, on behalf of ${context.workspaceName}`);
+  lines.push(`Prepo, on behalf of ${context.workspaceName}`);
 
   return lines.join("\n\n");
 }
@@ -131,7 +131,7 @@ export function digestSubject(context: DigestContext): string {
   if (context.dueThisWeek.length) parts.push(`${context.dueThisWeek.length} due soon`);
   if (context.awaitingReview) parts.push(`${context.awaitingReview} to review`);
   const summary = parts.length ? parts.join(", ") : "all clear";
-  return `${context.weekdayLabel} digest — ${summary}`;
+  return `${context.weekdayLabel} digest, ${summary}`;
 }
 
 export function digestBody(context: DigestContext): string {
@@ -147,7 +147,7 @@ export function digestBody(context: DigestContext): string {
         context.overdue
           .map(
             (line) =>
-              `- ${line.key} ${line.title} — ${line.assigneeName ?? "unassigned"}, ${line.overdueDays}d late`,
+              `- ${line.key} ${line.title}, ${line.assigneeName ?? "unassigned"}, ${line.overdueDays}d late`,
           )
           .join("\n"),
     );
@@ -159,7 +159,7 @@ export function digestBody(context: DigestContext): string {
         context.dueThisWeek
           .map(
             (line) =>
-              `- ${line.key} ${line.title} — ${line.assigneeName ?? "unassigned"}, due ${formatDue(line.dueAt)}`,
+              `- ${line.key} ${line.title}, ${line.assigneeName ?? "unassigned"}, due ${formatDue(line.dueAt)}`,
           )
           .join("\n"),
     );
@@ -172,7 +172,7 @@ export function digestBody(context: DigestContext): string {
   }
 
   lines.push(`Open the workspace: ${context.url}`);
-  lines.push("— Prepo");
+  lines.push("Prepo");
 
   return lines.join("\n\n");
 }

@@ -10,7 +10,7 @@ import type {
 /**
  * The mapping table, as arithmetic (PREPO.md 8.6). Prepo priority maps to
  * Linear priority, owners are matched by email, labels by name, and the whole
- * table is editable — so it lives in one place and is a pure function of the
+ * table is editable, so it lives in one place and is a pure function of the
  * ticket, which makes it assertable without a network.
  */
 
@@ -112,7 +112,7 @@ export function statusToLinear(
 /**
  * Picks the workflow state a ticket should be written into.
  *
- * A Linear team can have several states of the same type — the default team has
+ * A Linear team can have several states of the same type, the default team has
  * both "In Progress" and "In Review", and both are type `started`. Matching on
  * type alone would file every in-progress ticket into whichever of the two
  * happened to come back first, which is how an in-progress ticket ends up
@@ -198,8 +198,8 @@ export function fromLinearDate(value: string | null): Date | null {
 
 /**
  * The issue body: the ticket's own words, then where it came from. The backlink
- * is built from the workspace slug and ticket key — never from stored input —
- * so nothing a member typed can become a URL or an injection into Linear.
+ * is built from the workspace slug and ticket key, never from stored input, so
+ * nothing a member typed can become a URL or an injection into Linear.
  */
 export function issueDescription(input: {
   description: string | null;
@@ -275,7 +275,7 @@ export function previewIssue(issue: {
     `${linearPriorityLabel(issue.priority)} · ${issue.stateName} · ${
       issue.dueDate ?? "no due date"
     } · ${issue.assignee?.name ?? "unassigned"}`,
-  ].join(" — ");
+  ].join(", ");
 }
 
 export type { RemoteIssue };

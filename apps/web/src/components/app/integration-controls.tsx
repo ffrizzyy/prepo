@@ -52,11 +52,11 @@ function useAction() {
 }
 
 const buttonClass =
-  "rounded-[10px] bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50";
+  "rounded-2 bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50";
 const quietButtonClass =
-  "rounded-[10px] border border-border px-3 py-1.5 text-xs text-text-muted hover:bg-surface-2 disabled:opacity-50";
+  "rounded-2 border border-border px-3 py-1.5 text-xs text-text-muted hover:bg-surface-2 disabled:opacity-50";
 const inputClass =
-  "h-9 w-full rounded-[10px] border border-border bg-surface-2 px-2.5 text-sm";
+  "h-9 w-full rounded-2 border border-border bg-surface-2 px-2.5 text-sm";
 
 /** Linear's own priority scale, in Linear's own words. */
 const LINEAR_PRIORITIES = [
@@ -67,7 +67,7 @@ const LINEAR_PRIORITIES = [
   { value: 4, label: "Low" },
 ];
 
-/** Linear's workflow state *types* — what a status maps onto, not a state id. */
+/** Linear's workflow state *types*, what a status maps onto, not a state id. */
 const LINEAR_STATE_TYPES = [
   { value: "backlog", label: "Backlog" },
   { value: "unstarted", label: "Unstarted" },
@@ -165,7 +165,7 @@ export function LinearTeamPicker({
   const [team, setTeam] = useState(teamId ?? "");
   const [project, setProject] = useState(projectId ?? "");
   // The projects on this page belong to the saved team, so a team the user has
-  // just picked has no list yet — saving it first is what loads one.
+  // just picked has no list yet, saving it first is what loads one.
   const teamChanged = team !== (teamId ?? "");
 
   return (
@@ -304,7 +304,7 @@ export function LinearMappingEditor({
                       [id]: Number(event.target.value),
                     }))
                   }
-                  className="h-8 flex-1 rounded-[10px] border border-border bg-surface-2 px-2 text-xs"
+                  className="h-8 flex-1 rounded-2 border border-border bg-surface-2 px-2 text-xs"
                   aria-label={`Linear priority for ${id}`}
                 >
                   {LINEAR_PRIORITIES.map((entry) => (
@@ -337,7 +337,7 @@ export function LinearMappingEditor({
                       [entry.id]: event.target.value,
                     }))
                   }
-                  className="h-8 flex-1 rounded-[10px] border border-border bg-surface-2 px-2 text-xs"
+                  className="h-8 flex-1 rounded-2 border border-border bg-surface-2 px-2 text-xs"
                   aria-label={`Linear state type for ${entry.label}`}
                 >
                   {LINEAR_STATE_TYPES.map((option) => (
@@ -366,7 +366,7 @@ export function LinearMappingEditor({
             value={labels}
             rows={3}
             onChange={(event) => setLabels(event.target.value)}
-            className="mt-2 w-full rounded-[10px] border border-border bg-surface-2 px-2.5 py-2 font-mono text-xs"
+            className="mt-2 w-full rounded-2 border border-border bg-surface-2 px-2.5 py-2 font-mono text-xs"
           />
         </div>
         <div>
@@ -382,7 +382,7 @@ export function LinearMappingEditor({
             value={owners}
             rows={3}
             onChange={(event) => setOwners(event.target.value)}
-            className="mt-2 w-full rounded-[10px] border border-border bg-surface-2 px-2.5 py-2 font-mono text-xs"
+            className="mt-2 w-full rounded-2 border border-border bg-surface-2 px-2.5 py-2 font-mono text-xs"
           />
         </div>
       </div>
@@ -445,7 +445,7 @@ export function LinearSourceOfTruthControl({
             }}
             className={
               current === option.id
-                ? "rounded-[10px] bg-text px-3 py-1.5 text-xs font-medium text-surface disabled:opacity-50"
+                ? "rounded-2 bg-text px-3 py-1.5 text-xs font-medium text-surface disabled:opacity-50"
                 : quietButtonClass
             }
           >
@@ -643,7 +643,7 @@ export function TicketLinearSync({
       <span className="text-text-muted">Synced to Linear</span>
     ) : state === "pending" || queued ? (
       <span className="text-text-muted">
-        Queued — the next sync sends it
+        Queued, the next sync sends it
       </span>
     ) : state === "failed" ? (
       <span className="text-accent-ink">Sync failed</span>

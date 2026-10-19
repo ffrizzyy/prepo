@@ -8,7 +8,7 @@ import { Container } from "@/components/ui/section";
 import { cn } from "@/lib/utils";
 
 /**
- * Catches errors thrown while rendering any route below the root layout —
+ * Catches errors thrown while rendering any route below the root layout,
  * including the app shell, which is why this one does not assume a workspace or
  * a signed-in user. In production the message is deliberately generic; the
  * digest is the identifier that matches the server-side log.
@@ -26,7 +26,7 @@ export default function Error({ error, retry }: { error: unknown; retry: () => v
   return (
     <main className="grid min-h-screen place-items-center px-4 py-16">
       <Container className="max-w-xl">
-        <div className="rounded-2xl border border-border bg-surface p-8">
+        <div className="rounded-3 border border-border bg-surface p-8">
           <span className="inline-flex size-10 items-center justify-center rounded-full bg-accent-soft text-accent-ink">
             <Warning size={20} weight="bold" />
           </span>
@@ -35,7 +35,7 @@ export default function Error({ error, retry }: { error: unknown; retry: () => v
           </h1>
           <p className="mt-3 text-sm leading-relaxed text-text-muted">
             This one is not your fault. The page failed while it was being rendered, and nothing
-            you were working on was changed — every write Prepo makes is recorded as an audit
+            you were working on was changed, every write Prepo makes is recorded as an audit
             event, so a half-finished action is visible rather than lost.
           </p>
           {digest ? (

@@ -7,12 +7,12 @@ import { parseTimestampMs, type ParsedSegment } from "./transcript";
  * The specification's provider is Deepgram, chosen for diarization and word
  * timestamps, and that is what is implemented below. It needs `DEEPGRAM_API_KEY`,
  * which this repository does not have, so the pipeline reports itself as
- * unconfigured and offers the transcript-upload path instead — that path needs no
+ * unconfigured and offers the transcript-upload path instead, that path needs no
  * provider at all.
  *
  * Note the shape of the input: bytes, not a URL. The specification's signature
  * takes an `audioUrl` because R2 hands out presigned links; this storage driver is
- * local and private, so handing over bytes is both simpler and strictly safer —
+ * local and private, so handing over bytes is both simpler and strictly safer:
  * the provider never has to fetch a URL, which is what keeps the SSRF surface
  * closed (PREPO.md §9.3 A10).
  */
@@ -85,7 +85,7 @@ function round(value: number, digits: number): number {
 
 /**
  * Deepgram's response into our segments. Kept pure and exported so the mapping is
- * pinned by the test suite against a recorded-shape payload — the network call
+ * pinned by the test suite against a recorded-shape payload, the network call
  * cannot be exercised without a key, but everything downstream of it can.
  */
 export function deepgramToResult(payload: DeepgramPayload): TranscriptionResult {

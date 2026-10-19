@@ -148,7 +148,7 @@ export default async function InsightsPage({
                   <div
                     className={cn(
                       "w-6 rounded-t",
-                      entry.id === "done" ? "bg-[#15803d]/70" : "bg-accent",
+                      entry.id === "done" ? "bg-success/70" : "bg-accent",
                     )}
                     style={{ height: `${(entry.count / maxStatus) * 100}%` }}
                     title={`${entry.count} ${entry.label}`}

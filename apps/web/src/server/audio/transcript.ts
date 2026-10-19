@@ -8,8 +8,8 @@ import { UploadRejected } from "./validate";
  * uses `,` and an index line. Both are parsed here without a dependency, and raw
  * minutes fall back to paragraph splitting.
  *
- * A segment is the unit of evidence in this product — PREPO.md §7.2's rule is
- * "no source quote, no ticket" — so pasted minutes are stored as paragraphs
+ * A segment is the unit of evidence in this product, PREPO.md §7.2's rule is
+ * "no source quote, no ticket", so pasted minutes are stored as paragraphs
  * rather than as one blob, and carry `timed: false` because there is no audio to
  * seek into.
  */
@@ -209,7 +209,7 @@ export function transcriptFormatFor(filename: string): "vtt" | "srt" | "text" {
   const format = FORMATS[extension];
   if (!format) {
     throw new UploadRejected(
-      "Transcripts can be .vtt, .srt, .txt or .md. For a Word or PDF export, paste the text instead — Prepo stores what it can quote, and it cannot quote a binary.",
+      "Transcripts can be .vtt, .srt, .txt or .md. For a Word or PDF export, paste the text instead, Prepo stores what it can quote, and it cannot quote a binary.",
     );
   }
   return format;

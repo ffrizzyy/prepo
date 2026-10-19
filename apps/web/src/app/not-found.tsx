@@ -40,7 +40,7 @@ export default function NotFound() {
             <a
               key={step.href}
               href={step.href}
-              className="group flex flex-col rounded-2xl border border-border bg-surface p-5 transition-colors hover:border-border-strong"
+              className="group flex flex-col rounded-3 border border-border bg-surface p-5 transition-colors hover:border-border-strong"
             >
               <span className="inline-flex items-center gap-1.5 text-sm font-medium text-text">
                 {step.label}

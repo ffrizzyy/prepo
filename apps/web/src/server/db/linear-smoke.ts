@@ -63,8 +63,8 @@ import { seed } from "./seed";
  * Everything that can be arithmetic is asserted as arithmetic: the mapping, the
  * backoff, the signature check, the replay window and the payload reduction.
  *
- * The engine is then run against a *real object* — an in-memory Linear with real
- * state (`../linear/fixture`) — so the suite can read back what Prepo sent, edit
+ * The engine is then run against a *real object*, an in-memory Linear with real
+ * state (`../linear/fixture`), so the suite can read back what Prepo sent, edit
  * an issue behind the app's back to simulate a pull, and make a call fail to
  * exercise the retry path. Nothing here is a stub return value.
  *
@@ -77,7 +77,7 @@ import { seed } from "./seed";
 let failures = 0;
 
 function check(label: string, ok: boolean, detail = ""): void {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`);
+  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? `, ${detail}` : ""}`);
   if (!ok) failures += 1;
 }
 
@@ -272,7 +272,7 @@ runCli("linear-smoke.ts", async () => {
     workspaceSlug: "northwind",
     ticketKey: "PRE-901",
     origin: {
-      meetingTitle: "Q4 Launch — Weekly Sync",
+      meetingTitle: "Q4 Launch, Weekly Sync",
       quote: "Lena: get the pricing page out before the 5th.",
     },
     appUrl: "https://prepo.example",

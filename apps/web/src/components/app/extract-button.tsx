@@ -89,7 +89,7 @@ export function ExtractButton({
           <p
             className={cn(
               "text-xs leading-relaxed",
-              refused ? "text-[#b91c1c] dark:text-[#f87171]" : "text-text-muted",
+              refused ? "text-danger" : "text-text-muted",
             )}
           >
             {describe(report)}
@@ -104,7 +104,7 @@ export function ExtractButton({
       ) : null}
 
       {error ? (
-        <p className="mt-3 text-xs text-[#b91c1c] dark:text-[#f87171]">{error}</p>
+        <p className="mt-3 text-xs text-danger">{error}</p>
       ) : null}
 
       <p className="mt-3 text-xs leading-relaxed text-text-subtle">

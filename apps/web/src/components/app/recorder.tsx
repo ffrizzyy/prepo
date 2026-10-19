@@ -237,7 +237,7 @@ export function Recorder({
   const seconds = Math.floor(elapsedMs / 1000);
 
   return (
-    <div className="rounded-[10px] border border-border bg-surface-2 p-4">
+    <div className="rounded-2 border border-border bg-surface-2 p-4">
       <div className="flex flex-wrap items-center gap-3">
         <span
           className="inline-flex size-9 items-center justify-center rounded-full bg-surface text-accent-ink"
@@ -270,7 +270,7 @@ export function Recorder({
             onClick={start}
             disabled={!consent}
             title={consent ? undefined : "Confirm consent first"}
-            className="inline-flex h-9 items-center gap-2 rounded-[10px] bg-accent px-4 text-sm font-medium text-accent-fg disabled:opacity-50"
+            className="inline-flex h-9 items-center gap-2 rounded-2 bg-accent px-4 text-sm font-medium text-accent-fg disabled:opacity-50"
           >
             <Microphone size={15} weight="bold" />
             Start recording
@@ -282,7 +282,7 @@ export function Recorder({
             <button
               type="button"
               onClick={pause}
-              className="inline-flex h-9 items-center gap-2 rounded-[10px] border border-border-strong bg-surface px-3 text-sm"
+              className="inline-flex h-9 items-center gap-2 rounded-2 border border-border-strong bg-surface px-3 text-sm"
             >
               <Pause size={14} weight="bold" />
               Pause
@@ -290,7 +290,7 @@ export function Recorder({
             <button
               type="button"
               onClick={stopAndUpload}
-              className="inline-flex h-9 items-center gap-2 rounded-[10px] bg-accent px-4 text-sm font-medium text-accent-fg"
+              className="inline-flex h-9 items-center gap-2 rounded-2 bg-accent px-4 text-sm font-medium text-accent-fg"
             >
               <Stop size={14} weight="fill" />
               Stop and upload
@@ -303,7 +303,7 @@ export function Recorder({
             <button
               type="button"
               onClick={resume}
-              className="inline-flex h-9 items-center gap-2 rounded-[10px] border border-border-strong bg-surface px-3 text-sm"
+              className="inline-flex h-9 items-center gap-2 rounded-2 border border-border-strong bg-surface px-3 text-sm"
             >
               <Play size={14} weight="fill" />
               Resume
@@ -311,7 +311,7 @@ export function Recorder({
             <button
               type="button"
               onClick={stopAndUpload}
-              className="inline-flex h-9 items-center gap-2 rounded-[10px] bg-accent px-4 text-sm font-medium text-accent-fg"
+              className="inline-flex h-9 items-center gap-2 rounded-2 bg-accent px-4 text-sm font-medium text-accent-fg"
             >
               <Stop size={14} weight="fill" />
               Stop and upload
@@ -323,7 +323,7 @@ export function Recorder({
           <button
             type="button"
             onClick={discard}
-            className="inline-flex h-9 items-center gap-2 rounded-[10px] px-3 text-sm text-text-muted hover:text-text"
+            className="inline-flex h-9 items-center gap-2 rounded-2 px-3 text-sm text-text-muted hover:text-text"
           >
             <Trash size={14} />
             Discard

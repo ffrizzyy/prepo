@@ -1,6 +1,6 @@
 /**
  * End-to-end check of the write path. Calls the same write functions the server
- * actions call — with the tenant and actor resolved up front — then reads the
+ * actions call, with the tenant and actor resolved up front, then reads the
  * results back through the same tenant-scoped queries. It reseeds first so it is
  * repeatable:
  *   pnpm --filter @prepo/web db:smoke
@@ -8,7 +8,7 @@
  * The server actions themselves cannot be called here: they read cookies and
  * revalidate, both of which need a request scope a script does not have.
  */
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { getUserByEmail } from "../auth/accounts";
 import { DEMO } from "../auth/demo";
 import {
@@ -35,7 +35,7 @@ import { seed } from "./seed";
 let failures = 0;
 
 function check(label: string, ok: boolean, detail = ""): void {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`);
+  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? `, ${detail}` : ""}`);
   if (!ok) failures += 1;
 }
 
@@ -85,6 +85,26 @@ runCli("write-smoke.ts", async () => {
 
   /* ----------------------------------------------------------- approve */
   const target = proposed.slice(0, 2);
+  // The sample items carry fixed mid-October dates, so once the calendar moved
+  // past them the ladder scheduled nothing that was still ahead and the checks
+  // below degenerated into testing an empty schedule. The suite owns its own
+  // moment, so every dated item it is about to approve is moved a day ahead of
+  // the run; what is asserted is the ladder's shape, not the sample calendar.
+  await withWorkspace(northwind, (tx) =>
+    tx
+      .update(t.actionItems)
+      .set({ dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000) })
+      .where(
+        and(
+          eq(t.actionItems.workspaceId, northwind),
+          inArray(
+            t.actionItems.id,
+            target.map((item) => item.id),
+          ),
+          isNotNull(t.actionItems.dueAt),
+        ),
+      ),
+  );
   await approveActionItems({
     workspaceId: northwind,
     actorId,

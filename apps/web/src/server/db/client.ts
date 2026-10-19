@@ -27,7 +27,7 @@ function databaseUrl(): string | undefined {
 }
 
 /**
- * Local development runs on PGlite — real Postgres compiled to WASM — so there
+ * Local development runs on PGlite, real Postgres compiled to WASM, so there
  * is no container to start. Setting DATABASE_URL swaps in a real Postgres (Neon
  * in production); the schema, migrations and queries are identical.
  */

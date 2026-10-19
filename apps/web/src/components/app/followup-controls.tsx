@@ -63,7 +63,7 @@ export function PendingFollowup({
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
-          className="rounded-[10px] border border-border px-2.5 py-1 text-xs text-text-muted hover:bg-surface-2"
+          className="rounded-2 border border-border px-2.5 py-1 text-xs text-text-muted hover:bg-surface-2"
         >
           Move
         </button>
@@ -73,7 +73,7 @@ export function PendingFollowup({
           onClick={() =>
             run(() => cancelFollowup({ workspace, followupId }))
           }
-          className="rounded-[10px] border border-border px-2.5 py-1 text-xs text-text-muted hover:bg-surface-2 disabled:opacity-50"
+          className="rounded-2 border border-border px-2.5 py-1 text-xs text-text-muted hover:bg-surface-2 disabled:opacity-50"
         >
           {pending ? "Working…" : "Cancel"}
         </button>
@@ -85,7 +85,7 @@ export function PendingFollowup({
             type="datetime-local"
             value={when}
             onChange={(event) => setWhen(event.target.value)}
-            className="rounded-[10px] border border-border bg-surface-2 px-2 py-1 text-xs"
+            className="rounded-2 border border-border bg-surface-2 px-2 py-1 text-xs"
             aria-label="New time"
           />
           <button
@@ -100,7 +100,7 @@ export function PendingFollowup({
                 }),
               )
             }
-            className="rounded-[10px] bg-accent px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50"
+            className="rounded-2 bg-accent px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50"
           >
             Save
           </button>
@@ -137,7 +137,7 @@ export function TicketChase({
           type="button"
           disabled={pending || done}
           onClick={() => run(() => chaseTicket({ workspace, ticketId }))}
-          className="rounded-[10px] border border-border px-3 py-1.5 text-xs font-medium hover:bg-surface-2 disabled:opacity-50"
+          className="rounded-2 border border-border px-3 py-1.5 text-xs font-medium hover:bg-surface-2 disabled:opacity-50"
           title={
             done
               ? "Finished work is not chased"
@@ -152,7 +152,7 @@ export function TicketChase({
           onClick={() =>
             run(() => snoozeTicket({ workspace, ticketId, days: 3 }))
           }
-          className="rounded-[10px] border border-border px-3 py-1.5 text-xs font-medium hover:bg-surface-2 disabled:opacity-50"
+          className="rounded-2 border border-border px-3 py-1.5 text-xs font-medium hover:bg-surface-2 disabled:opacity-50"
         >
           Snooze 3 days
         </button>
@@ -160,7 +160,7 @@ export function TicketChase({
           type="button"
           disabled={pending || pendingCount === 0}
           onClick={() => run(() => stopChasing({ workspace, ticketId }))}
-          className="rounded-[10px] border border-border px-3 py-1.5 text-xs font-medium hover:bg-surface-2 disabled:opacity-50"
+          className="rounded-2 border border-border px-3 py-1.5 text-xs font-medium hover:bg-surface-2 disabled:opacity-50"
         >
           Stop chasing
         </button>
@@ -195,7 +195,7 @@ export function MarkAllRead({
         disabled={pending || unread === 0}
         onClick={() => run(() => markNotificationsRead({ workspace }))}
         className={cn(
-          "rounded-[10px] border border-border px-3 py-1.5 text-xs font-medium hover:bg-surface-2",
+          "rounded-2 border border-border px-3 py-1.5 text-xs font-medium hover:bg-surface-2",
           unread === 0 && "opacity-50",
         )}
       >
@@ -222,7 +222,7 @@ export function MarkRead({
       onClick={() =>
         run(() => markNotificationsRead({ workspace, notificationId }))
       }
-      className="rounded-[10px] border border-border px-2 py-0.5 text-[11px] text-text-muted hover:bg-surface-2 disabled:opacity-50"
+      className="rounded-2 border border-border px-2 py-0.5 text-[11px] text-text-muted hover:bg-surface-2 disabled:opacity-50"
     >
       Mark read
     </button>
@@ -314,7 +314,7 @@ export function DigestWeekdaySelect({
               run(() => setDigestWeekday({ workspace, weekday: day.id }));
             }}
             className={cn(
-              "rounded-[10px] border px-3 py-1.5 text-xs transition-colors disabled:opacity-50",
+              "rounded-2 border px-3 py-1.5 text-xs transition-colors disabled:opacity-50",
               selected === day.id
                 ? "border-accent bg-accent-soft/50 font-medium"
                 : "border-border hover:bg-surface-2",

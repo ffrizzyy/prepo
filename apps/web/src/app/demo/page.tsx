@@ -24,7 +24,7 @@ export default function DemoPage() {
       <div className="space-y-4">
         <FormNote>
           The credentials are filled in for you, and the form below is the
-          ordinary sign-in — the same password check as any account. The demo
+          ordinary sign-in, the same password check as any account. The demo
           user is{" "}
           <span className="font-mono text-text">{DEMO.email}</span>.
         </FormNote>

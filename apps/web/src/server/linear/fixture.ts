@@ -16,7 +16,7 @@ import {
  * It is deliberately a *real* object with real state, not a set of stubbed
  * return values: tests can read back what Prepo sent, edit an issue behind the
  * app's back to simulate a pull, and make a call fail to exercise the retry
- * path. What it is not is evidence that Linear itself behaves this way — that
+ * path. What it is not is evidence that Linear itself behaves this way, that
  * needs a key, and the smoke test says so.
  */
 

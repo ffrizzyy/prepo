@@ -95,7 +95,7 @@ export function Callout({
   return (
     <div
       className={cn(
-        "max-w-3xl rounded-2xl border p-5",
+        "max-w-3xl rounded-3 border p-5",
         tone === "note"
           ? "border-accent-note bg-accent-soft text-accent-ink"
           : "border-border bg-surface text-text-muted",
@@ -114,7 +114,7 @@ export function FactList({
   rows: Array<{ label: string; value: ReactNode }>;
 }) {
   return (
-    <dl className="max-w-3xl divide-y divide-border rounded-2xl border border-border bg-surface">
+    <dl className="max-w-3xl divide-y divide-border rounded-3 border border-border bg-surface">
       {rows.map((row) => (
         <div
           key={row.label}

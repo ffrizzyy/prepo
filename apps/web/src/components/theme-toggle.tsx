@@ -32,7 +32,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       aria-label={label}
       title={label}
       className={
-        "inline-flex size-9 items-center justify-center rounded-[10px] text-text-muted transition-colors hover:bg-surface-2 hover:text-text " +
+        "inline-flex size-9 items-center justify-center rounded-2 text-text-muted transition-colors hover:bg-surface-2 hover:text-text " +
         (className ?? "")
       }
     >

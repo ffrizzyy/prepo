@@ -32,7 +32,7 @@ export function Navbar({ home = true }: { home?: boolean }) {
     >
       <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <a href={home ? "#" : "/"} className="flex items-center gap-2">
-          <span className="grid size-7 place-items-center rounded-[8px] bg-accent text-sm font-semibold text-accent-fg">
+          <span className="grid size-7 place-items-center rounded-1 bg-accent text-sm font-semibold text-accent-fg">
             P
           </span>
           <span className="text-lg font-semibold tracking-tight">{BRAND.name}</span>
@@ -43,7 +43,7 @@ export function Navbar({ home = true }: { home?: boolean }) {
             <a
               key={link.href}
               href={anchor(link.href)}
-              className="rounded-[10px] px-3 py-2 text-sm text-text-muted transition-colors hover:text-text"
+              className="rounded-2 px-3 py-2 text-sm text-text-muted transition-colors hover:text-text"
             >
               {link.label}
             </a>
@@ -52,7 +52,7 @@ export function Navbar({ home = true }: { home?: boolean }) {
             href={REPO_URL}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-[10px] px-3 py-2 text-sm text-text-muted transition-colors hover:text-text"
+            className="inline-flex items-center gap-1.5 rounded-2 px-3 py-2 text-sm text-text-muted transition-colors hover:text-text"
           >
             <GithubLogo size={16} weight="regular" />
             GitHub
@@ -63,7 +63,7 @@ export function Navbar({ home = true }: { home?: boolean }) {
           <ThemeToggle />
           <a
             href="/sign-in"
-            className="hidden rounded-[10px] px-3 py-2 text-sm text-text-muted transition-colors hover:text-text sm:block"
+            className="hidden rounded-2 px-3 py-2 text-sm text-text-muted transition-colors hover:text-text sm:block"
           >
             Sign in
           </a>
@@ -78,7 +78,7 @@ export function Navbar({ home = true }: { home?: boolean }) {
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
-            className="inline-flex size-9 items-center justify-center rounded-[10px] text-text-muted hover:bg-surface-2 hover:text-text lg:hidden"
+            className="inline-flex size-9 items-center justify-center rounded-2 text-text-muted hover:bg-surface-2 hover:text-text lg:hidden"
           >
             {open ? <X size={18} /> : <List size={18} />}
           </button>
@@ -98,7 +98,7 @@ export function Navbar({ home = true }: { home?: boolean }) {
                 key={link.href}
                 href={anchor(link.href)}
                 onClick={() => setOpen(false)}
-                className="rounded-[10px] px-3 py-2.5 text-sm text-text-muted hover:bg-surface-2 hover:text-text"
+                className="rounded-2 px-3 py-2.5 text-sm text-text-muted hover:bg-surface-2 hover:text-text"
               >
                 {link.label}
               </a>
@@ -107,14 +107,14 @@ export function Navbar({ home = true }: { home?: boolean }) {
               href={REPO_URL}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-[10px] px-3 py-2.5 text-sm text-text-muted hover:bg-surface-2 hover:text-text"
+              className="inline-flex items-center gap-2 rounded-2 px-3 py-2.5 text-sm text-text-muted hover:bg-surface-2 hover:text-text"
             >
               <GithubLogo size={16} />
               GitHub
             </a>
             <a
               href="/sign-in"
-              className="rounded-[10px] px-3 py-2.5 text-sm text-text-muted hover:bg-surface-2 hover:text-text"
+              className="rounded-2 px-3 py-2.5 text-sm text-text-muted hover:bg-surface-2 hover:text-text"
             >
               Sign in
             </a>

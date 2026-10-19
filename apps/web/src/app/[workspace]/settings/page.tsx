@@ -262,7 +262,7 @@ export default async function SettingsPage({
               <form action={signOut}>
                 <button
                   type="submit"
-                  className="shrink-0 rounded-[8px] border border-border px-2.5 py-1 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text"
+                  className="shrink-0 rounded-1 border border-border px-2.5 py-1 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text"
                 >
                   Sign out
                 </button>

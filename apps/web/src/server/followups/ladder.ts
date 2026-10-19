@@ -102,7 +102,7 @@ export type LadderRow = typeof t.followups.$inferInsert;
  * default: re-scheduling a moment that has already gone would fire it on the
  * next engine run, which is how a "chase" feature turns into spam.
  *
- * A rung with nobody to chase is not scheduled at all — an unassigned ticket has
+ * A rung with nobody to chase is not scheduled at all, an unassigned ticket has
  * no owner to remind, and only the escalation has somewhere to go.
  */
 export function scheduleLadder(input: {

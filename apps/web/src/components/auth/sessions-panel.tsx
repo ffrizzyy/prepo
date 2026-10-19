@@ -19,7 +19,7 @@ function RevokeButton({ label }: { label: string }) {
     <button
       type="submit"
       disabled={pending}
-      className="shrink-0 rounded-[8px] border border-border px-2.5 py-1 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text disabled:opacity-60"
+      className="shrink-0 rounded-1 border border-border px-2.5 py-1 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text disabled:opacity-60"
     >
       {pending ? "Revoking…" : label}
     </button>
@@ -70,7 +70,7 @@ export function SessionsPanel({
           <input type="hidden" name="workspace" value={workspace} />
           <button
             type="submit"
-            className="w-full rounded-[10px] border border-border px-3 py-2 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text"
+            className="w-full rounded-2 border border-border px-3 py-2 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text"
           >
             Sign out every other device
           </button>

@@ -79,7 +79,7 @@ const LIMITS = { perEmail: 5, perIp: 20, windowSeconds: 60 };
 const GENERIC_FAILURE = "Email or password is incorrect.";
 const EXPIRED_CHALLENGE = "Your sign-in attempt expired. Start again.";
 const CODE_MISMATCH =
-  "That code did not match. Codes rotate every 30 seconds — try the current one.";
+  "That code did not match. Codes rotate every 30 seconds, try the current one.";
 const THROTTLED = "Too many attempts. Wait a minute and try again.";
 
 async function deviceContext() {

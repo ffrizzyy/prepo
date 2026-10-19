@@ -54,7 +54,7 @@ import { seed } from "./seed";
  * The audio path, checked end to end:
  *   pnpm --filter @prepo/web db:audio
  *
- * What can be exercised without a provider is exercised for real — parsing,
+ * What can be exercised without a provider is exercised for real, parsing,
  * sniffing, storage, chunk assembly, the retention clock, the writes and the
  * tenant boundary. What cannot is the network call to Deepgram, so the response
  * *mapping* is pinned against a recorded-shape payload instead, the same way the
@@ -64,7 +64,7 @@ import { seed } from "./seed";
 let failures = 0;
 
 function check(label: string, ok: boolean, detail = ""): void {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`);
+  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? `, ${detail}` : ""}`);
   if (!ok) failures += 1;
 }
 

@@ -32,7 +32,7 @@ function OutcomeIcon({ status }: { status: string }) {
     return (
       <CheckCircle
         size={16}
-        className="mt-0.5 shrink-0 text-[#15803d] dark:text-[#4ade80]"
+        className="mt-0.5 shrink-0 text-success"
         aria-hidden
       />
     );
@@ -76,13 +76,13 @@ export default async function FollowupsPage({
     <>
       <PageHeader
         title="Follow-ups"
-        description="What the agent will send, and what it already sent — every row here is a real message, not an example."
+        description="What the agent will send, and what it already sent, every row here is a real message, not an example."
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">
           {!emailConfigured ? (
-            <div className="rounded-2xl border border-accent-note bg-accent-soft/60 px-4 py-3 text-xs text-accent-ink">
+            <div className="rounded-3 border border-accent-note bg-accent-soft/60 px-4 py-3 text-xs text-accent-ink">
               <p className="font-medium">Email is not configured on this deployment.</p>
               <p className="mt-1">
                 In-app messages are delivered to the notification centre. Anything
@@ -146,7 +146,7 @@ export default async function FollowupsPage({
             )}
             <p className="mt-4 text-xs text-text-subtle">
               Any pending message can be moved or cancelled before it sends. This
-              list is produced by the chaser, which runs from a scheduler —{" "}
+              list is produced by the chaser, which runs from a scheduler,{" "}
               <span className="font-mono">pnpm --filter @prepo/web db:followups</span>{" "}
               is what it runs.
             </p>
@@ -250,7 +250,7 @@ export default async function FollowupsPage({
           <Card title="Weekly digest">
             <p className="text-sm text-text-muted">
               A summary of what is late, what is due in the next seven days, and
-              what is waiting on review — to owners and admins, on{" "}
+              what is waiting on review, to owners and admins, on{" "}
               {weekdayName(weekday)} at 09:00 their time.
             </p>
             <div className="mt-4">

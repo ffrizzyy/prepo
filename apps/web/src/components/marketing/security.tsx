@@ -18,7 +18,7 @@ export function Security() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {SECURITY_PILLARS.map((pillar) => (
-          <div key={pillar.title} className="rounded-2xl border border-border bg-surface p-6">
+          <div key={pillar.title} className="rounded-3 border border-border bg-surface p-6">
             <h3 className="text-lg font-medium tracking-tight">{pillar.title}</h3>
             <p className="mt-2 text-sm leading-relaxed text-text-muted">{pillar.body}</p>
           </div>

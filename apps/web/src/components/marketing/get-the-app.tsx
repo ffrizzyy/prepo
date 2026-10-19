@@ -22,13 +22,13 @@ const TILES: Tile[] = [
   {
     icon: Browser,
     title: "Open in the browser",
-    body: "No install and no signup — one click opens the seeded demo workspace with its credentials filled in.",
+    body: "No install and no signup, one click opens the seeded demo workspace with its credentials filled in.",
     cta: { label: "Try demo", href: "/demo", variant: "outline" },
   },
   {
     icon: DeviceMobile,
     title: "Install the app",
-    body: "Built: the manifest, icons and service worker a browser needs to install a site, so Prepo can open in its own window. Offline reads are not built — offline you get a page that says so.",
+    body: "Built: the manifest, icons and service worker a browser needs to install a site, so Prepo can open in its own window. Offline reads are not built, offline you get a page that says so.",
     cta: { label: "How installing works", href: "/download#install", variant: "outline" },
   },
   {
@@ -57,7 +57,7 @@ export function GetTheApp() {
         {TILES.map((tile) => (
           <div
             key={tile.title}
-            className="flex flex-col rounded-2xl border border-border bg-surface p-6"
+            className="flex flex-col rounded-3 border border-border bg-surface p-6"
           >
             <tile.icon size={22} className="text-accent-ink" />
             <h3 className="mt-4 text-lg font-medium tracking-tight">{tile.title}</h3>

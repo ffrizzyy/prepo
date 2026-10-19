@@ -13,7 +13,9 @@ export function getInitials(name: string): string {
 }
 
 export function formatDate(value: string | null): string {
-  if (!value) return "—";
+  // "No date set" rather than a bare dash: a glyph that looks like a value is
+  // the placeholder the design direction calls out by name.
+  if (!value) return "No date set";
   return new Date(value).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",

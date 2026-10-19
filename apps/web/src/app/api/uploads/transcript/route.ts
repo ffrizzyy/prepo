@@ -11,7 +11,7 @@ import { ingestTranscript } from "@/server/audio/ingest";
 import { MAX_TRANSCRIPT_CHARS, UploadRejected } from "@/server/audio/validate";
 
 /**
- * `POST /api/uploads/transcript` — a caption file or pasted minutes.
+ * `POST /api/uploads/transcript`, a caption file or pasted minutes.
  *
  * This is the path that needs no speech-to-text provider, so it is the one that
  * still works when nothing is configured (and it is the fallback the failure
@@ -84,7 +84,7 @@ export async function POST(request: Request): Promise<Response> {
     return fail(request, {
       status: 500,
       back,
-      message: "That transcript could not be imported. Nothing was saved — try again.",
+      message: "That transcript could not be imported. Nothing was saved, try again.",
     });
   }
 }

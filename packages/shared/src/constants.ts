@@ -12,7 +12,7 @@ export const NAV_LINKS = [
   { label: "Download", href: "#download" },
 ] as const;
 
-/** The public repository — the source of truth for what is actually built. */
+/** The public repository, the source of truth for what is actually built. */
 export const REPO_URL = "https://github.com/ffrizzyy/prepo";
 
 export const WORKSPACE = {

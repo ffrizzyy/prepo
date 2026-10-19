@@ -5,7 +5,7 @@ import { listWorkspacesForUser } from "@/server/db/repo";
 import { findAudioAsset } from "@/server/writes";
 
 /**
- * `GET /api/audio/[assetId]` — the only way a recording leaves the server.
+ * `GET /api/audio/[assetId]`, the only way a recording leaves the server.
  *
  * The specification's rule is that audio is never reachable by a public link,
  * only through a short-lived URL issued after an authorization check

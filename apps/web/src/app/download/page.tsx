@@ -27,7 +27,7 @@ const OPTIONS = [
   {
     icon: DeviceMobile,
     title: "Install it as an app",
-    body: "Built. Prepo ships the manifest, the icons and the service worker a browser requires before it will install a site, so it can live in its own window. Offline it shows an offline page — your tickets are not held on the device.",
+    body: "Built. Prepo ships the manifest, the icons and the service worker a browser requires before it will install a site, so it can live in its own window. Offline it shows an offline page, your tickets are not held on the device.",
     cta: { label: "How installing works", href: "#install", variant: "outline" as const },
   },
   {
@@ -52,7 +52,7 @@ const DESKTOP_STEPS: Array<{ label: string; value: string }> = [
   {
     label: "Run it",
     value:
-      "pnpm dev in one terminal, then pnpm --filter @prepo/desktop dev in another — the shell has nothing to show until the app answers.",
+      "pnpm dev in one terminal, then pnpm --filter @prepo/desktop dev in another, the shell has nothing to show until the app answers.",
   },
   {
     label: "Point it elsewhere",
@@ -66,14 +66,14 @@ export default function DownloadPage() {
     <StaticPage
       eyebrow="Download"
       title="Get Prepo running"
-      intro="Prepo is a web app first, and it can be installed from your browser. The desktop shell is source you build yourself, and there are still no installer files to download — this page says what each option really gives you today."
+      intro="Prepo is a web app first, and it can be installed from your browser. The desktop shell is source you build yourself, and there are still no installer files to download, this page says what each option really gives you today."
     >
       <div className="space-y-14">
         <div className="grid gap-4 md:grid-cols-3">
           {OPTIONS.map((option) => (
             <div
               key={option.title}
-              className="flex flex-col rounded-2xl border border-border bg-surface p-6"
+              className="flex flex-col rounded-3 border border-border bg-surface p-6"
             >
               <option.icon size={22} className="text-accent-ink" />
               <h2 className="mt-4 text-lg font-medium tracking-tight">{option.title}</h2>
@@ -113,7 +113,7 @@ export default function DownloadPage() {
           </div>
           <Prose className="mt-5">
             <p>
-              If no button appears above, the browser has not offered installation — not every
+              If no button appears above, the browser has not offered installation, not every
               browser does, and none of them do on a page that has not been loaded from
               <code>https</code> or <code>localhost</code>. Use the browser&apos;s own menu instead:{" "}
               <em>Install app</em> (or <em>Install Prepo</em>) in Chrome and Edge,{" "}
@@ -122,9 +122,9 @@ export default function DownloadPage() {
             </p>
             <p>
               <strong>What installing does not give you:</strong> your work, offline. The service
-              worker never stores a page it rendered — a browser cache is shared by whoever uses that
+              worker never stores a page it rendered, a browser cache is shared by whoever uses that
               browser profile, so a cached board would be one person&apos;s tickets shown to the next
-              — which means the only thing you get offline is a page that says you are offline, and
+             , which means the only thing you get offline is a page that says you are offline, and
               offers to try again.
             </p>
             <p>
@@ -168,7 +168,7 @@ export default function DownloadPage() {
             <h2>The desktop shell</h2>
             <p>
               <code>apps/desktop</code> is a Tauri 2 shell: a native window around the web app, plus
-              the four things a browser cannot do — a tray menu, a global shortcut (
+              the four things a browser cannot do, a tray menu, a global shortcut (
               <code>Ctrl/⌘ + Shift + R</code> opens the recorder), <code>prepo://</code> links, and
               native notifications. A second launch focuses the open window instead of opening
               another, window position is remembered, and a link to any other site opens in your
@@ -176,8 +176,8 @@ export default function DownloadPage() {
             </p>
             <p>
               It holds no product logic and no data of its own, and{" "}
-              <strong>no command is exposed to the page in the window</strong> — not even to the app
-              it wraps — so nothing the app renders can reach the tray, the filesystem or the
+              <strong>no command is exposed to the page in the window</strong>, not even to the app
+              it wraps, so nothing the app renders can reach the tray, the filesystem or the
               updater. The shell watches the app; the app does not drive the shell.
             </p>
             <p className="text-text-muted">
@@ -198,8 +198,8 @@ export default function DownloadPage() {
           <h2>Running it locally</h2>
           <p>
             The repository is a pnpm monorepo containing the web app, the desktop shell and two
-            small packages. The default database is PGlite — a real Postgres compiled to
-            WebAssembly — so the whole thing runs with no Docker and no database to install.
+            small packages. The default database is PGlite, a real Postgres compiled to
+            WebAssembly, so the whole thing runs with no Docker and no database to install.
           </p>
           <p>
             <code>pnpm install</code> then <code>pnpm --filter @prepo/web db:verify</code> to
@@ -238,8 +238,8 @@ export default function DownloadPage() {
           <h2>Browsers</h2>
           <p>
             Any current version of Chrome, Edge, Firefox or Safari. Pages are server-rendered,
-            and the flows that matter for getting in — sign-in, sign-up, creating a workspace,
-            signing out and revoking a device — are plain HTML forms that submit and work with
+            and the flows that matter for getting in, sign-in, sign-up, creating a workspace,
+            signing out and revoking a device, are plain HTML forms that submit and work with
             JavaScript switched off. The board and the review queue are interactive clients: they
             update optimistically when you drag a ticket or approve an item, so they need
             JavaScript.

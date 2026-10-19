@@ -11,7 +11,7 @@ import { ingestAudio } from "@/server/audio/ingest";
 import { UploadRejected, MAX_AUDIO_BYTES } from "@/server/audio/validate";
 
 /**
- * `POST /api/uploads/audio` — one complete recording.
+ * `POST /api/uploads/audio`, one complete recording.
  *
  * A plain `<form enctype="multipart/form-data">` can post here with JavaScript
  * switched off, which is why the success path is a redirect to the meeting rather
@@ -98,7 +98,7 @@ export async function POST(request: Request): Promise<Response> {
     return fail(request, {
       status: 500,
       back,
-      message: "The recording could not be stored. Nothing was kept — try again.",
+      message: "The recording could not be stored. Nothing was kept, try again.",
     });
   }
 }

@@ -17,7 +17,7 @@ import { runCli } from "../db/run";
  * Two things it cannot do, and says so rather than implying otherwise:
  *
  *   - It cannot run the worker. Whether a fetch policy behaves as written needs a
- *     browser; what is asserted here is the worker's own source — that nothing
+ *     browser; what is asserted here is the worker's own source, that nothing
  *     before the asset cache writes to it, so a navigation is never stored.
  *   - It cannot prove the install prompt appears. `beforeinstallprompt` is
  *     Chromium's decision, taken at runtime, on a secure origin with engagement.
@@ -28,7 +28,7 @@ import { runCli } from "../db/run";
 let failures = 0;
 
 function check(label: string, ok: boolean, detail = ""): void {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`);
+  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? `, ${detail}` : ""}`);
   if (!ok) failures += 1;
 }
 
@@ -270,7 +270,7 @@ async function main(): Promise<void> {
   const precache = precacheList(worker);
   check("the precache list can be read as a list, so it can be reviewed", precache !== null);
   check(
-    "every precached entry is public bytes — no workspace route, no API, no query",
+    "every precached entry is public bytes, no workspace route, no API, no query",
     precache !== null &&
       precache.length > 0 &&
       precache.every((entry) =>

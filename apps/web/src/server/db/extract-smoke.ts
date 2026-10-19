@@ -37,8 +37,8 @@ import { seed } from "./seed";
  *   pnpm --filter @prepo/web db:extract-smoke
  *
  * The provider is a fixture, so everything that depends on the model's *output*
- * is exercised — the prompt, the schema gate, grounding, owner and date
- * resolution, the budget, the write, the audit row, auto-approval — while no
+ * is exercised, the prompt, the schema gate, grounding, owner and date
+ * resolution, the budget, the write, the audit row, auto-approval, while no
  * network call is made. The one thing this suite cannot prove is how well a
  * real model reads a real transcript; that needs a live run and a key.
  *
@@ -49,7 +49,7 @@ import { seed } from "./seed";
 let failures = 0;
 
 function check(label: string, ok: boolean, detail = ""): void {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`);
+  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? `, ${detail}` : ""}`);
   if (!ok) failures += 1;
 }
 
@@ -346,7 +346,7 @@ runCli("extract-smoke.ts", async () => {
 
   const real = await createMeeting({
     workspaceId: northwind,
-    title: "Extraction fixture — Q4 planning",
+    title: "Extraction fixture, Q4 planning",
     heldAt: new Date("2026-10-12T09:00:00.000Z"),
     createdBy: lena.id,
     segments: [
@@ -591,7 +591,7 @@ runCli("extract-smoke.ts", async () => {
 
   const empty = await createMeeting({
     workspaceId: northwind,
-    title: "Extraction fixture — no transcript",
+    title: "Extraction fixture, no transcript",
     heldAt: new Date("2026-10-13T09:00:00.000Z"),
     createdBy: lena.id,
     segments: [],
@@ -616,7 +616,7 @@ runCli("extract-smoke.ts", async () => {
 
   const assist = await createMeeting({
     workspaceId: northwind,
-    title: "Extraction fixture — assist",
+    title: "Extraction fixture, assist",
     heldAt: new Date("2026-10-13T10:00:00.000Z"),
     createdBy: lena.id,
     segments: [
@@ -719,7 +719,7 @@ runCli("extract-smoke.ts", async () => {
 
   const auto = await createMeeting({
     workspaceId: northwind,
-    title: "Extraction fixture — autopilot",
+    title: "Extraction fixture, autopilot",
     heldAt: new Date("2026-10-14T10:00:00.000Z"),
     createdBy: lena.id,
     segments: [{ speaker: "Nadia", text: "The pricing page needs a refresh and the copy needs a refresh too." }],
@@ -776,7 +776,7 @@ runCli("extract-smoke.ts", async () => {
 
   const long = await createMeeting({
     workspaceId: northwind,
-    title: "Extraction fixture — too long",
+    title: "Extraction fixture, too long",
     heldAt: new Date("2026-10-15T09:00:00.000Z"),
     createdBy: lena.id,
     segments: [{ speaker: "Lena", text: "x".repeat(200) }],
@@ -818,7 +818,7 @@ runCli("extract-smoke.ts", async () => {
 
   const invalidMeeting = await createMeeting({
     workspaceId: northwind,
-    title: "Extraction fixture — invalid reply",
+    title: "Extraction fixture, invalid reply",
     heldAt: new Date("2026-10-15T11:00:00.000Z"),
     createdBy: lena.id,
     segments: [{ speaker: "Sam", text: "Let's try the extraction." }],
@@ -861,7 +861,7 @@ runCli("extract-smoke.ts", async () => {
 
   const foreign = await createMeeting({
     workspaceId: globex,
-    title: "Globex fixture — not yours",
+    title: "Globex fixture, not yours",
     heldAt: new Date("2026-10-16T09:00:00.000Z"),
     createdBy: null,
     segments: [{ speaker: "Nadia", text: "Globex internal notes." }],

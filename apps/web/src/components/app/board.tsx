@@ -61,7 +61,7 @@ export function Board({
                 setOver(null);
               }}
               className={cn(
-                "flex min-h-[60vh] flex-col rounded-2xl border bg-surface-2/40",
+                "flex min-h-[60vh] flex-col rounded-3 border bg-surface-2/40",
                 over === column.id ? "border-accent" : "border-border",
               )}
             >
@@ -88,7 +88,7 @@ export function Board({
                       setOver(null);
                     }}
                     className={cn(
-                      "cursor-grab rounded-[10px] border border-border bg-surface p-3 active:cursor-grabbing",
+                      "cursor-grab rounded-2 border border-border bg-surface p-3 active:cursor-grabbing",
                       dragging === ticket.id && "opacity-50",
                     )}
                   >
@@ -108,7 +108,7 @@ export function Board({
                         className={cn(
                           isOverdue(ticket.dueAt) &&
                             ticket.status !== "done" &&
-                            "text-[#b91c1c] dark:text-[#f87171]",
+                            "text-danger",
                         )}
                       >
                         {formatShortDate(ticket.dueAt)}
@@ -124,7 +124,7 @@ export function Board({
                       onChange={(event) =>
                         move(ticket.id, event.target.value as TicketStatusId)
                       }
-                      className="mt-2.5 w-full rounded-[8px] border border-border bg-surface-2 px-2 py-1 text-[11px]"
+                      className="mt-2.5 w-full rounded-1 border border-border bg-surface-2 px-2 py-1 text-[11px]"
                     >
                       {TICKET_STATUSES.map((status) => (
                         <option key={status.id} value={status.id}>
@@ -136,7 +136,7 @@ export function Board({
                 ))}
 
                 {items.length === 0 ? (
-                  <li className="rounded-[10px] border border-dashed border-border px-3 py-6 text-center text-[11px] text-text-subtle">
+                  <li className="rounded-2 border border-dashed border-border px-3 py-6 text-center text-[11px] text-text-subtle">
                     Drop tickets here
                   </li>
                 ) : null}

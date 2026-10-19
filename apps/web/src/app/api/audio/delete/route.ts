@@ -3,7 +3,7 @@ import { removeAudioBlob } from "@/server/audio/retention";
 import { markAudioDeleted } from "@/server/writes";
 
 /**
- * `POST /api/audio/delete` — destroy the recording, keep the transcript.
+ * `POST /api/audio/delete`, destroy the recording, keep the transcript.
  *
  * This is the "delete a meeting and all derived data including audio" control at
  * its smallest useful size (PREPO.md §8.9), and it is also what a person reaches

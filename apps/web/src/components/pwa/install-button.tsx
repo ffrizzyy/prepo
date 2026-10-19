@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
  * the page's written instructions are the whole story.
  *
  * The event is captured in the root layout, before hydration, because Chromium can
- * fire it while the page is still loading — a listener attached in `useEffect`
+ * fire it while the page is still loading, a listener attached in `useEffect`
  * would miss it and the button would simply never appear.
  */
 

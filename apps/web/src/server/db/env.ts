@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 /**
  * The Next server loads `.env.local` on its own; the `db:*` scripts run through
  * plain tsx and do not. Without this a key would look configured in the app and
- * be missing from the job that actually sends — the worst kind of half-set-up,
+ * be missing from the job that actually sends, the worst kind of half-set-up,
  * because the symptom is a failed row rather than a refused start.
  *
  * Loaded once, and never over an existing value, so

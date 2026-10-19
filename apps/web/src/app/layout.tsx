@@ -8,7 +8,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: `${BRAND.name} — ${BRAND.tagline}`,
+    default: `${BRAND.name}, ${BRAND.tagline}`,
     template: `%s · ${BRAND.name}`,
   },
   description: BRAND.description,
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   // this is not a hosted domain today.
   metadataBase: new URL(siteUrl()),
   openGraph: {
-    title: `${BRAND.name} — ${BRAND.tagline}`,
+    title: `${BRAND.name}, ${BRAND.tagline}`,
     description: BRAND.description,
     type: "website",
   },

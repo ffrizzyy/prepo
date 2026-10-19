@@ -35,7 +35,7 @@ function ttl(): Date {
 }
 
 /**
- * Every sign-in creates a new row and a new token — sessions are rotated on
+ * Every sign-in creates a new row and a new token, sessions are rotated on
  * login, and the old token is never reused (§9.3 A07). Only the hash is stored,
  * so the returned token is the single moment the plaintext exists.
  */

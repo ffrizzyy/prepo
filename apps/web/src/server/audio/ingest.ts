@@ -34,7 +34,7 @@ import {
 export const DEFAULT_TRANSCRIPTION_MINUTES_CAP = 300;
 
 export const NOT_CONFIGURED_DETAIL =
-  "Audio stored. Speech-to-text is not configured on this deployment, so there is no transcript yet — upload or paste one instead, or set DEEPGRAM_API_KEY and retry.";
+  "Audio stored. Speech-to-text is not configured on this deployment, so there is no transcript yet, upload or paste one instead, or set DEEPGRAM_API_KEY and retry.";
 
 export type IngestAudioInput = {
   workspaceId: string;
@@ -318,7 +318,7 @@ export async function retryTranscription(input: {
       configured: true,
       audioStatus: "failed",
       transcribed: false,
-      detail: "The audio bytes are gone — retention may have deleted them. Upload the recording again or paste the transcript.",
+      detail: "The audio bytes are gone, retention may have deleted them. Upload the recording again or paste the transcript.",
     };
   }
 

@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 /**
- * RFC 6238 TOTP, with SHA-1 and six digits — the pair every authenticator app
+ * RFC 6238 TOTP, with SHA-1 and six digits, the pair every authenticator app
  * defaults to. Verified against the RFC's own test vectors in `db:auth` rather
  * than trusting the implementation because it looks right.
  */
@@ -48,7 +48,7 @@ export function base32Decode(input: string): Buffer {
   return Buffer.from(bytes);
 }
 
-/**160 bits of secret — thirty base32 characters, like an authenticator expects. */
+/**160 bits of secret, thirty base32 characters, like an authenticator expects. */
 export function generateTotpSecret(): string {
   return base32Encode(randomBytes(20));
 }

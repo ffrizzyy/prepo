@@ -6,7 +6,7 @@ import { runCli } from "./run";
  *
  * A key being present and a key working are different claims, and this prints
  * them separately. `--live` makes one minimal authenticated request per
- * configured provider. That proves the credential is accepted — it does **not**
+ * configured provider. That proves the credential is accepted, it does **not**
  * prove an email reaches an inbox, and the checks are chosen so nothing is sent,
  * nothing is billed and no audio is transcribed.
  *
@@ -54,14 +54,14 @@ async function liveCheck({ url, init, describe }: Live) {
     if (!response.ok) {
       return {
         ok: false,
-        detail: `refused (${response.status}) — ${message(body, text.slice(0, 160))}`,
+        detail: `refused (${response.status}), ${message(body, text.slice(0, 160))}`,
       };
     }
 
     return { ok: true, detail: describe(body) };
   } catch (error) {
     const reason = error instanceof Error ? error.message : "unknown error";
-    return { ok: false, detail: `unreachable — ${reason}` };
+    return { ok: false, detail: `unreachable, ${reason}` };
   }
 }
 
@@ -79,7 +79,7 @@ const PROBES: Probe[] = [
     variable: "DEEPGRAM_API_KEY",
     what: "speech-to-text (milestone 4)",
     unconfigured:
-      "recordings are stored but nothing is sent anywhere — upload or paste a transcript instead",
+      "recordings are stored but nothing is sent anywhere, upload or paste a transcript instead",
     live: (key) => ({
       url: "https://api.deepgram.com/v1/projects",
       init: { headers: { Authorization: `Token ${key}` } },
@@ -103,7 +103,7 @@ const PROBES: Probe[] = [
           (body as { data?: { name?: string; status?: string }[] } | null)?.data ?? [];
         const verified = domains.filter((domain) => domain.status === "verified");
         if (domains.length === 0) {
-          return "key accepted · no sending domain — only Resend's own test sender can deliver, and only to your account address";
+          return "key accepted · no sending domain, only Resend's own test sender can deliver, and only to your account address";
         }
         return `key accepted · ${domains.length} domain(s), ${verified.length} verified${
           verified.length ? ` (${verified.map((domain) => domain.name).join(", ")})` : ""
@@ -116,7 +116,7 @@ const PROBES: Probe[] = [
     variable: "OPENROUTER_API_KEY",
     what: "meeting → tickets extraction (milestone 7)",
     unconfigured:
-      "expected — extraction is refused, and the meeting page names the missing variable",
+      "expected, extraction is refused, and the meeting page names the missing variable",
     live: (key) => ({
       url: "https://openrouter.ai/api/v1/key",
       init: { headers: { Authorization: `Bearer ${key}` } },
@@ -144,7 +144,7 @@ const PROBES: Probe[] = [
     name: "linear",
     variable: "LINEAR_API_KEY",
     what: "two-way ticket sync (milestone 6)",
-    unconfigured: "expected — the integrations page refuses to connect without one",
+    unconfigured: "expected, the integrations page refuses to connect without one",
     live: (key) => ({
       url: "https://api.linear.app/graphql",
       init: {
@@ -206,7 +206,7 @@ runCli("providers.ts", async () => {
 
   const configured = PROBES.filter((probe) => probe.live && env[probe.variable]?.trim());
   if (configured.length === 0) {
-    console.log("nothing to check — no provider key is set");
+    console.log("nothing to check, no provider key is set");
     return;
   }
 
@@ -220,7 +220,7 @@ runCli("providers.ts", async () => {
   console.log("");
   console.log(
     failed === 0
-      ? "Every configured key was accepted. Acceptance is not delivery: an email still has to arrive and a recording still has to transcribe — the suites cover those once a key is set."
+      ? "Every configured key was accepted. Acceptance is not delivery: an email still has to arrive and a recording still has to transcribe, the suites cover those once a key is set."
       : `${failed} key(s) were refused or unreachable, so nothing in the app can use them yet.`,
   );
 

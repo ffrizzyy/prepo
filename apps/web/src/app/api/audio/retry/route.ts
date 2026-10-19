@@ -2,7 +2,7 @@ import { appendParam, meetingUrl, readAssetAction, succeed } from "@/server/audi
 import { retryTranscription } from "@/server/audio/ingest";
 
 /**
- * `POST /api/audio/retry` — run the provider again for a recording that failed.
+ * `POST /api/audio/retry`, run the provider again for a recording that failed.
  *
  * When no provider is configured this reports that plainly instead of pretending
  * to retry, and the interface offers the transcript route alongside it

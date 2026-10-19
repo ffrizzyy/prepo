@@ -2,7 +2,7 @@ import { appendParam, fail, meetingUrl, requireRouteWorkspace, succeed } from "@
 import { mapSpeaker } from "@/server/writes";
 
 /**
- * `POST /api/meetings/speakers` — map a transcript label to a person.
+ * `POST /api/meetings/speakers`, map a transcript label to a person.
  *
  * A plain form post, so a mislabelled speaker can be corrected with JavaScript
  * switched off, and the result is a redirect back to the transcript tab rather

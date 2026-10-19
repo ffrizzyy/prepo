@@ -63,7 +63,7 @@ export function HeroPreview() {
           <div className="flex items-center gap-2">
             <span className="inline-flex size-2 rounded-full bg-accent" />
             <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-subtle">
-              Q4 Launch — Weekly Sync
+              Q4 Launch, Weekly Sync
             </span>
           </div>
           <span className="rounded-full bg-accent-soft px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-accent-ink">

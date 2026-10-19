@@ -172,7 +172,7 @@ export async function verify(): Promise<boolean> {
 
   const failed = checks.filter((entry) => !entry.pass);
   for (const entry of checks) {
-    console.log(`${entry.pass ? "PASS" : "FAIL"}  ${entry.name} — ${entry.detail}`);
+    console.log(`${entry.pass ? "PASS" : "FAIL"}  ${entry.name}, ${entry.detail}`);
   }
   console.log(
     `\n${checks.length - failed.length}/${checks.length} checks passed`,

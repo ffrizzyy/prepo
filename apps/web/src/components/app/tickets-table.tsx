@@ -57,7 +57,7 @@ export function TicketsTable({
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search tickets"
             aria-label="Search tickets"
-            className="h-10 w-full rounded-[10px] border border-border bg-surface pl-9 pr-3 text-sm placeholder:text-text-subtle"
+            className="h-10 w-full rounded-2 border border-border bg-surface pl-9 pr-3 text-sm placeholder:text-text-subtle"
           />
         </div>
 
@@ -65,7 +65,7 @@ export function TicketsTable({
           value={status}
           onChange={(event) => setStatus(event.target.value)}
           aria-label="Filter by status"
-          className="h-10 rounded-[10px] border border-border bg-surface px-3 text-sm"
+          className="h-10 rounded-2 border border-border bg-surface px-3 text-sm"
         >
           <option value="all">All statuses</option>
           {TICKET_STATUSES.map((item) => (
@@ -79,7 +79,7 @@ export function TicketsTable({
           value={priority}
           onChange={(event) => setPriority(event.target.value)}
           aria-label="Filter by priority"
-          className="h-10 rounded-[10px] border border-border bg-surface px-3 text-sm"
+          className="h-10 rounded-2 border border-border bg-surface px-3 text-sm"
         >
           <option value="all">All priorities</option>
           {PRIORITIES.map((item) => (
@@ -92,7 +92,7 @@ export function TicketsTable({
         <label className="sr-only" htmlFor="sort">
           Sort tickets
         </label>
-        <div className="inline-flex items-center gap-2 rounded-[10px] border border-border bg-surface px-3">
+        <div className="inline-flex items-center gap-2 rounded-2 border border-border bg-surface px-3">
           <ArrowsDownUp size={14} className="text-text-subtle" aria-hidden />
           <select
             id="sort"
@@ -154,7 +154,7 @@ export function TicketsTable({
                         className={cn(
                           "font-mono text-xs",
                           isOverdue(ticket.dueAt) && ticket.status !== "done"
-                            ? "text-[#b91c1c] dark:text-[#f87171]"
+                            ? "text-danger"
                             : "text-text-muted",
                         )}
                       >

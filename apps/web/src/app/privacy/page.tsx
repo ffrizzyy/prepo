@@ -19,10 +19,10 @@ export default function PrivacyPage() {
       eyebrow="Privacy"
       title="Privacy, in plain terms"
       intro="There is no analytics script, no tracker, no third-party embed and no mail provider in this app. This page lists what the database actually holds, because it is short enough to list."
-      updated="Last reviewed with milestone 3 — two-factor sign-in"
+      updated="Last reviewed with milestone 3, two-factor sign-in"
     >
       <div className="space-y-12">
-        <Callout title="The demo holds fictional data — please keep it fictional">
+        <Callout title="The demo holds fictional data, please keep it fictional">
           <p>
             The hosted instance is a portfolio deployment. Every workspace in it comes from the
             seed script: two invented companies, invented people, invented meetings. Please do
@@ -44,7 +44,7 @@ export default function PrivacyPage() {
                 },
                 {
                   label: "Sessions",
-                  value: "A device label derived from your user agent, a hash of that user agent, a truncated network prefix, and the time it was last used — one row per sign-in, so it can be revoked per device",
+                  value: "A device label derived from your user agent, a hash of that user agent, a truncated network prefix, and the time it was last used, one row per sign-in, so it can be revoked per device",
                 },
                 {
                   label: "Security events",
@@ -56,7 +56,7 @@ export default function PrivacyPage() {
                 },
                 {
                   label: "Cookies",
-                  value: "One session cookie, and — mid-sign-in only — one short-lived challenge cookie. Both HttpOnly; there is no analytics or advertising cookie",
+                  value: "One session cookie, and, mid-sign-in only, one short-lived challenge cookie. Both HttpOnly; there is no analytics or advertising cookie",
                 },
               ]}
             />
@@ -77,8 +77,8 @@ export default function PrivacyPage() {
           <h2>How long it is kept</h2>
           <p>
             Sessions expire after 30 days, or after 7 days of not being used, whichever comes
-            first, and revocation takes effect immediately. A half-finished sign-in — the state
-            between a correct password and a two-factor code — disappears in five minutes.
+            first, and revocation takes effect immediately. A half-finished sign-in, the state
+            between a correct password and a two-factor code, disappears in five minutes.
             Security events are append-only by design, which is what makes the rate limiting
             trustworthy, so they are the longest-lived record in the system.
           </p>

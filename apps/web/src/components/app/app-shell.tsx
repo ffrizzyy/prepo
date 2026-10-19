@@ -152,7 +152,7 @@ function Sidebar({
       )}
     >
       <div className="flex h-16 items-center gap-2 px-4">
-        <span className="grid size-7 shrink-0 place-items-center rounded-[8px] bg-accent text-sm font-semibold text-accent-fg">
+        <span className="grid size-7 shrink-0 place-items-center rounded-1 bg-accent text-sm font-semibold text-accent-fg">
           P
         </span>
         {!collapsed ? (
@@ -185,7 +185,7 @@ function Sidebar({
         <button
           type="button"
           onClick={onToggle}
-          className="flex w-full items-center justify-center gap-2 rounded-[10px] px-3 py-2 text-xs text-text-muted hover:bg-surface-2 hover:text-text"
+          className="flex w-full items-center justify-center gap-2 rounded-2 px-3 py-2 text-xs text-text-muted hover:bg-surface-2 hover:text-text"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? "»" : "« Collapse"}
@@ -216,7 +216,7 @@ function NavLink({
       aria-current={active ? "page" : undefined}
       title={collapsed ? label : undefined}
       className={cn(
-        "flex items-center gap-3 rounded-[10px] px-3 py-2 text-sm transition-colors",
+        "flex items-center gap-3 rounded-2 px-3 py-2 text-sm transition-colors",
         collapsed && "justify-center px-0",
         active
           ? "bg-accent-soft font-medium text-accent-ink"
@@ -256,7 +256,7 @@ function Topbar({
       <button
         type="button"
         onClick={onToggleSidebar}
-        className="hidden size-9 items-center justify-center rounded-[10px] text-text-muted hover:bg-surface-2 hover:text-text lg:inline-flex"
+        className="hidden size-9 items-center justify-center rounded-2 text-text-muted hover:bg-surface-2 hover:text-text lg:inline-flex"
         aria-label="Toggle sidebar"
       >
         ☰
@@ -272,7 +272,7 @@ function Topbar({
       <button
         type="button"
         onClick={onOpenPalette}
-        className="ml-auto hidden h-9 w-64 items-center gap-2 rounded-[10px] border border-border bg-surface-2 px-3 text-sm text-text-subtle hover:bg-surface md:flex"
+        className="ml-auto hidden h-9 w-64 items-center gap-2 rounded-2 border border-border bg-surface-2 px-3 text-sm text-text-subtle hover:bg-surface md:flex"
       >
         <MagnifyingGlass size={15} aria-hidden />
         <span className="flex-1 text-left">Search or jump to…</span>
@@ -284,7 +284,7 @@ function Topbar({
       <button
         type="button"
         onClick={onOpenPalette}
-        className="ml-auto inline-flex size-9 items-center justify-center rounded-[10px] text-text-muted hover:bg-surface-2 hover:text-text md:hidden"
+        className="ml-auto inline-flex size-9 items-center justify-center rounded-2 text-text-muted hover:bg-surface-2 hover:text-text md:hidden"
         aria-label="Search"
       >
         <MagnifyingGlass size={18} />
@@ -292,7 +292,7 @@ function Topbar({
 
       <a
         href={`/${workspace}/notifications`}
-        className="relative inline-flex size-9 items-center justify-center rounded-[10px] text-text-muted hover:bg-surface-2 hover:text-text"
+        className="relative inline-flex size-9 items-center justify-center rounded-2 text-text-muted hover:bg-surface-2 hover:text-text"
         aria-label={
           unreadCount > 0
             ? `Notifications, ${unreadCount} unread`
@@ -340,13 +340,13 @@ function BottomNav({
   return (
     <>
       {moreOpen ? (
-        <div className="fixed inset-x-0 bottom-16 z-40 mx-3 rounded-2xl border border-border bg-surface p-2 shadow-lg lg:hidden">
+        <div className="fixed inset-x-0 bottom-16 z-40 mx-3 rounded-3 border border-border bg-surface p-2 shadow-lg lg:hidden">
           {secondary.map((item) => (
             <a
               key={item.href}
               href={item.href}
               onClick={onToggleMore}
-              className="flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm text-text-muted hover:bg-surface-2 hover:text-text"
+              className="flex items-center gap-3 rounded-2 px-3 py-2.5 text-sm text-text-muted hover:bg-surface-2 hover:text-text"
             >
               <item.icon size={18} aria-hidden />
               {item.label}
@@ -425,7 +425,7 @@ function CommandPalette({
       onClick={() => onOpenChange(false)}
     >
       <div
-        className="w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-surface shadow-xl"
+        className="w-full max-w-lg overflow-hidden rounded-3 border border-border bg-surface shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <input
@@ -451,7 +451,7 @@ function CommandPalette({
                   router.push(item.href);
                   onOpenChange(false);
                 }}
-                className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2 text-left text-sm text-text-muted hover:bg-surface-2 hover:text-text"
+                className="flex w-full items-center gap-3 rounded-2 px-3 py-2 text-left text-sm text-text-muted hover:bg-surface-2 hover:text-text"
               >
                 <item.icon size={16} aria-hidden />
                 {item.label}

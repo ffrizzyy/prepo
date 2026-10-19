@@ -24,7 +24,7 @@
     if (!offline) return;
     offline.hidden = false;
     fact("fact-url", appUrl || "not configured");
-    fact("fact-version", `Prepo Desktop ${config.version || "0.0.0"}${reason ? ` — ${reason}` : ""}`);
+    fact("fact-version", `Prepo Desktop ${config.version || "0.0.0"}${reason ? `, ${reason}` : ""}`);
     fact("fact-platform", config.platform || "unknown");
     for (const element of document.querySelectorAll("[data-app-url]")) {
       element.textContent = appUrl;

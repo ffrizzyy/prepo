@@ -41,7 +41,7 @@ function Notice({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-2 rounded-[10px] border border-border bg-surface-2 px-3 py-2.5">
+    <div className="flex items-start gap-2 rounded-2 border border-border bg-surface-2 px-3 py-2.5">
       <Warning size={16} className="mt-0.5 shrink-0 text-accent-ink" aria-hidden />
       <p className="max-w-[70ch] text-xs leading-relaxed text-text-muted">
         {children}
@@ -114,7 +114,7 @@ export default async function IntegrationsPage({
                   Connecting is what turns the queue on: until a token is stored,
                   a board move or an approved action item changes Prepo and
                   touches nothing else. Nothing is written to Linear during
-                  sign-in — issues are only ever created by a push.
+                  sign-in, issues are only ever created by a push.
                 </p>
               </div>
             </Card>
@@ -126,7 +126,7 @@ export default async function IntegrationsPage({
                     <Row label="Status">
                       <span className="inline-flex items-center gap-1.5">
                         <span
-                          className="h-1.5 w-1.5 rounded-full bg-[#15803d] dark:bg-[#4ade80]"
+                          className="h-1.5 w-1.5 rounded-full bg-success"
                           aria-hidden
                         />
                         Connected
@@ -293,7 +293,7 @@ export default async function IntegrationsPage({
                     events. Linear needs the full address, so this is what to
                     paste:
                   </p>
-                  <p className="break-all rounded-[10px] border border-border bg-surface-2 px-2.5 py-2 font-mono text-xs">
+                  <p className="break-all rounded-2 border border-border bg-surface-2 px-2.5 py-2 font-mono text-xs">
                     {webhookUrl}
                   </p>
                   {appUrl ? null : (
@@ -391,7 +391,7 @@ export default async function IntegrationsPage({
                   <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">
                     pnpm --filter @prepo/web db:linear
                   </code>
-                  , for a scheduler — or the Sync now button on this page once
+                  , for a scheduler, or the Sync now button on this page once
                   the connection exists.
                 </li>
                 <li>

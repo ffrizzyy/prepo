@@ -481,14 +481,14 @@ export type ApplyResult =
   | "unlinked";
 
 /**
- * The single place a remote change becomes a Prepo change — used by the pull and
+ * The single place a remote change becomes a Prepo change, used by the pull and
  * by the webhook route, so the two cannot disagree.
  *
  * Only the fields actually present are touched (`undefined` means "not
  * mentioned"). In Prepo-first mode a ticket with an unsent local change keeps
  * it and the remote edit is recorded as overridden; in Linear-first mode Linear
  * also owns title, priority and due date. An unmapped Linear state (its
- * `canceled`) leaves the status alone and says so — it does not pretend the work
+ * `canceled`) leaves the status alone and says so, it does not pretend the work
  * was finished.
  */
 export async function applyRemoteChange(
@@ -736,7 +736,7 @@ async function readOrigin(
 export type PushOutcome = { ok: boolean; detail: string; issueUrl?: string };
 
 /**
- * Sends one ticket to Linear — creating the issue the first time, updating it
+ * Sends one ticket to Linear, creating the issue the first time, updating it
  * after. Every failure is recorded on the ticket (with a backoff) rather than
  * swallowed, and the in-app ticket is never rolled back because Linear refused.
  */

@@ -7,7 +7,7 @@ import { z } from "zod";
  * - `EXTRACTION_JSON_SCHEMA` is sent to the provider as a response schema, so a
  *   model that supports structured outputs is constrained while it generates.
  * - `rawExtractionSchema` validates the reply on arrival, so a model that only
- *   supports JSON mode — or ignores the schema — still has to pass the same gate.
+ *   supports JSON mode, or ignores the schema, still has to pass the same gate.
  *
  * Optional-in-practice fields degrade (`priority` falls back to p2, `confidence`
  * to 0.5) because a wrong enum is a preference, not a fact. Structural fields do
@@ -38,7 +38,7 @@ export type RawExtraction = z.infer<typeof rawExtractionSchema>;
 /**
  * OpenAI-style strict JSON Schema. Every property is required (nullability is
  * expressed with a nullable type), because that is what strict structured-output
- * mode demands — and it is also the stricter contract.
+ * mode demands, and it is also the stricter contract.
  */
 export const EXTRACTION_JSON_SCHEMA = {
   type: "object",

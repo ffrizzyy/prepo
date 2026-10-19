@@ -680,7 +680,7 @@ export async function retryTicketSync(input: {
 
 /**
  * Runs one pass now, in the request. This is the same function the scheduler
- * runs, so pressing the button proves what the cron would do — but it is a
+ * runs, so pressing the button proves what the cron would do, but it is a
  * request that makes network calls, so it is offered rather than automatic.
  */
 export async function syncLinearNow(input: {

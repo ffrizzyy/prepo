@@ -17,7 +17,7 @@ import * as t from "./db/schema";
  */
 
 export type ActionItemView = ActionItem & {
-  /** The transcript line the item was extracted from — the evidence shown in review. */
+  /** The transcript line the item was extracted from, the evidence shown in review. */
   sourceQuote: string | null;
   sourceQuoteAtMs: number | null;
 };
@@ -388,7 +388,7 @@ export async function listFollowupsView(
       .select(followupSelection)
       .from(t.followups)
       // The digest belongs to the workspace, not a ticket, so this join has to be
-      // a left join — an inner one would hide every digest.
+      // a left join, an inner one would hide every digest.
       .leftJoin(t.tickets, eq(t.tickets.id, t.followups.ticketId))
       .leftJoin(t.users, eq(t.users.id, t.followups.recipientId))
       .orderBy(asc(t.followups.scheduledFor))
@@ -511,7 +511,7 @@ export type MeetingAudioView = {
   sizeBytes: number | null;
   deleteAfter: string | null;
   consentName: string | null;
-  /** Whether the bytes are actually in storage — the seeded example has none. */
+  /** Whether the bytes are actually in storage, the seeded example has none. */
   available: boolean;
 };
 

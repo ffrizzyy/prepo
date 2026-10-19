@@ -544,7 +544,7 @@ runCli("auth-smoke.ts", async () => {
 
   const failed = checks.filter((entry) => !entry.pass);
   for (const entry of checks) {
-    console.log(`${entry.pass ? "PASS" : "FAIL"}  ${entry.name} — ${entry.detail}`);
+    console.log(`${entry.pass ? "PASS" : "FAIL"}  ${entry.name}, ${entry.detail}`);
   }
   console.log(
     `\n${checks.length - failed.length}/${checks.length} auth checks passed`,

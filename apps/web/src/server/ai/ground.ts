@@ -295,7 +295,7 @@ function clamp01(value: number): number {
  * Clarity is arithmetic over what was actually extracted, not a second model
  * opinion: owners 45%, deadlines 35%, at least one settled decision 20%. A
  * meeting with nothing extracted scores 0, which is why an unscored meeting
- * shows "—" rather than 0 in the UI.
+ * shows "Not scored" in the UI rather than a zero it did not earn.
  */
 export function clarityScore(items: GroundedItem[], decisions: string[]): number {
   const total = items.length;

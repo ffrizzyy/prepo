@@ -37,7 +37,7 @@ export function AutonomySelect({
           aria-pressed={optimistic === level.id}
           onClick={() => choose(level.id)}
           className={cn(
-            "flex w-full items-start gap-3 rounded-[10px] border px-3 py-2.5 text-left transition-colors",
+            "flex w-full items-start gap-3 rounded-2 border px-3 py-2.5 text-left transition-colors",
             optimistic === level.id
               ? "border-accent bg-accent-soft/50"
               : "border-border hover:bg-surface-2",
@@ -102,7 +102,7 @@ export function RetentionSelect({
           aria-pressed={optimistic === choice.days}
           onClick={() => choose(choice.days)}
           className={cn(
-            "flex w-full items-center gap-3 rounded-[10px] border px-3 py-2.5 text-left text-sm transition-colors",
+            "flex w-full items-center gap-3 rounded-2 border px-3 py-2.5 text-left text-sm transition-colors",
             optimistic === choice.days
               ? "border-accent bg-accent-soft/50"
               : "border-border hover:bg-surface-2",
@@ -143,7 +143,7 @@ export function ToneSelect({
     <div
       role="group"
       aria-label="Follow-up tone"
-      className="inline-flex rounded-[10px] border border-border bg-surface-2 p-1 text-sm"
+      className="inline-flex rounded-2 border border-border bg-surface-2 p-1 text-sm"
     >
       {TONES.map((tone) => (
         <button
@@ -152,7 +152,7 @@ export function ToneSelect({
           aria-pressed={optimistic === tone.id}
           onClick={() => choose(tone.id)}
           className={cn(
-            "rounded-[8px] px-3 py-1.5 transition-colors",
+            "rounded-1 px-3 py-1.5 transition-colors",
             optimistic === tone.id
               ? "bg-surface shadow-sm"
               : "text-text-muted hover:text-text",

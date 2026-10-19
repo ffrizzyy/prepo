@@ -17,7 +17,7 @@ function CaptureVisual() {
   return (
     <div className="space-y-2.5">
       {lines.map((line) => (
-        <div key={line.text} className="rounded-[10px] bg-surface p-3 text-xs">
+        <div key={line.text} className="rounded-2 bg-surface p-3 text-xs">
           <span className="font-mono text-[10px] uppercase tracking-wide text-accent-ink">
             {line.speaker}
           </span>
@@ -31,17 +31,17 @@ function CaptureVisual() {
 function FollowUpVisual() {
   return (
     <div className="space-y-3">
-      <div className="flex items-start gap-2 rounded-[10px] bg-surface p-3 text-xs">
+      <div className="flex items-start gap-2 rounded-2 bg-surface p-3 text-xs">
         <BellRinging size={16} className="mt-0.5 shrink-0 text-accent-ink" />
         <div>
           <p className="text-text">Reminder: “Fix the checkout webhook retry bug” is due today.</p>
           <p className="mt-1 font-mono text-[10px] text-text-subtle">to Priya · email + in-app</p>
         </div>
       </div>
-      <div className="flex items-start gap-2 rounded-[10px] bg-[#b91c1c]/10 p-3 text-xs">
-        <BellRinging size={16} className="mt-0.5 shrink-0 text-[#b91c1c] dark:text-[#f87171]" />
+      <div className="flex items-start gap-2 rounded-2 bg-danger/10 p-3 text-xs">
+        <BellRinging size={16} className="mt-0.5 shrink-0 text-danger" />
         <div>
-          <p className="text-text">Overdue +3 days — escalating to the meeting organizer.</p>
+          <p className="text-text">Overdue +3 days, escalating to the meeting organizer.</p>
           <p className="mt-1 font-mono text-[10px] text-text-subtle">to Lena · email</p>
         </div>
       </div>
@@ -59,7 +59,7 @@ const STEPS = [
   {
     n: "02",
     title: "Extract & ticket",
-    body: "Owners, deadlines, and priorities become tickets — grounded in the exact quote. Connect Linear and the issues mirror across.",
+    body: "Owners, deadlines, and priorities become tickets, grounded in the exact quote. Connect Linear and the issues mirror across.",
     visual: (
       <ActionItemCard
         item={FOUNDATION_ITEM}
@@ -95,7 +95,7 @@ export function HowItWorks() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.5, delay: index * 0.1, ease: [0.16, 1, 0.3, 1] }}
-            className="flex flex-col rounded-2xl border border-border bg-surface-2/50 p-5"
+            className="flex flex-col rounded-3 border border-border bg-surface-2/50 p-5"
           >
             <span className="font-mono text-xs text-text-subtle">{step.n}</span>
             <h3 className="mt-2 text-xl font-medium tracking-tight">{step.title}</h3>

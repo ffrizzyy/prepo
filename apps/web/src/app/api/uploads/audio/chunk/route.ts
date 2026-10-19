@@ -13,7 +13,7 @@ import { beginUpload, clearUpload, readUploadMeta, readStagedUpload, appendChunk
 import { MAX_CHUNK_BYTES, UploadRejected } from "@/server/audio/validate";
 
 /**
- * `POST /api/uploads/audio/chunk` — a recording arriving in pieces.
+ * `POST /api/uploads/audio/chunk`, a recording arriving in pieces.
  *
  * The browser recorder posts a piece at a time, so a dropped connection costs one
  * piece rather than the whole meeting (PREPO.md §6.1). Pieces are staged on disk
@@ -86,7 +86,7 @@ export async function POST(request: Request): Promise<Response> {
     } else if (!(await readUploadMeta(uploadId))) {
       // The first piece never landed (a reload, a new device): start over rather
       // than appending into someone else's take.
-      return json({ error: "That recording session has expired — start again." }, 409);
+      return json({ error: "That recording session has expired, start again." }, 409);
     }
 
     const received = await appendChunk(uploadId, index, new Uint8Array(await chunk.arrayBuffer()));
@@ -127,6 +127,6 @@ export async function POST(request: Request): Promise<Response> {
       return fail(request, { status: 400, back, message: error.message });
     }
     console.error("chunked upload failed", error);
-    return json({ error: "The recording could not be stored. Nothing was kept — try again." }, 500);
+    return json({ error: "The recording could not be stored. Nothing was kept, try again." }, 500);
   }
 }

@@ -18,7 +18,7 @@ function Cell({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-border p-6",
+        "relative overflow-hidden rounded-3 border border-border p-6",
         className,
       )}
     >
@@ -51,7 +51,7 @@ export function Features() {
               (line, index) => (
                 <div
                   key={line}
-                  className="flex items-center gap-2.5 rounded-[10px] border border-border bg-surface-2/60 px-3 py-2.5 text-sm"
+                  className="flex items-center gap-2.5 rounded-2 border border-border bg-surface-2/60 px-3 py-2.5 text-sm"
                 >
                   <span className="font-mono text-[10px] text-text-subtle">
                     {`PRE-14${2 + index}`}
@@ -104,7 +104,7 @@ export function Features() {
             <h3 className="mt-4 text-xl font-medium tracking-tight">Ask Prepo</h3>
             <p className="mt-2 text-sm leading-relaxed text-text-muted">
               Ask questions across every meeting and ticket and get cited answers that
-              open the source line — and the audio moment.
+              open the source line, and the audio moment.
             </p>
           </div>
         </Cell>

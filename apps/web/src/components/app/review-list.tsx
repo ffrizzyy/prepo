@@ -63,7 +63,7 @@ export function ReviewList({
   return (
     <div className="space-y-3">
       {showBulk && eligible.length > 0 ? (
-        <div className="flex items-center justify-between gap-3 rounded-[10px] bg-surface-2 px-3 py-2 text-xs text-text-muted">
+        <div className="flex items-center justify-between gap-3 rounded-2 bg-surface-2 px-3 py-2 text-xs text-text-muted">
           <span>
             {eligible.length} high-confidence items can be approved at once
           </span>
@@ -82,7 +82,7 @@ export function ReviewList({
         {shown.map((item) => (
           <li
             key={item.id}
-            className="rounded-2xl border border-border bg-surface p-4"
+            className="rounded-3 border border-border bg-surface p-4"
           >
             <div className="flex items-start justify-between gap-3">
               <p className="text-sm font-medium">{item.title}</p>
@@ -105,7 +105,7 @@ export function ReviewList({
             </div>
 
             {item.sourceQuote ? (
-              <blockquote className="mt-3 rounded-[10px] border-l-2 border-accent bg-accent-soft/50 px-3 py-2 text-xs leading-relaxed text-text-muted">
+              <blockquote className="mt-3 rounded-2 border-l-2 border-accent bg-accent-soft/50 px-3 py-2 text-xs leading-relaxed text-text-muted">
                 “{item.sourceQuote}”
                 {item.sourceQuoteAtMs !== null ? (
                   <span className="ml-1.5 font-mono text-[10px] text-accent-ink">

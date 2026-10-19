@@ -12,8 +12,8 @@ import { Card, EmptyState } from "./page-header";
  *
  * The synced player is the reason the audio route supports byte ranges: clicking
  * a line seeks, and the line under the playhead is highlighted as it goes. When
- * there is no audio — the seeded example is a real row whose bytes were never
- * shipped — the transcript still reads as a transcript, because that is the part
+ * there is no audio, the seeded example is a real row whose bytes were never
+ * shipped, the transcript still reads as a transcript, because that is the part
  * that survives retention anyway.
  */
 
@@ -137,7 +137,7 @@ export function TranscriptPanel({
               <div
                 role="group"
                 aria-label="Playback speed"
-                className="inline-flex rounded-[10px] border border-border bg-surface-2 p-0.5 text-xs"
+                className="inline-flex rounded-2 border border-border bg-surface-2 p-0.5 text-xs"
               >
                 {RATES.map((candidate) => (
                   <button
@@ -146,7 +146,7 @@ export function TranscriptPanel({
                     aria-pressed={rate === candidate}
                     onClick={() => changeRate(candidate)}
                     className={cn(
-                      "rounded-[8px] px-2 py-1 transition-colors",
+                      "rounded-1 px-2 py-1 transition-colors",
                       rate === candidate ? "bg-surface text-text" : "text-text-muted hover:text-text",
                     )}
                   >
@@ -159,7 +159,7 @@ export function TranscriptPanel({
             <p className="text-sm leading-relaxed text-text-muted">
               The transcript is stored, but this meeting has no audio bytes to play. The seeded
               example is a real audio record whose file was never shipped, and retention also
-              removes the bytes while leaving the transcript — this is what that looks like.
+              removes the bytes while leaving the transcript, this is what that looks like.
             </p>
           )}
 
@@ -177,7 +177,7 @@ export function TranscriptPanel({
                 <input type="hidden" name="assetId" value={audio.id} />
                 <button
                   type="submit"
-                  className="rounded-[8px] border border-border px-2.5 py-1 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text"
+                  className="rounded-1 border border-border px-2.5 py-1 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text"
                 >
                   Delete audio now
                 </button>
@@ -192,7 +192,7 @@ export function TranscriptPanel({
               <input type="hidden" name="assetId" value={audio.id} />
               <button
                 type="submit"
-                className="rounded-[10px] border border-border-strong bg-surface px-4 py-2 text-sm transition-colors hover:bg-surface-2"
+                className="rounded-2 border border-border-strong bg-surface px-4 py-2 text-sm transition-colors hover:bg-surface-2"
               >
                 Retry transcription
               </button>
@@ -200,10 +200,10 @@ export function TranscriptPanel({
           ) : null}
 
           {audio.status === "uploaded" ? (
-            <div className="mt-4 rounded-[10px] border border-border bg-surface-2 p-3">
+            <div className="mt-4 rounded-2 border border-border bg-surface-2 p-3">
               <p className="text-xs leading-relaxed text-text-muted">
                 Stored, waiting to be transcribed. Speech-to-text is not configured on this
-                deployment, so nothing has been sent anywhere — upload or paste the transcript, or
+                deployment, so nothing has been sent anywhere, upload or paste the transcript, or
                 set <code className="font-mono text-[0.8em]">DEEPGRAM_API_KEY</code> and retry.
               </p>
               <form action="/api/audio/retry" method="post" className="mt-3">
@@ -212,7 +212,7 @@ export function TranscriptPanel({
                 <input type="hidden" name="assetId" value={audio.id} />
                 <button
                   type="submit"
-                  className="rounded-[8px] border border-border px-2.5 py-1 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text"
+                  className="rounded-1 border border-border px-2.5 py-1 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text"
                 >
                   Retry transcription
                 </button>
@@ -247,7 +247,7 @@ export function TranscriptPanel({
                     <select
                       name="userId"
                       defaultValue={speaker.userId ?? ""}
-                      className="mt-1 h-9 w-full rounded-[10px] border border-border bg-surface px-2 text-sm"
+                      className="mt-1 h-9 w-full rounded-2 border border-border bg-surface px-2 text-sm"
                     >
                       <option value="">Unassigned</option>
                       {members.map((member) => (
@@ -266,13 +266,13 @@ export function TranscriptPanel({
                       name="renameTo"
                       defaultValue={speaker.label}
                       maxLength={80}
-                      className="mt-1 h-9 w-full rounded-[10px] border border-border bg-surface px-2 text-sm"
+                      className="mt-1 h-9 w-full rounded-2 border border-border bg-surface px-2 text-sm"
                     />
                   </label>
 
                   <button
                     type="submit"
-                    className="h-9 rounded-[10px] border border-border-strong bg-surface px-3 text-sm transition-colors hover:bg-surface-2"
+                    className="h-9 rounded-2 border border-border-strong bg-surface px-3 text-sm transition-colors hover:bg-surface-2"
                   >
                     Save
                   </button>
@@ -303,7 +303,7 @@ export function TranscriptPanel({
                   onClick={() => canSeek && seek(segment.startMs)}
                   aria-current={isActive}
                   className={cn(
-                    "flex w-full gap-3 rounded-[10px] px-3 py-2.5 text-left transition-colors",
+                    "flex w-full gap-3 rounded-2 px-3 py-2.5 text-left transition-colors",
                     isActive ? "bg-accent-soft" : canSeek ? "hover:bg-surface-2" : "cursor-default",
                   )}
                 >

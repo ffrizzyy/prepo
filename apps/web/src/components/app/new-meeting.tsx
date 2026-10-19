@@ -73,13 +73,13 @@ export function NewMeeting({
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
       <div className="space-y-6">
         {error ? (
-          <p className="flex items-start gap-2 rounded-2xl border border-accent-note bg-accent-soft p-4 text-sm text-accent-ink">
+          <p className="flex items-start gap-2 rounded-3 border border-accent-note bg-accent-soft p-4 text-sm text-accent-ink">
             <Warning size={16} weight="bold" className="mt-0.5 shrink-0" />
             {error}
           </p>
         ) : null}
         {notice ? (
-          <p className="rounded-2xl border border-border bg-surface p-4 text-sm text-text-muted">
+          <p className="rounded-3 border border-border bg-surface p-4 text-sm text-text-muted">
             {notice}
           </p>
         ) : null}
@@ -92,7 +92,7 @@ export function NewMeeting({
                 <label
                   key={option.id}
                   className={cn(
-                    "flex cursor-pointer gap-3 rounded-[10px] border p-3 transition-colors",
+                    "flex cursor-pointer gap-3 rounded-2 border p-3 transition-colors",
                     source === option.id
                       ? "border-accent bg-accent-soft/50"
                       : "border-border hover:bg-surface-2",
@@ -130,7 +130,7 @@ export function NewMeeting({
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                   placeholder="Weekly product sync"
-                  className="mt-1.5 h-10 w-full rounded-[10px] border border-border bg-surface px-3 text-sm placeholder:text-text-subtle"
+                  className="mt-1.5 h-10 w-full rounded-2 border border-border bg-surface px-3 text-sm placeholder:text-text-subtle"
                 />
               </label>
               <label className="block">
@@ -140,13 +140,13 @@ export function NewMeeting({
                   name="heldAt"
                   value={heldAt}
                   onChange={(event) => setHeldAt(event.target.value)}
-                  className="mt-1.5 h-10 w-full rounded-[10px] border border-border bg-surface px-3 text-sm"
+                  className="mt-1.5 h-10 w-full rounded-2 border border-border bg-surface px-3 text-sm"
                 />
               </label>
             </div>
 
             {selected.needsConsent ? (
-              <label className="mt-5 flex items-start gap-2.5 rounded-[10px] border border-border bg-surface-2 p-3 text-sm">
+              <label className="mt-5 flex items-start gap-2.5 rounded-2 border border-border bg-surface-2 p-3 text-sm">
                 <input
                   type="checkbox"
                   name="consent"
@@ -173,7 +173,7 @@ export function NewMeeting({
                     name="file"
                     required
                     accept=".mp3,.m4a,.wav,.webm,.ogg,.mp4,audio/*"
-                    className="block w-full cursor-pointer rounded-[10px] border border-dashed border-border bg-surface-2 px-3 py-6 text-sm file:mr-3 file:rounded-[8px] file:border-0 file:bg-surface file:px-3 file:py-1.5 file:text-sm"
+                    className="block w-full cursor-pointer rounded-2 border border-dashed border-border bg-surface-2 px-3 py-6 text-sm file:mr-3 file:rounded-1 file:border-0 file:bg-surface file:px-3 file:py-1.5 file:text-sm"
                   />
                   <p className="mt-2 text-xs text-text-subtle">
                     Up to 25 MB and three hours. The format is decided by the file&rsquo;s own
@@ -189,11 +189,11 @@ export function NewMeeting({
                     name="file"
                     required
                     accept=".vtt,.srt,.txt,.md"
-                    className="block w-full cursor-pointer rounded-[10px] border border-dashed border-border bg-surface-2 px-3 py-6 text-sm file:mr-3 file:rounded-[8px] file:border-0 file:bg-surface file:px-3 file:py-1.5 file:text-sm"
+                    className="block w-full cursor-pointer rounded-2 border border-dashed border-border bg-surface-2 px-3 py-6 text-sm file:mr-3 file:rounded-1 file:border-0 file:bg-surface file:px-3 file:py-1.5 file:text-sm"
                   />
                   <p className="mt-2 text-xs text-text-subtle">
                     Zoom, Meet and Teams all export WebVTT or SRT, which keep their timestamps and
-                    speaker labels. A Word or PDF export should be pasted instead — Prepo quotes
+                    speaker labels. A Word or PDF export should be pasted instead, Prepo quotes
                     from text, and it cannot quote a binary.
                   </p>
                 </>
@@ -206,7 +206,7 @@ export function NewMeeting({
                     rows={12}
                     required
                     placeholder={"Lena: We should ship the billing rewrite before the board meeting.\nDmitri: I'll take the migration, due Friday."}
-                    className="block w-full rounded-[10px] border border-border bg-surface px-3 py-2 font-mono text-xs leading-relaxed placeholder:text-text-subtle"
+                    className="block w-full rounded-2 border border-border bg-surface px-3 py-2 font-mono text-xs leading-relaxed placeholder:text-text-subtle"
                   />
                   <p className="mt-2 text-xs text-text-subtle">
                     A line that starts with <code className="font-mono">Name:</code> becomes a
@@ -220,7 +220,7 @@ export function NewMeeting({
               <button
                 type="submit"
                 disabled={selected.needsConsent && !consent}
-                className="mt-6 inline-flex h-10 items-center rounded-[10px] bg-accent px-5 text-sm font-medium text-accent-fg disabled:opacity-50"
+                className="mt-6 inline-flex h-10 items-center rounded-2 bg-accent px-5 text-sm font-medium text-accent-fg disabled:opacity-50"
               >
                 {source === "audio"
                   ? "Upload and transcribe"
@@ -252,7 +252,7 @@ export function NewMeeting({
 
         <Card title="Privacy">
           <p className="text-sm leading-relaxed text-text-muted">
-            Audio is stored privately and is reachable only through an authorization check — there
+            Audio is stored privately and is reachable only through an authorization check, there
             is no public link, and the player streams through the app so byte ranges can be served
             for seeking. It is deleted on this workspace&rsquo;s retention schedule, transcript
             included only when the meeting itself is deleted.

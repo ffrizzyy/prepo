@@ -9,7 +9,7 @@ import "./globals.css";
 
 /**
  * Last resort: this replaces the root layout when the layout itself fails, so it
- * has to bring its own document, styles and fonts. Keep it dependency-free —
+ * has to bring its own document, styles and fonts. Keep it dependency-free:
  * anything it imports has a chance to be what broke in the first place.
  */
 export default function GlobalError({ error, retry }: { error: unknown; retry: () => void }) {
@@ -26,8 +26,8 @@ export default function GlobalError({ error, retry }: { error: unknown; retry: (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body className="bg-bg font-sans text-text antialiased">
         <main className="grid min-h-screen place-items-center px-4 py-16">
-          <div className="w-full max-w-xl rounded-2xl border border-border bg-surface p-8">
-            <span className="grid size-7 place-items-center rounded-[8px] bg-accent text-sm font-semibold text-accent-fg">
+          <div className="w-full max-w-xl rounded-3 border border-border bg-surface p-8">
+            <span className="grid size-7 place-items-center rounded-1 bg-accent text-sm font-semibold text-accent-fg">
               P
             </span>
             <h1 className="mt-5 text-2xl leading-tight tracking-tighter md:text-3xl">
@@ -46,14 +46,14 @@ export default function GlobalError({ error, retry }: { error: unknown; retry: (
               <button
                 type="button"
                 onClick={() => retry()}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-[10px] bg-accent px-4 text-sm font-medium text-accent-fg"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-2 bg-accent px-4 text-sm font-medium text-accent-fg"
               >
                 <ArrowCounterClockwise size={16} weight="bold" />
                 Try again
               </button>
               <a
                 href="/"
-                className="inline-flex h-10 items-center justify-center rounded-[10px] border border-border-strong bg-surface px-4 text-sm font-medium"
+                className="inline-flex h-10 items-center justify-center rounded-2 border border-border-strong bg-surface px-4 text-sm font-medium"
               >
                 Back to the homepage
               </a>

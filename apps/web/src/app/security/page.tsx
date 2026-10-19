@@ -13,7 +13,7 @@ export default function SecurityPage() {
       eyebrow="Security"
       title="The security model, as built"
       intro="Prepo holds meeting recordings, so it is designed as though it holds yours. This page describes the mechanisms that are actually implemented, what they do not cover, and where the source is."
-      updated="Last reviewed with milestone 3 — two-factor sign-in"
+      updated="Last reviewed with milestone 3, two-factor sign-in"
     >
       <div className="space-y-10">
         <Prose>
@@ -28,7 +28,7 @@ export default function SecurityPage() {
           <p>
             Sessions are database rows, not self-describing tokens. Sign-in mints 256 bits of
             randomness, sends it in an <code>HttpOnly</code> cookie, and stores only its
-            SHA-256 — a database dump therefore does not hand over live sessions. Every request
+            SHA-256, a database dump therefore does not hand over live sessions. Every request
             re-reads the session from Postgres and checks that it is unrevoked and inside both
             its absolute and idle lifetimes, so revoking a device takes effect on that device’s
             very next request. Sign-in rotates the session, and sign-out, revoke-one and
@@ -73,7 +73,7 @@ export default function SecurityPage() {
           </p>
           <p>
             On top of the database boundary, the server checks membership before rendering a
-            workspace. A non-member gets a <strong>404, not a 403</strong> — the app never
+            workspace. A non-member gets a <strong>404, not a 403</strong>, the app never
             confirms that somebody else’s workspace exists. Cross-tenant reads and writes are
             asserted by the test suite on both the embedded engine and a real Postgres.
           </p>
@@ -89,7 +89,7 @@ export default function SecurityPage() {
             known.
           </p>
           <p>
-            Network addresses are truncated to a prefix — three octets of an IPv4 address — and
+            Network addresses are truncated to a prefix, three octets of an IPv4 address, and
             user agents are stored as a hash plus a human-readable device label. That is enough
             to notice a device change, without keeping a record of who connected from where.
           </p>
@@ -100,7 +100,7 @@ export default function SecurityPage() {
           <p>
             Extracted action items arrive with their supporting evidence and a confidence
             score, and nothing becomes a ticket without passing the workspace’s autonomy
-            setting — which defaults to requiring human approval. Every write the app makes is
+            setting, which defaults to requiring human approval. Every write the app makes is
             recorded as an audit event attributed to a user or to <code>prepo-agent</code>, and
             the agent’s outputs are treated as untrusted input rather than instructions.
           </p>
@@ -124,7 +124,7 @@ export default function SecurityPage() {
               challenge token itself rather than the account.
             </li>
             <li>
-              Encryption at rest at the application layer, and audio retention controls — the
+              Encryption at rest at the application layer, and audio retention controls, the
               recording pipeline is milestone 4, so there is no audio to delete yet.
             </li>
           </ul>

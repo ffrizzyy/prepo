@@ -2,14 +2,14 @@ import type { ActionItem, Meeting, Ticket, TranscriptSegment } from "./schemas";
 
 export const SAMPLE_MEETING: Meeting = {
   id: "mtg_q4_sync",
-  title: "Q4 Launch — Weekly Sync",
+  title: "Q4 Launch, Weekly Sync",
   heldAt: "2026-10-13T09:30:00.000Z",
   source: "recording",
   status: "ready",
   clarityScore: 62,
   necessityScore: 38,
   summary:
-    "The team reviewed the Q4 launch checklist. Checkout webhook retries are the top blocker. Marketing still owns the email sequence but has no named owner. Legal copy for the enterprise plan was raised again — it duplicates an existing ticket.",
+    "The team reviewed the Q4 launch checklist. Checkout webhook retries are the top blocker. Marketing still owns the email sequence but has no named owner. Legal copy for the enterprise plan was raised again, it duplicates an existing ticket.",
   keyDecisions: [
     "Checkout webhook retries are the top priority for the week.",
     "The pricing page ships before the email sequence.",
@@ -110,7 +110,7 @@ export const SAMPLE_SEGMENTS: TranscriptSegment[] = [
     speakerName: "Lena Fischer",
     startMs: 176000,
     endMs: 199000,
-    text: "Didn't we already track the enterprise legal review? Check the board — I think it's PRE-118.",
+    text: "Didn't we already track the enterprise legal review? Check the board, I think it's PRE-118.",
   },
   {
     id: "seg_11",
@@ -400,7 +400,7 @@ export const SAMPLE_MEETING_LIST: Meeting[] = [
   SAMPLE_MEETING,
   {
     id: "mtg_design_crit",
-    title: "Design Critique — Onboarding",
+    title: "Design Critique, Onboarding",
     heldAt: "2026-10-09T14:00:00.000Z",
     source: "upload",
     status: "ready",

@@ -12,7 +12,7 @@ import * as t from "./schema";
  *   pnpm --filter @prepo/web db:audio-fixture
  *
  * The seed creates an `audio_assets` row with a `transcribed` transcript behind
- * it, but no file — the row is honest and the transcript is the real artifact.
+ * it, but no file, the row is honest and the transcript is the real artifact.
  * That leaves the player with nothing to play, so this fixture writes a quiet
  * generated tone whose length matches the seeded transcript.
  *

@@ -7,7 +7,7 @@ import { BRAND } from "@prepo/shared";
  * This is what makes Prepo installable: browsers require a manifest, icons at
  * 192px and 512px, a name and `display: standalone` before they will offer to
  * install a site at all. Everything the install dialog shows comes from here, so
- * the values are the real ones — the product name, the real description, and the
+ * the values are the real ones, the product name, the real description, and the
  * mark the desktop shell uses.
  *
  * `start_url` is `/` rather than a workspace route on purpose. A manifest is

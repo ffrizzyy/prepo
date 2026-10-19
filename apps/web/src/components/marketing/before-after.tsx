@@ -39,7 +39,7 @@ export function BeforeAfter() {
       <div
         role="group"
         aria-label="Compare meeting minutes and tickets"
-        className="mb-6 inline-flex rounded-[10px] border border-border bg-surface-2 p-1"
+        className="mb-6 inline-flex rounded-2 border border-border bg-surface-2 p-1"
       >
         {(["minutes", "tickets"] as const).map((option) => (
           <button
@@ -48,7 +48,7 @@ export function BeforeAfter() {
             onClick={() => setView(option)}
             aria-pressed={view === option}
             className={cn(
-              "rounded-[8px] px-4 py-1.5 text-sm capitalize transition-colors",
+              "rounded-1 px-4 py-1.5 text-sm capitalize transition-colors",
               view === option
                 ? "bg-surface text-text shadow-sm"
                 : "text-text-muted hover:text-text",
@@ -66,7 +66,7 @@ export function BeforeAfter() {
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
       >
         {view === "minutes" ? (
-          <div className="rounded-2xl border border-border bg-surface p-6 md:p-8">
+          <div className="rounded-3 border border-border bg-surface p-6 md:p-8">
             <p className="mb-4 font-mono text-xs uppercase tracking-[0.16em] text-text-subtle">
               Meeting minutes
             </p>
@@ -81,7 +81,7 @@ export function BeforeAfter() {
             {TICKETS.map((ticket) => (
               <li
                 key={ticket.key}
-                className="flex items-start justify-between gap-3 rounded-2xl border border-border bg-surface p-4"
+                className="flex items-start justify-between gap-3 rounded-3 border border-border bg-surface p-4"
               >
                 <div className="flex items-start gap-2.5">
                   <CheckCircle

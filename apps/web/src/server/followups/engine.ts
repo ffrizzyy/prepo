@@ -160,7 +160,7 @@ async function deliverRung(
   const cancel = async (detail: string) => {
     await settle("cancelled", detail);
     report.cancelled += 1;
-    report.details.push(`cancelled ${row.kind} — ${detail}`);
+    report.details.push(`cancelled ${row.kind}, ${detail}`);
   };
 
   if (settings.followups === "off") {
@@ -188,14 +188,14 @@ async function deliverRung(
   if (ticket.status === "done") {
     await settle("cancelled", "The work was finished before this was due.");
     report.cancelled += 1;
-    report.details.push(`cancelled ${ticket.key} ${row.kind} — already done`);
+    report.details.push(`cancelled ${ticket.key} ${row.kind}, already done`);
     return;
   }
 
   // A due date that moved (or went away) leaves rungs whose moment no longer
   // exists. `refreshLadder` cancels those when the change is made through the app;
   // this is the safety net for a row that was never rebuilt. A row the engine or a
-  // person has already moved (`detail` set — deferred for quiet hours, snoozed,
+  // person has already moved (`detail` set, deferred for quiet hours, snoozed,
   // queued by hand) is deliberately off the ladder, so it is left alone.
   const movedByHand = row.detail !== null;
   const matchesLadder =
@@ -203,7 +203,7 @@ async function deliverRung(
     rungFor(row.kind, row.scheduledFor, ticket.dueAt) !== null;
   if (!movedByHand && !matchesLadder) {
     await cancel("The due date changed, so this message is out of date.");
-    report.details.push(`cancelled ${ticket.key} ${row.kind} — due date moved`);
+    report.details.push(`cancelled ${ticket.key} ${row.kind}, due date moved`);
     return;
   }
 
@@ -315,7 +315,7 @@ async function deliverRung(
   if (!sender) {
     await settle("failed", EMAIL_UNCONFIGURED);
     report.failed += 1;
-    report.details.push(`email not configured — ${ticket.key} ${row.kind}`);
+    report.details.push(`email not configured, ${ticket.key} ${row.kind}`);
     await audit(tx, {
       workspaceId: row.workspaceId,
       actorId: null,
@@ -336,7 +336,7 @@ async function deliverRung(
     report.sent += 1;
   } else {
     report.failed += 1;
-    report.details.push(`email failed — ${ticket.key} ${row.kind}`);
+    report.details.push(`email failed, ${ticket.key} ${row.kind}`);
     await audit(tx, {
       workspaceId: row.workspaceId,
       actorId: null,
@@ -641,7 +641,7 @@ export async function refreshLadder(input: {
 }
 
 /**
- * A ticket reaches its meeting through the action item it came from — there is no
+ * A ticket reaches its meeting through the action item it came from, there is no
  * direct link, so this is the join the escalation recipient depends on.
  */
 async function meetingForTicket(

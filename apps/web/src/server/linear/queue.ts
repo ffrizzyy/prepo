@@ -56,7 +56,7 @@ export async function markTicketPending(
 /**
  * The one call a local write makes: queue the ticket if Linear is connected, and
  * do nothing at all if it is not. A disconnected workspace leaves
- * `linear_sync_state` null — "never offered" — rather than accumulating a queue
+ * `linear_sync_state` null, "never offered", rather than accumulating a queue
  * of pending rows that would all fire at once on the next connect.
  */
 export async function queueForLinear(

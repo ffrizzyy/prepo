@@ -13,7 +13,7 @@ type Enrolment = { secret: string; otpauth: string };
 type Flow = "none" | "disable" | "regenerate";
 
 const secondaryButton =
-  "rounded-[10px] border border-border px-3 py-2 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text disabled:opacity-60";
+  "rounded-2 border border-border px-3 py-2 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text disabled:opacity-60";
 
 /**
  * The confirm, disable and regenerate steps all ask for a code the
@@ -70,9 +70,9 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
   return (
     <div className="space-y-1.5">
       <p className="text-xs font-medium text-text-muted">
-        Recovery codes — shown once, store them now
+        Recovery codes, shown once, store them now
       </p>
-      <ul className="grid gap-1.5 rounded-[10px] border border-border bg-surface-2 px-3 py-2 font-mono text-xs sm:grid-cols-2">
+      <ul className="grid gap-1.5 rounded-2 border border-border bg-surface-2 px-3 py-2 font-mono text-xs sm:grid-cols-2">
         {codes.map((code) => (
           <li key={code}>{code}</li>
         ))}
@@ -110,18 +110,18 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
     return (
       <div className="space-y-4">
         <FormNote>
-          Add the entry to your authenticator app — scan the setup key in or
+          Add the entry to your authenticator app, scan the setup key in or
           type it. Then confirm with the code it now shows.
         </FormNote>
         <div className="space-y-1.5">
           <p className="text-xs font-medium text-text-muted">Setup key</p>
-          <code className="block break-all rounded-[10px] border border-border bg-surface-2 px-3 py-2 font-mono text-xs">
+          <code className="block break-all rounded-2 border border-border bg-surface-2 px-3 py-2 font-mono text-xs">
             {enrolment.secret}
           </code>
         </div>
         <div className="space-y-1.5">
           <p className="text-xs font-medium text-text-muted">Authenticator URI</p>
-          <code className="block break-all rounded-[10px] border border-border bg-surface-2 px-3 py-2 font-mono text-[10px] text-text-muted">
+          <code className="block break-all rounded-2 border border-border bg-surface-2 px-3 py-2 font-mono text-[10px] text-text-muted">
             {enrolment.otpauth}
           </code>
         </div>
@@ -246,7 +246,7 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
       <button
         type="button"
         disabled={pending}
-        className="w-full rounded-[10px] border border-border px-3 py-2 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text disabled:opacity-60"
+        className="w-full rounded-2 border border-border px-3 py-2 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text disabled:opacity-60"
         onClick={() =>
           run(async () => {
             const result = await startTotpEnrolment();

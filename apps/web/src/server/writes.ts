@@ -12,7 +12,7 @@ import { markTicketPending, queueForLinear } from "./linear/queue";
  * session and the slug already in the URL, then hands the work here.
  *
  * Keeping the mutations separate from the server actions is what lets `db:smoke`
- * exercise them without a request scope — server actions need one for `cookies()`
+ * exercise them without a request scope, server actions need one for `cookies()`
  * and `revalidatePath()`, which a script does not have.
  */
 

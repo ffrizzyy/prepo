@@ -53,7 +53,7 @@ import { seed } from "./seed";
  *
  * The arithmetic, the quiet-hours clock and the wording are pure functions, so
  * they are asserted directly. The engine is then run against the seeded data at a
- * fixed moment — Monday 19 October 2026, 10:00 UTC — which is why the digest lands
+ * fixed moment, Monday 19 October 2026, 10:00 UTC, which is why the digest lands
  * on that day for Berlin and on the same day for New York: the point is that the
  * placement is per person, in their own zone.
  *
@@ -66,7 +66,7 @@ import { seed } from "./seed";
 let failures = 0;
 
 function check(label: string, ok: boolean, detail = ""): void {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`);
+  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? `, ${detail}` : ""}`);
   if (!ok) failures += 1;
 }
 
@@ -87,7 +87,7 @@ function context(overrides: Partial<MessageContext> = {}): MessageContext {
     assigneeName: "Dmitri Volkov",
     organizerName: "Lena Fischer",
     workspaceName: "Northwind",
-    meetingTitle: "Q4 Launch — Weekly Sync",
+    meetingTitle: "Q4 Launch, Weekly Sync",
     url: "/northwind/tickets/PRE-139",
     ...overrides,
   };
@@ -388,13 +388,13 @@ runCli("followup-smoke.ts", async () => {
   };
   check(
     "the digest subject summarises the week",
-    digestSubject(digest) === "Monday digest — 1 overdue, 4 to review",
+    digestSubject(digest) === "Monday digest, 1 overdue, 4 to review",
     digestSubject(digest),
   );
   check(
     "an empty week is called all clear rather than sent as a blank",
     digestSubject({ ...digest, overdue: [], awaitingReview: 0 }) ===
-      "Monday digest — all clear" &&
+      "Monday digest, all clear" &&
       digestBody({ ...digest, overdue: [], awaitingReview: 0 }).includes(
         "Nothing is overdue",
       ),
@@ -441,7 +441,7 @@ runCli("followup-smoke.ts", async () => {
   // ahead of NOW, because the rebuild further down is about *replacing pending*
   // rungs: a ticket whose whole ladder is already in the past has nothing left to
   // cancel, and that check would pass without testing anything. Sorting fixes the
-  // choice too — the select has no ORDER BY, so the row order is not a promise.
+  // choice too, the select has no ORDER BY, so the row order is not a promise.
   const target = seededTickets
     .filter(
       (ticket) =>
@@ -734,7 +734,7 @@ runCli("followup-smoke.ts", async () => {
 
   // Give the ticket a ladder that is entirely ahead of it first. Which ticket
   // `target` is comes from the seed's row order, and the steps above may already
-  // have consumed its rungs — scheduling one here is what makes the next check
+  // have consumed its rungs, scheduling one here is what makes the next check
   // about cancellation rather than luck.
   await refreshLadder({
     workspaceId: northwind,

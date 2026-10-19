@@ -20,7 +20,7 @@ export function AuthLayout({
           href="/"
           className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight"
         >
-          <span className="grid size-7 place-items-center rounded-[8px] bg-accent text-sm font-semibold text-accent-fg">
+          <span className="grid size-7 place-items-center rounded-1 bg-accent text-sm font-semibold text-accent-fg">
             P
           </span>
           {BRAND.name}
@@ -29,7 +29,7 @@ export function AuthLayout({
         <h1 className="mt-6 text-xl font-semibold tracking-tight">{title}</h1>
         <p className="mt-1 text-sm text-text-muted">{description}</p>
 
-        <div className="mt-6 rounded-2xl border border-border bg-surface p-6">
+        <div className="mt-6 rounded-3 border border-border bg-surface p-6">
           {children}
         </div>
 

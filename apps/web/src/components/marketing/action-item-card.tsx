@@ -3,7 +3,7 @@ import { FLAG_COPY, type ActionItem } from "@prepo/shared";
 import { cn } from "@/lib/utils";
 
 const priorityStyles: Record<string, string> = {
-  p0: "bg-[#b91c1c]/10 text-[#b91c1c] dark:text-[#f87171]",
+  p0: "bg-danger/10 text-danger",
   p1: "bg-accent-soft text-accent-ink",
   p2: "bg-surface-2 text-text-muted",
   p3: "bg-surface-2 text-text-subtle",
@@ -35,8 +35,8 @@ export function ActionItemCard({
   return (
     <div
       className={cn(
-        "rounded-2xl border bg-surface p-4 transition-colors",
-        isTicket ? "border-[#15803d]/30 dark:border-[#4ade80]/30" : "border-border",
+        "rounded-3 border bg-surface p-4 transition-colors",
+        isTicket ? "border-success/30" : "border-border",
         className,
       )}
     >
@@ -45,7 +45,7 @@ export function ActionItemCard({
           <span
             className={cn(
               "mt-0.5 inline-flex size-5 shrink-0 items-center justify-center",
-              isTicket ? "text-[#15803d] dark:text-[#4ade80]" : "text-accent-ink",
+              isTicket ? "text-success" : "text-accent-ink",
             )}
             aria-hidden
           >
@@ -79,7 +79,7 @@ export function ActionItemCard({
       </div>
 
       {quote ? (
-        <blockquote className="mt-3 rounded-[10px] border-l-2 border-accent bg-accent-soft/50 px-3 py-2 text-xs leading-relaxed text-text-muted">
+        <blockquote className="mt-3 rounded-2 border-l-2 border-accent bg-accent-soft/50 px-3 py-2 text-xs leading-relaxed text-text-muted">
           <span aria-hidden>“</span>
           {quote}
           <span aria-hidden>”</span>
@@ -107,7 +107,7 @@ export function ActionItemCard({
       {ticketKey ? (
         <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-xs">
           <span className="font-mono text-text-subtle">{ticketKey}</span>
-          <span className="font-mono text-[10px] uppercase tracking-wide text-[#15803d] dark:text-[#4ade80]">
+          <span className="font-mono text-[10px] uppercase tracking-wide text-success">
             Ticket created
           </span>
         </div>

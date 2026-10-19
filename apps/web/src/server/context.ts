@@ -21,7 +21,7 @@ export type WorkspaceContext = {
 
 /**
  * Resolves a workspace slug to its context, or 404s. Pages and server actions
- * both go through here, so the tenant is always decided on the server — a client
+ * both go through here, so the tenant is always decided on the server, a client
  * only ever sends the slug that is already in its URL.
  *
  * An unauthenticated request is redirected to sign-in; an authenticated user who

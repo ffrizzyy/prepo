@@ -66,7 +66,7 @@ export function SignUpForm() {
 
       <FormNote>
         Passkeys, magic links and the breached-password check are not wired up in
-        this build — see the README for what is real and what is not.
+        this build, see the README for what is real and what is not.
       </FormNote>
 
       <button type="submit" disabled={pending} className={primaryButtonClass}>

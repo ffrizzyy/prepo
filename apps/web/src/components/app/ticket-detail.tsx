@@ -99,7 +99,7 @@ export function TicketDetail({
               onChange={(event) =>
                 changeStatus(event.target.value as TicketStatusId)
               }
-              className="h-9 rounded-[10px] border border-border bg-surface px-3 text-sm"
+              className="h-9 rounded-2 border border-border bg-surface px-3 text-sm"
             >
               {TICKET_STATUSES.map((status) => (
                 <option key={status.id} value={status.id}>
@@ -130,7 +130,7 @@ export function TicketDetail({
                   <ArrowSquareOut size={14} weight="bold" />
                 </a>
                 {ticket.sourceQuote ? (
-                  <blockquote className="rounded-[10px] border-l-2 border-accent bg-accent-soft/50 px-3 py-2 text-xs leading-relaxed text-text-muted">
+                  <blockquote className="rounded-2 border-l-2 border-accent bg-accent-soft/50 px-3 py-2 text-xs leading-relaxed text-text-muted">
                     “{ticket.sourceQuote}”
                   </blockquote>
                 ) : null}
@@ -197,11 +197,11 @@ export function TicketDetail({
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder="Add a comment or @mention"
                 aria-label="Add a comment"
-                className="h-10 flex-1 rounded-[10px] border border-border bg-surface px-3 text-sm placeholder:text-text-subtle"
+                className="h-10 flex-1 rounded-2 border border-border bg-surface px-3 text-sm placeholder:text-text-subtle"
               />
               <button
                 type="submit"
-                className="inline-flex h-10 items-center gap-1.5 rounded-[10px] bg-accent px-4 text-sm font-medium text-accent-fg active:scale-[0.98]"
+                className="inline-flex h-10 items-center gap-1.5 rounded-2 bg-accent px-4 text-sm font-medium text-accent-fg active:scale-[0.98]"
               >
                 <PaperPlaneTilt size={14} weight="bold" />
                 Send
@@ -224,7 +224,7 @@ export function TicketDetail({
                 <span
                   className={
                     isOverdue(ticket.dueAt) && optimisticStatus !== "done"
-                      ? "text-[#b91c1c] dark:text-[#f87171]"
+                      ? "text-danger"
                       : undefined
                   }
                 >
@@ -319,7 +319,7 @@ export function TicketDetail({
                 </p>
                 <button
                   type="button"
-                  className="mt-4 w-full rounded-[10px] border border-border-strong bg-surface px-4 py-2 text-sm hover:bg-surface-2"
+                  className="mt-4 w-full rounded-2 border border-border-strong bg-surface px-4 py-2 text-sm hover:bg-surface-2"
                 >
                   Connect Linear
                 </button>

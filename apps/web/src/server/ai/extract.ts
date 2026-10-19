@@ -231,7 +231,7 @@ async function recordRun(input: {
 /**
  * Assist and Autopilot (PREPO.md §7.1). Assist is the strict one: high
  * confidence, a resolved owner, a real date, and no ambiguity. Autopilot drops
- * the owner/date requirement but still refuses ambiguity and duplicates — those
+ * the owner/date requirement but still refuses ambiguity and duplicates, those
  * are exactly the decisions a person should make.
  */
 export function autoApprovable(item: GroundedItem, autonomy: string): boolean {
@@ -503,7 +503,7 @@ export function describeReport(report: ExtractionReport): string {
     case "already":
       return "already extracted";
     default:
-      return `${report.status}${report.reason ? ` — ${report.reason}` : ""}`;
+      return `${report.status}${report.reason ? `, ${report.reason}` : ""}`;
   }
 }
 

@@ -57,7 +57,7 @@ runCli("totp-fixture.ts", async () => {
 
   // Enrolment as the settings flow does it: issue a secret, then switch the
   // factor on once a code has checked out. The secret itself never reaches the
-  // log — only a currently-valid six-digit code, for HTTP tests to hand back.
+  // log, only a currently-valid six-digit code, for HTTP tests to hand back.
   // It stays valid for ±30s around its step, which is enough to start a probe
   // right after this script exits.
   const secret = generateTotpSecret();

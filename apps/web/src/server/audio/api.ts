@@ -157,7 +157,7 @@ export async function readAssetAction(
 
 /**
  * Rejects a body that announces itself as too large before it is buffered. The
- * per-format caps are still applied afterwards — this only stops the server from
+ * per-format caps are still applied afterwards, this only stops the server from
  * reading a file it is going to refuse.
  */
 export function bodyTooLarge(request: Request): boolean {

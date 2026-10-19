@@ -44,7 +44,7 @@ export function MeetingsTable({
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search meetings"
             aria-label="Search meetings"
-            className="h-10 w-full rounded-[10px] border border-border bg-surface pl-9 pr-3 text-sm placeholder:text-text-subtle"
+            className="h-10 w-full rounded-2 border border-border bg-surface pl-9 pr-3 text-sm placeholder:text-text-subtle"
           />
         </div>
         <label className="sr-only" htmlFor="source-filter">
@@ -54,7 +54,7 @@ export function MeetingsTable({
           id="source-filter"
           value={source}
           onChange={(event) => setSource(event.target.value)}
-          className="h-10 rounded-[10px] border border-border bg-surface px-3 text-sm"
+          className="h-10 rounded-2 border border-border bg-surface px-3 text-sm"
         >
           <option value="all">All sources</option>
           <option value="recording">Recording</option>
@@ -121,11 +121,9 @@ export function MeetingsTable({
 
 function Score({ value, invert }: { value: number | null; invert?: boolean }) {
   if (value === null) {
-    return (
-      <span className="font-mono text-sm text-text-subtle" title="Not scored">
-        —
-      </span>
-    );
+    // Same words as the meters: "Not scored" says what is missing instead of
+    // borrowing a glyph.
+    return <span className="text-xs text-text-subtle">Not scored</span>;
   }
 
   const good = invert ? value <= 45 : value >= 70;
@@ -133,12 +131,12 @@ function Score({ value, invert }: { value: number | null; invert?: boolean }) {
   return (
     <span
       className={cn(
-        "font-mono text-sm",
+        "text-sm tabular-nums",
         good
-          ? "text-[#15803d] dark:text-[#4ade80]"
+          ? "text-success"
           : mid
             ? "text-accent-ink"
-            : "text-[#b91c1c] dark:text-[#f87171]",
+            : "text-danger",
       )}
     >
       {value}

@@ -1,8 +1,8 @@
 /**
  * How a follow-up physically leaves the building (PREPO.md §8.7).
  *
- * Email is a fixed HTTPS call to the provider's own endpoint — no user-supplied
- * URL, so the SSRF surface stays closed (SECURITY.md, A10) — and it is only
+ * Email is a fixed HTTPS call to the provider's own endpoint, no user-supplied
+ * URL, so the SSRF surface stays closed (SECURITY.md, A10), and it is only
  * attempted when a key exists. Without one, a message is marked **failed with the
  * reason** rather than quietly marked sent: the follow-ups page shows that,
  * because a green tick over an email that never left would be a lie.
@@ -65,7 +65,7 @@ class ResendSender implements EmailSender {
         const problem = await response.text().catch(() => "");
         return {
           delivered: false,
-          detail: `Not sent: the email provider refused it (${response.status})${problem ? ` — ${problem.slice(0, 200)}` : ""}.`,
+          detail: `Not sent: the email provider refused it (${response.status})${problem ? `, ${problem.slice(0, 200)}` : ""}.`,
         };
       }
 
@@ -97,5 +97,5 @@ export function emailSender(env: Env = process.env): EmailSender | null {
  * Push has no implementation yet: it needs VAPID keys *and* an installed app
  * holding a subscription, and there is no service worker in this build. The
  * ladder therefore never schedules a push row while no device is subscribed, and
- * the engine refuses one if it finds it — see `PUSH_UNCONFIGURED`.
+ * the engine refuses one if it finds it, see `PUSH_UNCONFIGURED`.
  */

@@ -19,7 +19,7 @@ export default async function NewMeetingPage({
     <>
       <PageHeader
         title="New meeting"
-        description="Record, upload, or paste — Prepo handles the rest."
+        description="Record, upload, or paste, Prepo handles the rest."
       />
       <NewMeeting workspace={workspace} notice={notice} error={error} />
     </>
