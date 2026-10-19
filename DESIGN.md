@@ -176,6 +176,46 @@ own handle before the server opens the same one. What it does not reach - page
 routes rendered by server components, anything browser-enforced - is said in
 `SECURITY.md`'s mapping, which carries the honest remainder.
 
+## The push that made the guards ambient: CI, CodeQL, and the restore drill
+
+- **CI is the battery plus the hygiene gate, and it was green on the first
+  push.** `.github/workflows/ci.yml` has two jobs: one runs typecheck, the ten
+  fresh-database suites, the production build, `db:idor-smoke` against the built
+  server, `pwa:check` against a server it starts itself, and the desktop shell's
+  configuration verify; the other gates `pnpm audit --prod` and scans full git
+  history with gitleaks. The Rust rules ride in a third job with the webkit
+  system libraries a link needs, cached. A fresh checkout cannot run
+  `db:restore-drill` (there is no working dataset to copy), so it stays out on
+  purpose and the exclusion is written down rather than silent.
+- **CodeQL earned its keep on the first run.** Its security-extended analysis
+  raised six alerts on `main`. Three files changed: the staged-upload writer
+  stops checking a path and then operating on it (one creating-and-truncating
+  open for a first piece, one refusing-to-create open for a later piece, so an
+  out-of-order piece throws without resurrecting the file it would have
+  checked - and the `db:audio` suite caught the regression where the mkdir
+  would have created the directory for a piece that never had a first one),
+  and the transcript's tag strip became a scanner that consumes nested markup
+  in one pass (the fix-point replace idiom the rule recommends was not
+  recognized by the mechanism; a scanner uses no multi-character replacement,
+  so there is nothing to mis-reason about). Two alerts were dismissed with
+  reasons on the alert itself: a suite's fixture-string assertion, and the
+  recording bytes streaming to the configured Deepgram endpoint, which is the
+  pipeline's advertised purpose - both reasons cite the suites that carry the
+  surrounding claims.
+- **The gitleaks allowlist is two strings, each with a reason.** The full-history
+  scan flagged the RFC 6238 test seed (base32 of "12345678901234567890", the
+  seed `db:auth` pins its TOTP against) and the demo fixture account's password.
+  Both are in `.gitleaks.toml`, and neither has credential value; the demo
+  password is printed in the docs deliberately, and it grants nothing.
+- **The restore drill ran, locally, where the data is.** `db:restore-drill`
+  copies `.pglite` and `.storage` (twelve checks: schema, counts, mapping
+  integrity, the tenant boundary against whatever workspaces the copy holds,
+  and the recording bytes at their keys), points a scratch PGlite at nothing
+  but the copy, and verifies the restore seed-free - because `db:verify`
+  reseeds, which on a restored copy would truncate it and prove nothing about
+  the restored data. What it does not claim: a schedule, an off-machine
+  target, PITR.
+
 ## Assets
 
 No new visual asset was generated in this pass. The wordmark, the app icon and

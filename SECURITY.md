@@ -92,7 +92,7 @@ remain. None of them are secret; the goal of this list is that nobody has to gue
 |---|---|
 | **A02** Cryptographic failures | Integration tokens and webhook secrets are encrypted (AES-256-GCM, key outside the database), but nothing else is: the PGlite directory and any backup are unencrypted, and stored audio relies on filesystem permissions. No encrypted backups. TLS/HSTS are the host's responsibility |
 | **A05** Security misconfiguration | The strict CSP with nonces from the specification is still not configured, on purpose rather than by omission: this app keeps static marketing and legal pages, and a nonce policy renders those unhydratable, so the configured CSP is the Next.js guide's config-file pattern for exactly that case (the impl table's Security headers row records the inventory). Still missing: the `strict-dynamic` upgrade once every page renders for a request, a CSP violation reporting endpoint, HSTS (the served-over-TLS host's job), and environment schema validation |
-| **A06** Vulnerable components | No Dependabot, CodeQL or SBOM job in CI yet; `pnpm audit` is not wired into a pipeline. Run by hand against the pnpm lockfile on 19 October 2026, `pnpm audit --prod` reported **no known vulnerabilities** |
+| **A06** Vulnerable components | Automated as of 19 October 2026: `pnpm audit --prod` is a CI gate against the pnpm lockfile; gitleaks scans full history in CI and staged changes through a local pre-commit hook (`.gitleaks.toml` allows exactly two strings, both documented there as having no credential value: the RFC 6238 test seed and the demo fixture account's password); CodeQL with security-extended queries runs on push/PR and weekly, and its first analysis produced six alerts — four closed by two code fixes (the check-then-operate race in the staged-upload writer, and the multi-character tag-strip rewrite in the transcript parser) and two dismissed with their reasons on the alert itself (a suite-fixture URL assertion, and the recording bytes streaming to the configured Deepgram endpoint, which is the pipeline's advertised purpose); Dependabot config covers the workspace and opened its first update PRs the same minute. Still absent: an SBOM and `cargo audit` (nothing of the desktop is published for cargo to audit) |
 | **A07** Auth failures | No passkeys, OAuth or magic links; no email verification, password reset, or breached-password check (no mail provider); no CAPTCHA/bot challenge; no replay protection within a single TOTP step; no session invalidation on password change |
 | **A08** Data integrity | Webhook signatures **are** verified now (HMAC-SHA256, constant time, 60-second window; see above), and a push records the remote issue id and timestamp so an echoed delivery is idempotent. The desktop shell exists but **nothing about it is signed or updated**: no installer, no code signing or notarization, and the updater is registered with no endpoint and no public key, so an update check reports that it cannot run rather than faking one. There is still no integrity check on stored audio bytes beyond the SHA-256 recorded at ingest, and the service worker adds none of its own: it trusts the build's content hashes, so an origin that served a hostile `/sw.js` could cache whatever it liked until the worker was replaced |
 | **A09** Logging & monitoring | No Sentry or alerting; `auth_events` and `audit_logs` are append-only but there is no anomaly detection, no "impossible travel" alert, and logs are not shipped anywhere. The follow-up job prints a per-row decision line, but there is no metric or alert on a run that fails wholesale |
@@ -118,9 +118,9 @@ remain. None of them are secret; the goal of this list is that nobody has to gue
 | Linear webhook signature and replay tests | Covered by `db:linear`: a signature verifies against its own secret and fails another, a missing signature fails, a delivery older than the 60-second replay window is rejected, and a future-dated delivery is rejected |
 | OWASP ZAP baseline | Not run. There is no hosted origin to scan; `next start` on localhost is not the shape ZAP exists for |
 | Headers verified | The headers were **set locally and confirmed** on 19 October 2026 (the impl table's Security headers row): every checked route returned 200 with the full set from a started production server. What is still not true of this row: an "A+" from a scanning service needs a deployed TLS host, browser-side enforcement is unexercised without a click-through, and the CSP is the inline-allowance policy, not the strict-dynamic one the specification asks for |
-| Dependency, secret, and `cargo audit` scans clean | `pnpm audit --prod` clean by hand on 19 October 2026 (recorded in the A06 row). No automated image: no CI job, no gitleaks hook, no `cargo audit` — nothing mobile/desktop is published, so there is no artefact for cargo to audit |
+| Dependency, secret, and `cargo audit` scans clean | Automated and first green on 19 October 2026: CI runs the `pnpm audit --prod` gate and a gitleaks full-history scan on every push (first job run 39189509413, gate passed in eighteen seconds, report clean under the documented allowlist), plus CodeQL with security-extended queries whose first analysis found six alerts — four closed by two code fixes (see the A06 row), two dismissed with documented reasons; Dependabot's configs opened the first update PRs immediately and its first batch includes actions and `typescript` 7, which are upgrade decisions left open, not merged silently. `cargo audit` remains not applicable: nothing of the desktop is published, and CI's own `cargo test` covers the Rust rules instead |
 | Desktop updater tamper test | Not applicable yet: the updater is registered with no endpoint and no signing key, so it reports that it cannot update rather than downloading anything |
-| Backup restore drill | Not performed. No scheduled backups exist; the honest drill needs a backup target, restores the PGlite/Postgres volume, and redoes `db:verify` on the restored copy |
+| Backup restore drill | Performed locally as `db:restore-drill` (12 checks, first run 19 October 2026): a byte copy of `.pglite` and `.storage` becomes the only thing a scratch database sees, and the verification is seed-free — `db:verify` reseeds before checking, which on a restored copy would truncate it and prove nothing — so the drill reads the restore's real content: the schema's 25 tables came across, the restore holds users/workspaces/meetings/tickets (8/3/9/11), every ticket maps onto a workspace, a tenant with no scope sees nothing, each of two workspaces sees exactly its own tickets past the restore, and the recording bytes sit at their keys in the copied storage at their recorded size. That is a mechanism, not a schedule: no off-machine target, no PITR, no OOB drill timing window; a real Postgres drill would additionally verify a WAL-based restore. Audio bytes live beside the database (`.storage`), and the drill covers them with the rest of the tree |
 
 ## Verifying the claims
 
@@ -139,6 +139,7 @@ pnpm --filter @prepo/web db:linear-smoke    # crypto, mapping, queue, push, pull
 pnpm --filter @prepo/web db:extract-smoke   # schema gate, grounding, dates, autonomy, refusals
 pnpm --filter @prepo/web db:meeting-delete   # deleting a meeting: counts, cascades, kept tickets, audit
 pnpm --filter @prepo/web db:ai-smoke        # Ask Prepo: scope, groundings, refusals, no stored question
+pnpm --filter @prepo/web db:restore-drill   # the backup restore drill: copy, then verify only the restore
 pnpm --filter @prepo/web pwa:check     # the installable app, against a running production server
 pnpm --filter @prepo/desktop verify   # the shell's configuration: CSP, capabilities, scheme, updater, icons
 pnpm --filter @prepo/desktop test     # the shell's rules: target refusal, the prepo:// grammar, workspace detection
@@ -158,6 +159,19 @@ parsers, magic-byte sniffing and the size/duration caps, the Deepgram response m
 recorded-shape payload, the storage driver (including a key trying to escape the storage root),
 chunked assembly and its refusal of an out-of-order piece, the retention clock and the sweep, the
 ingest writes, speaker mapping, and the cross-tenant attempts. Ninety checks pass.
+
+Every push runs this list, not only the person at the keyboard. CI (`.github/workflows/ci.yml`,
+first green 19 October 2026, runs 39189509413 and 39190437041) executes typecheck, the ten
+fresh-database suites above, the production build, `db:idor-smoke` against the built server,
+`pwa:check` against a server it starts itself, the desktop shell's configuration verify, and the
+shell's Rust rules in their own job. A second job gates `pnpm audit --prod` and scans the full git
+history with gitleaks, allowing only the two strings `.gitleaks.toml` documents. CodeQL
+(security-extended) runs in its own workflow; its first analysis raised six alerts, of which two
+were fixed in code (the staged-upload writer's check-then-operate race, and the transcript's
+multi-character tag strip, now a scanner) and two were dismissed with reasons on the alert itself
+(a suite-fixture assertion and the recording bytes going to the configured Deepgram endpoint).
+Dependabot config covers the workspace; `db:restore-drill` is deliberately not in CI because it
+backs up the working dataset and a fresh checkout has none.
 
 `db:followup-smoke` covers the security-relevant half of the chaser directly: that a refused email is
 recorded `failed` **with the reason** and never as `sent`; that the in-app half of the same rung is

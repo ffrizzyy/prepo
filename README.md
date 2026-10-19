@@ -6,6 +6,9 @@ Prepo is an AI agent that acts as a proxy project manager. It turns meetings (re
 transcripts, or raw minutes) into assigned tickets and keeps following up until the work
 is done.
 
+[![CI](https://github.com/ffrizzyy/prepo/actions/workflows/ci.yml/badge.svg)](https://github.com/ffrizzyy/prepo/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/ffrizzyy/prepo/actions/workflows/codeql.yml/badge.svg)](https://github.com/ffrizzyy/prepo/actions/workflows/codeql.yml)
+
 This repository is being built against the specification in [`PREPO.md`](./PREPO.md).
 
 ## Status
@@ -639,6 +642,7 @@ pnpm --filter @prepo/web db:necessity  # recompute every meeting's necessity sco
 pnpm --filter @prepo/web db:ai-smoke   # exercise Ask Prepo, citation grounding and necessity scoring
 pnpm --filter @prepo/web db:injection-smoke # the poisoned-transcript suite: boundaries, not model opinions
 pnpm --filter @prepo/web db:idor-smoke # every data route vs no cookie, forged token, foreign member (needs `next build` first)
+pnpm --filter @prepo/web db:restore-drill  # the backup-restore drill: copy the data, verify only the restore
 pnpm --filter @prepo/web db:ask-live "…" # ask the real provider one question and print the sources
 pnpm --filter @prepo/web db:providers        # which keys are set, and whether they work
 pnpm --filter @prepo/web db:studio     # browse the data
@@ -662,6 +666,18 @@ fixture installers, the scheduled entry points) are the ones that touch the
 working database, on purpose. `db:idor-smoke` additionally needs a production
 build (`next build`) because it starts `next start` on a scratch port against
 its own throwaway directory.
+
+The battery and the hygiene gate are not only local: on every push and pull
+request CI (`.github/workflows/ci.yml`) runs typecheck, the ten fresh-database
+suites from this list, the production build, `db:idor-smoke`, `pwa:check` against
+a server it starts itself, the desktop shell's configuration verify, and — in its
+own job — the shell's Rust rules (`cargo test`). A second job gates on
+`pnpm audit --prod` and scans the full git history with gitleaks; `.gitleaks.toml`
+documents the only two strings it allows, both fixture constants with no credential
+value. CodeQL (security-extended) runs in its own workflow, Dependabot config
+covers the workspace, and `db:restore-drill` is excluded on purpose: it backs up a
+working dataset and a fresh checkout has none. All of it was first green on
+19 October 2026.
 
 `db:smoke` drives the same write functions the server actions call — approving
 action items, moving a ticket, rejecting one, commenting, changing a setting — and reads the

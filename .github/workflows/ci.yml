@@ -75,6 +75,29 @@ jobs:
       - name: Desktop shell configuration (capabilities, CSP, updater, icons)
         run: pnpm --filter @prepo/desktop verify
 
+  desktop-rules:
+    name: desktop shell - cargo test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tauri prerequisites (webkit for linking the shell)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf pkg-config
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: The shell's rules (target refusal, deep-link grammar, workspace detection)
+        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+
   scan:
     name: scans - pnpm audit, gitleaks
     runs-on: ubuntu-latest
