@@ -187,11 +187,28 @@ export async function appendChunk(
   bytes: Uint8Array,
 ): Promise<number> {
   const { part } = uploadPaths(uploadId);
-  const current = await stat(part).catch(() => null);
-  if (current && index === 0) await rm(part, { force: true });
-  if (!current && index > 0) throw new Error("Upload piece arrived out of order");
-  await mkdir(path.dirname(part), { recursive: true });
-  await appendFile(part, bytes);
+  if (index === 0) {
+    await mkdir(path.dirname(part), { recursive: true });
+  }
+  // One open per append with no check-then-operate window: "w" both creates
+  // and truncates, so a first piece restarts the part; "a" refuses to create
+  // anything, so a later piece landing before any part exists throws out of
+  // order instead of resurrecting the file that was checked. Its directory,
+  // too: a piece for an upload that never started finds no directory at all
+  // and fails the same way.
+  let handle: FileHandle;
+  if (index === 0) {
+    handle = await open(part, "w");
+  } else {
+    handle = await open(part, "a").catch(() => {
+      throw new Error("Upload piece arrived out of order");
+    });
+  }
+  try {
+    await handle.appendFile(bytes);
+  } finally {
+    await handle.close();
+  }
   return (await stat(part)).size;
 }
 

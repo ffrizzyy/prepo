@@ -52,7 +52,15 @@ export function parseTimestampMs(value: string): number | null {
 /** `<v Lena Fischer>`, `Speaker 2:` and a bare line all become a label. */
 function speakerAndText(raw: string, fallback: string): { speakerLabel: string; text: string } {
   const voice = raw.match(VOICE_TAG);
-  const withoutTags = raw.replace(/<[^>]+>/g, "").trim();
+  // Tag stripping runs to a fix point: a span of markup that was hidden
+  // inside another span (`<scrip<script>`, say) is gone on the next pass,
+  // and the loop stops the moment a pass changes nothing.
+  let withoutTags = raw.replace(/<[^>]+>/g, "").trim();
+  let previous: string;
+  do {
+    previous = withoutTags;
+    withoutTags = withoutTags.replace(/<[^>]+>/g, "").trim();
+  } while (withoutTags !== previous);
 
   if (voice) {
     return { speakerLabel: voice[1]!.trim(), text: withoutTags };
