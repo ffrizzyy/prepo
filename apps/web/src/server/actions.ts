@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AUDIO_RETENTION_CHOICES, removeAudioBlob } from "./audio/retention";
+import { askWorkspace, type AskReport } from "./ai/ask";
 import { extractMeeting, type ExtractionReport } from "./ai/extract";
+import { computeNecessity } from "./ai/necessity";
 import { requireWorkspace } from "./context";
 import * as t from "./db/schema";
 import {
@@ -128,8 +130,39 @@ export async function extractMeetingNow(input: {
     replace: true,
   });
 
+  // The necessity score compares this meeting against the workspace's earlier
+  // meetings, which is a different read from the extraction, so it runs after it
+  // and only when the extraction produced something. A failure here must not
+  // turn a successful extraction into an error: the meeting keeps "Not scored"
+  // rather than a guessed number.
+  if (report.status === "extracted") {
+    try {
+      await computeNecessity({ workspaceId: context.id, meetingId: parsed.meetingId });
+    } catch {
+      // Deliberately swallowed. See above.
+    }
+  }
+
   revalidateWorkspace(parsed.workspace);
   return report;
+}
+
+/**
+ * Ask Prepo (PREPO.md §8.8). Reading, not writing: it answers from the asking
+ * user's own workspace, records what the model cost in `ai_runs`, and returns
+ * the passages behind the answer so the page can show them. A viewer may ask,
+ * because the answer cannot contain anything they could not already open.
+ */
+export async function askPrepo(input: {
+  workspace: string;
+  question: string;
+}): Promise<AskReport> {
+  const parsed = z
+    .object({ workspace: slug, question: z.string().min(1).max(1_000) })
+    .parse(input);
+  const context = await requireWorkspace(parsed.workspace);
+
+  return askWorkspace({ workspaceId: context.id, question: parsed.question });
 }
 
 /**

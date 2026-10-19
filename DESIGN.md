@@ -90,6 +90,9 @@ Why those dials, in one line each:
 | Semantic `--danger` / `--success` tokens replace repeated hexes | Two literals repeated in a dozen components is how a palette drifts (R-29) |
 | Touch targets: `min-h-11` under `pointer-coarse` | This is a desktop tool, so controls stay dense for a mouse, and grow to the 44px minimum only where a finger is the pointer (R-03) |
 | `prefers-reduced-motion` now removes transitions, not just smooth scroll | The declared MOTION dial is 1, and a person who has asked the system for less motion should get none of it (C-4) |
+| The necessity meter gained an `invert` tone, and the meeting page passes it | The hint said "higher means the meeting likely repeated earlier ones" while the tone painted a 90 as a success; two signals that disagree are worse than either one alone. Necessity is the one number in the app where up is bad, and the colour now agrees with the words |
+| Ask Prepo is a box and a source list, not a chat | It is retrieval with a model behind it, so it says that in its shape: one box, one answer, one list of passages with their speakers. A bubble and a typing indicator would dress it as something that listens, and would put nothing where the checking happens |
+| Its source list reuses the review queue's evidence shape | The transcript quote, the speaker and the meeting link are the same elements a proposed action item shows, so "check this answer" requires reading the same kind of paragraph the reader already learned to check |
 
 ## What this pass did not do
 

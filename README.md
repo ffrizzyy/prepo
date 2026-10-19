@@ -122,7 +122,9 @@ a sitemap entry or a robots rule names that domain again.
 | Installable app (PWA) - manifest, icons, service worker, install offer | Done - `pwa:check` 55/55 against the production build. The worker caches **no rendered page**, so offline reads are not built and offline is a page that says so |
 | Delete a meeting, its transcript, its recording and its recap links (owner/admin, audited) | Done - `db:meeting-delete` 24/24 on a throwaway database. Tickets created from the meeting are **kept** and unlinked |
 | Insights - status mix, meeting to ticket conversion, clarity trend, meeting load grid | Done - every figure is computed from the workspace's own rows; no sample numbers are drawn |
-| Ask Prepo (question answering over a workspace) | Not started |
+| Ask Prepo (question answering over a workspace) | Done - `db:ai-smoke` covers retrieval, citation grounding and every refusal. Answers are cited and non-streamed; there is no side panel |
+| Meeting necessity score (does one meeting repeat earlier ones) | Done - arithmetic over the stored action items and decisions, at the same 0.6 title match the duplicate flag uses. Run by the extraction path and by `db:necessity`; a meeting with nothing to compare against is left **unscored**, never guessed |
+| Meeting-decision insights (which meetings were worth holding) | Partly - `/insights` shows meeting load; the necessity column is the one figure drawn from this score |
 | Desktop (Tauri 2) shell - native window, tray, global shortcut, `prepo://` links, notifications, single instance, window state, external links kept out of the app window | Done - `cargo test` 22/22, `desktop:verify` 48/48. **No installer is built or published**, there is no update endpoint or signing key, and no command is exposed to the page in the window |
 | Docs - `PREPO.md`, `SECURITY.md` (posture + OWASP gaps), `DESIGN.md` (direction, dials, reasons) | Done |
 
@@ -360,13 +362,15 @@ is allowed into the database.
 ```bash
 OPENROUTER_API_KEY=      # in apps/web/.env.local, never committed
 AI_MODEL_EXTRACT=        # a model id from OpenRouter's live model list
+AI_MODEL_ASK=            # optional: what Ask Prepo answers with, else AI_MODEL_EXTRACT
 ```
 
 `db:providers` shows whether they are set (masked); `--live` checks the key against
 `https://openrouter.ai/api/v1/key`. With either missing, the meeting page names the missing value
 and `db:extract` prints the same sentence and writes nothing. The request asks for a JSON Schema
 response; if a provider rejects that, one retry uses JSON mode, and either way the reply must pass
-`rawExtractionSchema` before anything is written.
+`rawExtractionSchema` before anything is written. `AI_MODEL_FAST` is still not read (see **Ask
+Prepo**).
 
 **What a run does** (`extractMeeting` in `server/ai/extract.ts`):
 
@@ -394,9 +398,9 @@ fabricated; "Extract again" replaces only items still in review, never a tickete
 **What is deliberately not here.** There are no automated evals: the suite proves the prompt, the
 schema gate and the grounding rules with a fixture provider, and proves that a run writes what it
 reports, but it cannot score a real model's judgement. PII redaction before the call is not
-implemented. A transcript over the cap is refused rather than split. Necessity scoring is not
-computed — comparing meetings for overlap is a different feature, so the meter stays empty rather
-than showing a guess.
+implemented. A transcript over the cap is refused rather than split. The necessity score is a
+separate pass over stored rows rather than a second model call, and it is arithmetic, so "why did
+this meeting score 90" has an answer that does not involve asking a model what it meant.
 
 **How this is verified.** `pnpm --filter @prepo/web db:extract-smoke` runs **66 checks** with a
 fixture provider: configuration reasons, DST-correct date handling, schema degradation, grounding
@@ -407,6 +411,78 @@ is the one thing the suite cannot make: one was run once against the configured 
 recorded in `SECURITY.md`, but it is not part of CI and it is not an eval. The meeting page itself
 was checked over HTTP (16 checks: the panel, the re-run copy, the first-extraction state, the meter,
 and no key in the HTML), also recorded there.
+
+## Ask Prepo
+
+`/[workspace]/ask` (sidebar: **Ask**) answers a question from the workspace's own transcript lines,
+meetings and tickets, and shows the passages the answer rests on.
+
+**How it retrieves.** Postgres full-text, not embeddings: `websearch_to_tsquery` over the
+`transcript_segments.tsv` column that `drizzle/policies/002_search.sql` maintains with a trigger,
+ranked by `ts_rank`, plus the workspace's recent meetings (title, date, minutes) and its tickets
+(key, title, status, priority, owner, due date). A workspace-sized ticket list is cheaper to send
+whole than to guess a keyword query for it, which is what makes "which of Sam's tickets are
+overdue" answerable at all. Passages go to the model, never a whole transcript.
+
+**What comes back.** `rawAskSchema` allows three fields: `answer`, `sources`, `confident`. Sources
+are ids copied from the passages that were sent (`s1`, `s2`… for transcript lines, `m1`, `m2`… for
+meetings, then ticket keys) and are resolved the way extraction resolves citations: an id that
+names a passage that was never sent is dropped and counted, so the count in the footer is a real
+count. Each transcript citation shows the words, the speaker and the meeting, and links to that
+meeting's transcript tab. An answer that cited nothing is returned and labelled **uncited** rather
+than withheld or dressed up, and "the passages do not answer this" is a permitted reply.
+
+**Limits.** One question is capped at 500 characters; a workspace gets 300 Ask runs a month; the
+question text is never written to the database (the `ai_runs` row records purpose, model, tokens,
+cost and latency, with a null trace id). Empty, over-long, unconfigured, over-budget and
+nothing-retrieved runs are refused with the reason, before any model call, so a refusal costs
+nothing.
+
+**What is deliberately not here.** Answers are not streamed and there is no side panel; a citation
+opens the meeting's transcript tab rather than jumping to the exact line or audio moment. The
+spec's fast-model query rewrite was not built either: `websearch_to_tsquery` already drops
+stopwords and reduces a question to its content words, and the retrieval check in `db:ai-smoke`
+shows that finding the right lines without it.
+
+**How this is verified.** `pnpm --filter @prepo/web db:ai-smoke` runs **56 checks** on a throwaway
+database with fixture providers: the scoring arithmetic, the seeded-history pass with its
+idempotency and cross-tenant invisibility, retrieval ranking, the passage set, every refusal,
+citation grounding (invented ids counted, lower-case ticket keys resolved), the uncited and
+unconfident paths, the schema rejection, cost recording, and the scheduled job that extracts a
+meeting and scores it behind the scenes. No key is needed and nothing is spent. One live call has
+been made and is recorded in `SECURITY.md`:
+
+```
+db:ask-live "What is the checkout webhook retry bug?"
+→ status: answered
+  "The checkout webhook retry bug causes events to be lost when the downstream service is slow …"
+  Speaker 2 in "Q4 Launch — Weekly Sync": "We still lose events when the downstream is slow. I need to fix the checkout webhook retry bug this week, it's blocking the launch."
+  PRE-142
+  20 passages read, model nvidia/nemotron-3-super-120b-a12b:free, cost $0.000000, 3920ms
+```
+
+## Meeting necessity score
+
+Every meeting page carries a **Necessity** meter and `/meetings` shows the column. It is the
+likelihood that the meeting repeated earlier ones, computed as a percentage:
+
+```
+100 × (items and decisions that repeat an earlier meeting) ÷ (all of this meeting's items and decisions)
+```
+
+A title matches at the same 0.6 Jaccard the within-meeting duplicate flag uses, so the two rules
+cannot disagree about one pair of titles. A decision counts on its own, so a meeting that settled
+the same things again with no action items still scores. The hint under the meter names the closest
+match, so a number can be checked against the rows it came from.
+
+It returns **null, not zero**, when there is nothing to compare: a meeting with no items and no
+decisions, or the earliest meeting in a workspace. Null is shown as "Not scored" and never as a
+guess or a zero.
+
+Where it runs: after an extraction, from the page and from the scheduled job, plus
+`pnpm --filter @prepo/web db:necessity` which recomputes every meeting oldest-first (the backfill
+and the cron entry point). It is idempotent, compares only against meetings held earlier, and makes
+no network call.
 
 ## Desktop shell
 
@@ -559,6 +635,9 @@ pnpm --filter @prepo/web db:linear-smoke # exercise crypto, mapping, queue, push
 pnpm --filter @prepo/web db:extract      # extract every ready meeting with no minutes (scheduler entry point)
 pnpm --filter @prepo/web db:extract-smoke # exercise the schema gate, grounding, autonomy and refusals
 pnpm --filter @prepo/web db:meeting-delete # delete a meeting and its derived data, on a throwaway database
+pnpm --filter @prepo/web db:necessity  # recompute every meeting's necessity score, oldest first
+pnpm --filter @prepo/web db:ai-smoke   # exercise Ask Prepo, citation grounding and necessity scoring
+pnpm --filter @prepo/web db:ask-live "…" # ask the real provider one question and print the sources
 pnpm --filter @prepo/web db:providers        # which keys are set, and whether they work
 pnpm --filter @prepo/web db:studio     # browse the data
 pnpm --filter @prepo/web pwa:check     # the installable app, against a running production server
@@ -800,8 +879,9 @@ Milestones follow section 12 of `PREPO.md`:
    made in Linear pulled back. OAuth, comments, attachments and sub-issues are not part of it, and
    the page says so
 7. ◐ Extraction, scores and evals — extraction (OpenRouter, grounded, budgeted, with the
-   Suggest/Assist/Autopilot split) and the clarity score are done. Ask Prepo, necessity scoring
-   and automated evals are not
+   Suggest/Assist/Autopilot split), the clarity score and the necessity score are done, and Ask
+   Prepo answers with cited passages (`db:ai-smoke` 56/56, one live call recorded). Automated evals
+   are not
 8. ✅ Desktop app (Tauri 2) — the window, tray, global shortcut, `prepo://` links, notifications,
    single instance, window state and external-link handling. Compiled and tested (22 Rust tests,
    48 configuration checks). Not packaged: no installer, no signing key, no update endpoint, and no

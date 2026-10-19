@@ -111,7 +111,7 @@ The move from table discussion to field execution becomes instant. Every team me
 | Isolation | Row Level Security keyed on `workspace_id` |
 | IDs | UUIDv7 |
 
-**How "Ask Prepo" works without embeddings:** the query is turned into keyword search terms by a fast model, Postgres returns the top matching transcript chunks and tickets (ranked with `ts_rank` + trigram similarity), then Claude reads those passages and answers with citations. Claude's large context window makes this accurate for team-sized data. Embeddings can be added later behind the same interface if search quality ever needs it.
+**How "Ask Prepo" works without embeddings:** the query is turned into keyword search terms by a fast model, Postgres returns the top matching transcript chunks and tickets (ranked with `ts_rank` + trigram similarity), then Claude reads those passages and answers with citations. Claude's large context window makes this accurate for team-sized data. Embeddings can be added later behind the same interface if search quality ever needs it. **As built: `websearch_to_tsquery` over the `tsvector` column is the query rewrite; the fast-model step was not built, so `AI_MODEL_FAST` stays unread. Passages are ranked transcript lines plus the workspace's recent meetings and its tickets, and the model answers in one non-streamed call with citations that resolve against the passages that were sent.**
 
 ### 1.4 AI layer
 
@@ -121,7 +121,7 @@ The move from table discussion to field execution becomes instant. Every team me
 | Model | Reached through `OPENROUTER_API_KEY` (server-side only). Model IDs live in env (`AI_MODEL_EXTRACT`, `AI_MODEL_FAST`) and are checked against current docs before first run. **As built:** `AI_MODEL_EXTRACT` only; the configured id was taken from OpenRouter's live model list (`/api/v1/models`) |
 | Structured output | `generateObject` / `streamObject` with Zod. **As built:** a JSON Schema `response_format` (with a JSON-mode fallback) and the same Zod schema as the arrival gate |
 | Agent tools | Typed tool calls with a hard allow-list: `create_ticket`, `assign_owner`, `schedule_followup`, `search_meetings`. **As built:** no model-facing tools at all; extraction returns JSON and the server decides what to write |
-| Observability | Langfuse (or an `ai_runs` table): prompts, latency, tokens, cost, eval scores. **As built:** `ai_runs` with model, tokens, cost, latency and the meeting id as `traceId`; no prompt tracing |
+| Observability | Langfuse (or an `ai_runs` table): prompts, latency, tokens, cost, eval scores. **As built:** `ai_runs` with model, tokens, cost, latency and the meeting id as `traceId`; no prompt tracing. Ask Prepo records the same fields with purpose `ask_workspace` and a null `traceId`, because the question is the one piece of free text a person writes here and it is not stored |
 | Evals | Golden transcripts scored on owner / deadline / action-item F1, gated in CI. **As built:** not implemented (7.5) |
 
 ### 1.5 Tooling, quality, DevOps
@@ -459,11 +459,14 @@ BETTER_AUTH_SECRET=
 GOOGLE_CLIENT_ID= / GOOGLE_CLIENT_SECRET=
 GITHUB_CLIENT_ID= / GITHUB_CLIENT_SECRET=
 # AI  (you provide these; server-side only, never exposed to the browser)
-# As built: only OPENROUTER_API_KEY and AI_MODEL_EXTRACT are read. With either
-# missing, extraction is refused and the UI names the missing variable.
+# As built: OPENROUTER_API_KEY, AI_MODEL_EXTRACT and AI_MODEL_ASK are read. With
+# either of the first two missing, extraction is refused and the UI names the
+# missing variable. AI_MODEL_ASK is optional: Ask Prepo answers with it when it
+# is set and with AI_MODEL_EXTRACT when it is not, and says which it is using.
 OPENROUTER_API_KEY=              # one key, model chosen by id
 AI_MODEL_EXTRACT=                # a model id from OpenRouter's live model list
-AI_MODEL_FAST=                   # not read yet (Ask Prepo is not built)
+AI_MODEL_ASK=                    # optional; the answering model for Ask Prepo
+AI_MODEL_FAST=                   # not read (the fast-model query rewrite was not built; websearch_to_tsquery already reduces a question to its content words)
 DEEPGRAM_API_KEY=
 DEEPGRAM_CALLBACK_SECRET=        # verifies transcription callbacks
 # Storage
@@ -707,12 +710,31 @@ screen is read from the segment row itself, so the evidence cannot be a sentence
 | Ask Prepo | Full-text retrieval + Claude, cited answers, permission-aware (no embeddings) |
 | Weekly digest | What shipped, what is stuck, who is blocked |
 
+As built above. Ask Prepo, in the same terms: retrieval is `websearch_to_tsquery` + `ts_rank` over the
+transcript's `tsvector` (built by `002_search.sql`) plus the workspace's recent meetings and its
+tickets, no embeddings; the answer is non-streamed and carries the passages it used; citations are
+ids resolved against the passages that were sent, so an invented one is counted and dropped instead
+of shown; permission-aware because retrieval runs inside the workspace's RLS scope, so the asking
+user's tenant is all the model can see. Not built: streaming, the side panel, jump-to-line and
+audio-moment citations, and the fast-model query rewrite.
+
 **As built:** extraction, owner resolution, relative dates, auto-ticketing, follow-ups and the clarity
 score exist. Owner resolution matches a member's full name, alias, or the email's local part (a
 first name scores lower); it does not match "Sam from design" or "the backend team" to a roster entry —
 those become `no_owner` rather than a guess. Relative dates are resolved by the model and validated
-against a real calendar. The necessity score, Ask Prepo, and any AI commentary in the digest are not
-built; the digest is a plain summary of scheduled and overdue work.
+against a real calendar. The necessity score and Ask Prepo now exist too (§8.8 and the feature list
+below record how); any AI commentary in the digest is still not built, so the digest is a plain
+summary of scheduled and overdue work.
+
+**Necessity, as built:** `100 × (items and decisions that repeat an earlier meeting) ÷ (all of this
+meeting's items and decisions)`, with a title match at the same 0.6 Jaccard the within-meeting
+duplicate flag uses. It is arithmetic over stored rows rather than a second model opinion, and it
+returns null (shown as "Not scored") rather than guessing when a meeting has no items and decisions
+to compare, or when nothing earlier exists in the workspace. It runs behind extraction and behind
+`db:necessity`, which recomputes every meeting oldest first.
+
+**§7.3's "suggests converting them to async" is not built.** The score and the reason line (which
+names the closest match) are where it stopped; nothing proposes cancelling the next one.
 
 ### 7.4 AI safety and cost controls (OWASP Top 10 for LLM Applications)
 
@@ -990,6 +1012,28 @@ those is an audit event.
 - Agent actions (create ticket, reassign, snooze follow-up) always show a **confirmation card** first.
 - Scoped by RBAC: the agent only sees what the asking user can see.
 
+**As built: `/[workspace]/ask` (sidebar: Ask) answers from ranked transcript lines, recent meeting
+entries and the workspace's tickets, one non-streamed call, with the passages shown under the
+answer.** The three example prompts are buttons that ask, because the first thing a box needs to
+communicate is what it reads rather than implying a general assistant.
+
+Not built, and named here so the page is not read as more than it is:
+
+- **Streaming** and the **side panel**. It is a page, not a chat sidebar.
+- **Jump to the source line and audio moment.** A citation opens the meeting's transcript tab and
+  shows the quoted words inline; it does not scroll to the segment or start the audio.
+- **Agent actions.** There are no confirmation cards because Ask Prepo writes nothing: no create,
+  no reassign, no snooze. That is the honest reading of "always show a confirmation card first"
+  when the actions behind it do not exist.
+- **The fast-model query rewrite** that §1.3 describes; `websearch_to_tsquery` replaces it.
+
+What is enforced rather than promised: a question is capped at 500 characters, a workspace gets 300
+asks a month, the question text is never stored (`ai_runs.traceId` stays null), an answer with no
+citation is labelled uncited rather than dressed up, "the passages do not answer this" is a
+permitted reply carried through as such, and retrieval happens inside the workspace's RLS scope.
+`db:ai-smoke` proves all six with fixture providers (56 checks), and one live call to the
+configured model is recorded in `SECURITY.md`.
+
 ### 8.9 Settings
 
 | Section | Features |
@@ -1244,7 +1288,7 @@ All endpoints: Zod-validated, rate-limited, role-authorized, consistent error en
 | **4: Follow-up engine** | Scheduler, escalation ladder, email, in-app notifications, realtime sync (Ably), device management — ✅ **built** with the chaser as a scheduler-invoked script (`db:followups`) instead of Inngest, email wired with a key set but no verified sending domain (a refusal is recorded with Resend's own words), push not queued at all, and the notification centre per person; **Ably realtime sync is not built** | The agent chases for you |
 | **5: Landing + demo + PWA** | Full landing, `/demo`, public recap, SEO, manifest, service worker, offline, install prompt, push — ◐ **mostly built**: the landing, `/demo`, SEO, the static pages (`/security`, `/privacy`, `/terms`, `/download`), and the **installable app** — manifest, icons, service worker, install prompt and an offline page — are built and checked (`pwa:check`, 55 checks). **Offline reads, queued edits and push are not built**: the worker stores no rendered page, so offline is a page that says so, and push has no subscription or key. The landing page, the FAQ and `/download` say exactly that | Shareable and installable |
 | **6: Linear** | OAuth, issue creation, mapping, two-way sync, failure handling — ✅ **built** with a personal API key instead of OAuth (encrypted AES-256-GCM), the mapping editable on `/integrations`, a queue the request never waits on, pull and signed webhook through one conflict rule, and per-ticket retry; comments, attachments and sub-issues are not synced | Work lands where teams already track it |
-| **7: Intelligence** | Ask Prepo, Necessity / Clarity scores, insights, evals in CI | ◐ **Partly built:** extraction from a transcript (OpenRouter, grounded, budgeted, with the Suggest/Assist/Autopilot split), the Clarity score and Insights are built — extraction runs from `db:extract` or the meeting page, not Inngest. Ask Prepo, Necessity scoring and evals in CI are not built |
+| **7: Intelligence** | Ask Prepo, Necessity / Clarity scores, insights, evals in CI | ◐ **Partly built:** extraction from a transcript (OpenRouter, grounded, budgeted, with the Suggest/Assist/Autopilot split), the Clarity score, the Necessity score and Insights are built — extraction runs from `db:extract` or the meeting page, not Inngest. Ask Prepo is built as a cited, non-streamed page (`db:ai-smoke`, 56 checks, one live call recorded in `SECURITY.md`); the side panel, streaming and jump-to-line citations are not. Evals in CI are not built |
 | **8: Desktop app** | Tauri shell, tray, global shortcut, native notifications, deep links, signed updater, release pipeline, `/download` — ✅ **built** as `apps/desktop`: Tauri 2, tray menu, global shortcut, workspace-qualified `prepo://` links, notifications, single instance, remembered window state, and non-app origins handed to the system browser. **Installers, the release pipeline and the signed updater are not built** (no endpoint, no signing key, nothing published), no capability is granted to the window so no plugin command is reachable from the page, there is no IndexedDB offline cache (the web app's service worker from phase 5 caches no data either), and `/download` says all of it | Real installable software |
 | **9: Polish** | Accessibility and performance pass, security checklist, docs, demo recording | Production-ready |
 

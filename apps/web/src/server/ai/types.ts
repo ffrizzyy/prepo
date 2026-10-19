@@ -65,3 +65,56 @@ export class ExtractionFailed extends Error {
     this.name = "ExtractionFailed";
   }
 }
+
+/* ------------------------------------------------------------- ask Prepo */
+
+/**
+ * One passage handed to the answering model (PREPO.md §8.8). Retrieval decides
+ * what it sees; this type is the boundary between "what Postgres found" and
+ * "what the model read", which is the thing worth being able to print and check.
+ */
+export type AskPassage = {
+  /**
+   * What the model cites. `s1`… for transcript lines, `m1`… for meeting
+   * summaries, and a ticket's own key (`PRE-143`) for tickets, because a key is
+   * already a stable, human-readable id and inventing a second one would give
+   * the model two ways to cite the same ticket.
+   */
+  token: string;
+  kind: "transcript" | "meeting" | "ticket";
+  text: string;
+  meetingTitle?: string;
+  speaker?: string;
+  startMs?: number;
+  ticketKey?: string;
+  /**
+   * The row each passage came from, so a citation can be resolved back to the
+   * exact line instead of being matched against the passage text.
+   */
+  segmentId?: string;
+  meetingId?: string;
+};
+
+export type AskInput = {
+  question: string;
+  passages: AskPassage[];
+};
+
+export type AskReply = {
+  /** Parsed JSON, unchecked. `rawAskSchema` decides whether it is usable. */
+  raw: unknown;
+  usage: ExtractionUsage;
+};
+
+export interface AskProvider {
+  readonly name: string;
+  answer(input: AskInput): Promise<AskReply>;
+}
+
+/** Thrown when an answer failed at the provider. */
+export class AskFailed extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AskFailed";
+  }
+}

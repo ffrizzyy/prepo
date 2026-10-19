@@ -5,6 +5,7 @@ import * as t from "../db/schema";
 import type { WorkspaceSettings } from "../db/schema";
 import { approveActionItems, audit } from "../writes";
 import { groundExtraction, type GroundMember, type GroundedItem } from "./ground";
+import { computeNecessity } from "./necessity";
 import { extractionConfigProblem, extractionProvider } from "./openrouter";
 import { rawExtractionSchema } from "./schema";
 import type {
@@ -565,6 +566,17 @@ export async function runExtraction(
         report.extracted += 1;
         report.items += result.items ?? 0;
         report.autoApproved += result.autoApproved ?? 0;
+
+        // The necessity score compares this meeting against the ones held before
+        // it, which is a read the extraction itself does not do. It runs after
+        // the write and only when the write happened. A failure here must not
+        // turn a successful extraction into a failed one, so it is swallowed:
+        // the meeting keeps "Not scored" rather than a guessed number.
+        try {
+          await computeNecessity({ workspaceId: workspace.id, meetingId: target.id });
+        } catch {
+          // See above.
+        }
       } else if (result.status === "failed" || result.status === "invalid") {
         report.failed += 1;
       } else {

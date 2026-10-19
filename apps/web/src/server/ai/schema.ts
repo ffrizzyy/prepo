@@ -102,3 +102,49 @@ export const EXTRACTION_JSON_SCHEMA = {
     },
   },
 } as const;
+
+/* --------------------------------------------------------------- ask Prepo */
+
+/**
+ * What Ask Prepo is allowed to return (§8.8). Deliberately three fields: the
+ * answer, the passages it rests on, and whether the passages actually contained
+ * an answer. There is no free-text "reasoning" field, because anything the model
+ * has to say that is not a citation is something a reader cannot check.
+ */
+export const rawAskSchema = z.object({
+  answer: z.string(),
+  /**
+   * Tokens and ticket keys copied from the passages that were sent. Grounding
+   * resolves them; anything that does not resolve is dropped and counted, so a
+   * citation to a passage that was never sent cannot reach the screen.
+   */
+  sources: z.array(z.string()).catch([]),
+  /** False when the passages do not answer the question. Shown, not hidden. */
+  confident: z.boolean().catch(true),
+});
+
+export type RawAsk = z.infer<typeof rawAskSchema>;
+
+export const ASK_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["answer", "sources", "confident"],
+  properties: {
+    answer: {
+      type: "string",
+      description:
+        "The answer, in two to five sentences, using only the passages. Say plainly when they do not answer the question.",
+    },
+    sources: {
+      type: "array",
+      description:
+        "Ids copied exactly from the passages that support the answer: segment ids like s3, meeting ids like m1, or ticket keys like PRE-143. Empty when nothing supports it.",
+      items: { type: "string" },
+    },
+    confident: {
+      type: "boolean",
+      description:
+        "True only when the passages actually answer the question. False when they are silent or only partly relevant.",
+    },
+  },
+} as const;

@@ -243,8 +243,9 @@ export function MeetingDetail({
                 />
                 <ScoreMeter
                   label="Necessity"
+                  invert
                   value={meeting.necessityScored ? meeting.necessityScore : null}
-                  hint="Higher means the meeting likely repeated earlier ones. Comparing meetings is not built, so new meetings are not scored."
+                  hint="How much of this meeting restates earlier ones: the share of its action items and decisions that match an earlier meeting's. Higher is more redundant. Scored by the necessity pass, which runs after extraction and can be re-run with db:necessity."
                 />
               </div>
             </Card>

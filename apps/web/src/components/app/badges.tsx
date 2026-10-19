@@ -91,11 +91,18 @@ export function ScoreMeter({
   label,
   value,
   hint,
+  invert,
 }: {
   label: string;
   /** Null means no extraction has produced this score; it is not zero. */
   value: number | null;
   hint?: string;
+  /**
+   * True when a high number is the bad one. Necessity is redundant-meeting
+   * likelihood, so 90 means "this meeting repeated the last three" and has to
+   * read as a warning rather than as a good score.
+   */
+  invert?: boolean;
 }) {
   if (value === null) {
     return (
@@ -109,8 +116,14 @@ export function ScoreMeter({
     );
   }
 
-  const tone =
-    value >= 70 ? "text-success" : value >= 45 ? "text-accent-ink" : "text-danger";
+  const high = value >= 70 ? "text-success" : value >= 45 ? "text-accent-ink" : "text-danger";
+  const tone = invert
+    ? value >= 70
+      ? "text-danger"
+      : value >= 45
+        ? "text-accent-ink"
+        : "text-success"
+    : high;
 
   return (
     <div>

@@ -57,6 +57,7 @@ there is no payment to offer — only a fix and credit in the commit if you want
 | Model output boundary | The reply must be JSON that passes `rawExtractionSchema` (Zod); a wrong shape fails the run and imports **nothing**. Values are cleaned (whitespace collapsed, lengths capped) and rendered as text, never as HTML; every citation is resolved against the segment ids that were sent |
 | Evidence grounding | An action item with no valid citation is dropped and counted rather than repaired, and the quote on the review screen is read from the transcript row itself, not from the model's prose. Owners resolve only to workspace members (full name, alias, email local part); a name that matches two members is `ambiguous_owner`, not a guess |
 | Model spend limits | 200 extraction runs per workspace per calendar month and 120,000 characters per transcript, both refusals with a reason; a 90-second timeout; tokens, cost and latency recorded in `ai_runs`. There is no circuit breaker and no concurrency limit |
+| Ask Prepo privacy and scope | The question itself is **never written to the database**: the run row records purpose, model, tokens, cost and latency with a null `traceId`, and nothing else. Retrieval runs inside the workspace's row-level-security scope, so another tenant's transcript lines are indistinguishable from rows that do not exist. The same three-field schema gate applies to the answer; a citation naming a passage that was never sent is dropped and counted, an uncited answer is labelled rather than dressed up, and a workspace is refused after 300 asks a month |
 | Uploads | Audio is accepted only if its own bytes look like audio — the container is sniffed (RIFF/WAVE, MPEG frame sync, Matroska, ISO-BMFF brands) and the extension the client claimed is ignored. Caps: 25 MB per file, 4 MB per chunked piece, 4 hours per recording, 300 transcription minutes per workspace per month. A file that fails is rejected with the reason, before anything is written |
 | Recorded audio at rest | Bytes live under `apps/web/.storage` (or `AUDIO_STORAGE_DIR`) and are **never publicly addressable**: no presigned URLs, no static path. Playback goes through `/api/audio/[assetId]`, which resolves the caller's workspaces and lets row-level security decide visibility, then streams with `private, no-store` and `206` byte ranges. A non-member gets **404**, an anonymous caller **401** |
 | Recording consent | A recording cannot be stored without an explicit consent confirmation, which is recorded against the person who gave it. The API refuses the upload — rather than trusting the form — if the flag is absent |
@@ -118,6 +119,7 @@ pnpm --filter @prepo/web db:followup-smoke  # the ladder, quiet hours, digest an
 pnpm --filter @prepo/web db:linear-smoke    # crypto, mapping, queue, push, pull, webhook, tenancy
 pnpm --filter @prepo/web db:extract-smoke   # schema gate, grounding, dates, autonomy, refusals
 pnpm --filter @prepo/web db:meeting-delete   # deleting a meeting: counts, cascades, kept tickets, audit
+pnpm --filter @prepo/web db:ai-smoke        # Ask Prepo: scope, groundings, refusals, no stored question
 pnpm --filter @prepo/web pwa:check     # the installable app, against a running production server
 pnpm --filter @prepo/desktop verify   # the shell's configuration: CSP, capabilities, scheme, updater, icons
 pnpm --filter @prepo/desktop test     # the shell's rules: target refusal, the prepo:// grammar, workspace detection
@@ -176,6 +178,20 @@ than truncate; Assist and Autopilot only auto-approve unflagged high-confidence 
 indistinguishable from a missing one. What it cannot prove is how well a real model reads a real
 transcript — nobody has measured that yet.
 
+`db:ai-smoke` is the ask-and-necessity counterpart of that, on its own throwaway database (56 checks).
+On the necessity half: the arithmetic on known inputs, that a meeting with nothing to compare is
+left unscored rather than scored 100, that the earliest meeting in a workspace is never scored, that
+a stale value is cleared and a re-run changes nothing, and that a meeting in another workspace is
+not scoreable at all. On the ask half: retrieval returning the lines that say the thing; the
+passages carrying the rows they came from; every refusal (empty question, over-long question, no
+model, monthly cap, nothing retrieved) happening **before** any provider call, with a fixture that
+throws if it is reached; a citation naming a passage that was never sent being dropped and counted;
+a ticket key in lower case resolving anyway; the uncited and unconfident paths carried through; a
+schema-breaking answer refused and still recorded; and every ask run written with a null `traceId`,
+which is the check on the "never stores the question" claim. The scheduled extraction job is also
+driven end to end with a fixture: it extracts a summary-less meeting and the necessity pass behind
+it scores its restated item 100.
+
 `desktop:verify` reads the shell the way an attacker would. Forty-eight checks over
 `apps/desktop/src-tauri`: that a CSP is set and denies by default without `unsafe-eval` or inline
 scripts; that nothing grants a permission to remote content and no command is registered at all;
@@ -232,9 +248,19 @@ configured free OpenRouter model returned three items, resolved Lena, Sam and Pr
 undated item undated with `no_deadline`, and reported `$0.000000` cost. One run is an anecdote, not
 an eval; it is here because it is the only evidence that the prompt and the free model agree.
 
+And one live Ask Prepo call while this feature was built, run with `db:ask-live "What is the
+checkout webhook retry bug?"` against the seeded demo workspace and the same configured model: the
+answer was accepted by the schema gate, cited the real transcript line ("We still lose events when
+the downstream is slow. I need to fix the checkout webhook retry bug this week, it's blocking the
+launch.") and the real ticket `PRE-142`, read 20 passages, reported `$0.000000` cost in 3,920 ms,
+and dropped nothing. The question printed in the command is recorded here rather than stored: the
+run row's `traceId` is null, which `db:ai-smoke` checks for every ask run. It is an anecdote, not a
+benchmark, and it is one run on top of the suite, not part of it.
+
 The meeting page was also checked over HTTP: 16 checks against the production build, including the
 Extraction panel appearing on a meeting with minutes and offering a re-run whose copy promises that
 proposed items are replaced while ticketed and rejected ones are kept, a meeting with a transcript
 and no minutes offering a first extraction, clarity rendering as a scored meter, necessity saying
 that comparing meetings is not built, the transcript tab still rendering, and no `sk-or-` key
-appearing anywhere in the page.
+appearing anywhere in the page. (The necessity meter's copy is different now: the score shipped
+after that pass, and its hint describes the arithmetic instead. The rest still reads the same.)

@@ -261,7 +261,12 @@ const STOPWORDS = new Set([
   "it",
 ]);
 
-function titleTokens(title: string): Set<string> {
+/**
+ * Exported because the cross-meeting necessity score has to use the same
+ * definition of "the same words" as the within-meeting duplicate flag. Two
+ * tokenizers would let the two rules disagree about the same pair of titles.
+ */
+export function titleTokens(title: string): Set<string> {
   return new Set(
     title
       .toLowerCase()
@@ -271,7 +276,7 @@ function titleTokens(title: string): Set<string> {
   );
 }
 
-function jaccard(a: Set<string>, b: Set<string>): number {
+export function jaccard(a: Set<string>, b: Set<string>): number {
   if (a.size === 0 || b.size === 0) return 0;
   let intersection = 0;
   for (const token of a) if (b.has(token)) intersection += 1;
