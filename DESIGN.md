@@ -117,6 +117,20 @@ is not evidence:
   drops the live Linear connection and the TOTP and audio fixtures, which is why
   it was not done as part of this sweep.
 
+## Polish: the first increment
+
+| Change | Reason |
+| --- | --- |
+| The workspace segment loads behind an instant skeleton (`[workspace]/loading.tsx`) | Server pages each run Postgres queries, so a plain screen sits between navigation and content; the skeleton draws the surfaces the page is about to draw (a header, a summary strip, a card of rows) so the swap-in reads as progress, not as a layout change |
+| The skeleton is grey and still | MOTION is dial 1 and the only motion it allows is hover and focus feedback; a pulsing skeleton is ambient motion, so the blocks are flat surface-2 shapes. The file says this in its own comment so nobody "fixes" it |
+| `role="status"` and a "Loading" label on the container | The swap from skeleton to page is invisible to a screen reader unless the container announces itself; the label is the one word that is true |
+| The spec's pre-launch checklist is mapped item by item in `SECURITY.md` | A checkbox list that is mostly not yet checkable is more honest as a state table: what a suite covers, and what is waiting on a hosted origin rather than on code |
+
+What this increment did not do, and is not claimed to have done: an axe pass, a
+keyboard-only walkthrough, a Lighthouse budget, a ZAP scan, and the security
+headers themselves, which are the next item and need the origin inventory built
+alongside the hosting story.
+
 ## Assets
 
 No new visual asset was generated in this pass. The wordmark, the app icon and
