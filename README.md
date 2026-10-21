@@ -675,8 +675,10 @@ own job — the shell's Rust rules (`cargo test`). A second job gates on
 `pnpm audit --prod` and scans the full git history with gitleaks; `.gitleaks.toml`
 documents the only two strings it allows, both fixture constants with no credential
 value. CodeQL (security-extended) runs in its own workflow, Dependabot config
-covers the workspace, and `db:restore-drill` is excluded on purpose: it backs up a
-working dataset and a fresh checkout has none. The web and scan jobs were first
+covers the workspace, and `db:restore-drill` runs against a dataset the web job
+migrates, seeds and gives an audio fixture first — so the copy-and-verify
+mechanics are checked on every push, while drilling an operator's own dataset
+stays a local run. The web and scan jobs were first
 green on 19 October 2026; the shell's Rust job found a Linux-only compile break
 on its first run and was first green two days later, after the dependency pin
 recorded in `DESIGN.md` (run 39533322567).

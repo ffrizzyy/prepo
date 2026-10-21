@@ -1233,7 +1233,7 @@ Cross-Origin-Resource-Policy: same-origin
 - [ ] Headers verified (securityheaders.com A+)
 - [ ] Dependency, secret, and `cargo audit` scans clean *(automated as of 19 October 2026: `pnpm audit --prod` gate, gitleaks over full history (allowlist documented in `.gitleaks.toml`), a staged-change pre-commit hook, CodeQL security-extended, and Dependabot - first green CI run on push; `cargo audit` still n/a, nothing published)*
 - [ ] Desktop updater tamper test (modified bundle is rejected)
-- [ ] Backup restore drill performed *(performed locally by `db:restore-drill`, 12 checks on 19 October 2026: a byte copy of data + storage verified restore-only, seed-free — what is still missing is cloud backups with an off-machine target and PITR; recorded in `SECURITY.md`)*
+- [ ] Backup restore drill performed *(performed locally by `db:restore-drill`, 12 checks on 19 October 2026: a byte copy of data + storage verified restore-only, seed-free; the same 12 checks now run in CI on a throwaway dataset the job migrates, seeds and gives the audio fixture — what is still missing is cloud backups with an off-machine target and PITR; recorded in `SECURITY.md`)*
 
 ---
 

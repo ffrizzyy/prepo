@@ -3,7 +3,10 @@
 # - `web` runs the whole check battery on a throwaway database (every db:*
 #   check suite is self-contained by construction) plus the installability and
 #   desktop-configuration checks, so a push cannot silently break isolation
-#   boundaries, extraction grounding, or the HTTP IDOR matrix.
+#   boundaries, extraction grounding, or the HTTP IDOR matrix. The restore
+#   drill runs here too: a throwaway dataset is migrated, seeded and given the
+#   audio fixture, then copied and verified by the same 12 checks the local
+#   drill runs.
 # - `scan` is the dependency and secret hygiene gate: pnpm audit against the
 #   production graph and gitleaks over the full git history.
 #
@@ -42,12 +45,21 @@ jobs:
 
       - name: Check suites (each on a fresh throwaway database)
         run: |
-          # The restore drill is not here on purpose: it backs up the working
-          # dataset, and a fresh checkout has no working dataset to copy.
           for s in verify smoke auth audio followup-smoke linear-smoke extract-smoke ai-smoke injection-smoke meeting-delete; do
             echo "--- db:$s"
             pnpm --filter @prepo/web "db:$s"
           done
+
+      - name: Restore drill (copy a seeded throwaway dataset, verify only the copy)
+        run: |
+          # The drill itself never touches an operator's data; here the dataset
+          # it copies is built in the checkout minutes earlier. The audio
+          # fixture writes real bytes, so the storage half is exercised too
+          # rather than reporting zero assets.
+          pnpm --filter @prepo/web db:migrate
+          pnpm --filter @prepo/web db:seed
+          pnpm --filter @prepo/web db:audio-fixture
+          pnpm --filter @prepo/web db:restore-drill
 
       - name: Build the production app
         run: pnpm build

@@ -215,7 +215,9 @@ routes rendered by server components, anything browser-enforced - is said in
   but the copy, and verifies the restore seed-free - because `db:verify`
   reseeds, which on a restored copy would truncate it and prove nothing about
   the restored data. What it does not claim: a schedule, an off-machine
-  target, PITR.
+  target, PITR. It runs in CI too, on a dataset the job migrates, seeds and
+  gives an audio fixture first, so the mechanics are checked every push; the
+  local run remains the only one that proves an operator's own data returns.
 - **The shell job caught a Linux-only break on its first day, which is what it
   is for.** CI compiled `tauri-plugin-deep-link 2.6.2` against `rust-ini`
   0.21.3 and stopped on a missing-field error in the plugin's
