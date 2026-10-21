@@ -45,8 +45,11 @@ written.
 - A grounded item is still a proposal, not a fact. Grounding proves the quote
   exists, not that the owner or date is right; a human review step is what makes
   the tickets trustworthy, and the UI shows proposed items for review.
-- Extraction quality is not measured. There is no golden set and no eval gate
-  (ADR 0010), so "the extraction is good" is not a claim this repository makes.
+- Extraction quality against a **live** model is not measured. `db:eval` scores
+  recorded replies on three golden transcripts (item F1 0.800, owners 0.833,
+  deadlines 0.833 against 0.75 floors), which gates the pipeline but says nothing
+  about a model reading a transcript it has not seen; "the extraction is good" is
+  still not a claim this repository makes.
 - A schema-valid answer whose quotes do not match is discarded wholesale, which
   can look like "the model found nothing". The report names the dropped count,
   and the page shows it.

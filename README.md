@@ -8,6 +8,7 @@ is done.
 
 [![CI](https://github.com/ffrizzyy/prepo/actions/workflows/ci.yml/badge.svg)](https://github.com/ffrizzyy/prepo/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/ffrizzyy/prepo/actions/workflows/codeql.yml/badge.svg)](https://github.com/ffrizzyy/prepo/actions/workflows/codeql.yml)
+[![eval gate: item F1 0.800](https://img.shields.io/badge/eval_items_F1-0.800-blue)](#the-eval-gate)
 
 This repository is being built against the specification in [`PREPO.md`](./PREPO.md).
 The shape of the built system, its trust boundaries and the decisions behind it
@@ -118,7 +119,7 @@ a sitemap entry or a robots rule names that domain again.
 | Review — approve / reject with the transcript quote, owner confidence and flags | Done |
 | Budget and observability — 120k-character cap, 200 runs per workspace per month, `ai_runs` cost/latency/usage | Done |
 | Autonomy — Suggest / Assist / Autopilot applied at extraction time | Done |
-| Automated extraction evals (golden set, precision/recall gate) | Not implemented — the suite tests grounding, not model quality (see **Extraction**) |
+| Automated extraction evals (golden set, precision/recall gate) | Done for **recorded** outputs — `db:eval` gates item F1 0.800, owners 0.833, deadlines 0.833 against 0.75 floors; it makes no model call and says nothing about live-model quality (see **The eval gate**) |
 | PII redaction before the model call | Not implemented |
 | Speech-to-text provider (Deepgram) | Wired, **unconfigured without a key** |
 | Tab-audio capture (`getDisplayMedia`), `.docx`/`.pdf` transcripts | Not implemented — recorder is mic-only; transcripts are parsed as text |
@@ -406,12 +407,13 @@ Prepo**).
 The review screen shows the quote from the transcript segment itself, so the evidence cannot be
 fabricated; "Extract again" replaces only items still in review, never a ticketed or rejected one.
 
-**What is deliberately not here.** There are no automated evals: the suite proves the prompt, the
-schema gate and the grounding rules with a fixture provider, and proves that a run writes what it
-reports, but it cannot score a real model's judgement. PII redaction before the call is not
-implemented. A transcript over the cap is refused rather than split. The necessity score is a
-separate pass over stored rows rather than a second model call, and it is arithmetic, so "why did
-this meeting score 90" has an answer that does not involve asking a model what it meant.
+**What is deliberately not here.** There is no live-model eval: `db:eval` scores **recorded**
+model outputs against golden transcripts (below), so it can catch a regression in grounding,
+member resolution or date handling, but it cannot score a real model's judgement. PII redaction
+before the call is not implemented. A transcript over the cap is refused rather than split. The
+necessity score is a separate pass over stored rows rather than a second model call, and it is
+arithmetic, so "why did this meeting score 90" has an answer that does not involve asking a model
+what it meant.
 
 **How this is verified.** `pnpm --filter @prepo/web db:extract-smoke` runs **66 checks** with a
 fixture provider: configuration reasons, DST-correct date handling, schema degradation, grounding
@@ -422,6 +424,26 @@ is the one thing the suite cannot make: one was run once against the configured 
 recorded in `SECURITY.md`, but it is not part of CI and it is not an eval. The meeting page itself
 was checked over HTTP (16 checks: the panel, the re-run copy, the first-extraction state, the meter,
 and no key in the HTML), also recorded there.
+
+### The eval gate
+
+`pnpm --filter @prepo/web db:eval` scores **recorded model outputs** against three golden
+transcripts: 8 predicted items, 7 gold, 6 matched - item precision 0.750, recall 0.857, **item F1
+0.800**; owners **5/6 (0.833)**; deadlines **5/6 (0.833)**. The floors are 0.75 for each, and the
+suite exits non-zero below any of them.
+
+The fixtures are deliberately imperfect: one reply loses an action item, one invents an item
+nobody promised, and one gets an owner and a date wrong. Each reply still goes through the real
+pipeline - schema, grounding, member and date resolution, the database write - and the rows that
+land are matched to the gold labels one-to-one by title similarity. The scorer also checks itself:
+a perfect prediction must score 1.000, an empty one 0.000, and a duplicate must cost precision.
+
+What the gate proves: a change to the prompt contract, grounding, member resolution or due-date
+handling that loses a known item, reassigns an owner or moves a date fails the build. What it
+cannot prove: how a live model reads a transcript it has not seen. The number is a regression
+floor for the pipeline, not a claim about model quality, and the badge at the top of this README
+is that same recorded score. CI runs it without a model call or a network request. A live read
+still needs `db:ask-live` and a key.
 
 ## Ask Prepo
 
@@ -645,6 +667,7 @@ pnpm --filter @prepo/web db:linear      # work the Linear queue: pull what chang
 pnpm --filter @prepo/web db:linear-smoke # exercise crypto, mapping, queue, push, pull and the webhook
 pnpm --filter @prepo/web db:extract      # extract every ready meeting with no minutes (scheduler entry point)
 pnpm --filter @prepo/web db:extract-smoke # exercise the schema gate, grounding, autonomy and refusals
+pnpm --filter @prepo/web db:eval       # score recorded model outputs against three golden transcripts
 pnpm --filter @prepo/web db:meeting-delete # delete a meeting and its derived data, on a throwaway database
 pnpm --filter @prepo/web db:necessity  # recompute every meeting's necessity score, oldest first
 pnpm --filter @prepo/web db:ai-smoke   # exercise Ask Prepo, citation grounding and necessity scoring
@@ -666,7 +689,7 @@ pass on PGlite by default; to run them against a real Postgres instead, set both
 at, and creates a throwaway only when nothing was pointed anywhere).
 
 Every `db:*` check suite (`db:verify`, `db:smoke`, `db:auth`, `db:audio`,
-`db:followup-smoke`, `db:linear-smoke`, `db:extract-smoke`, `db:ai-smoke`,
+`db:followup-smoke`, `db:linear-smoke`, `db:extract-smoke`, `db:eval`, `db:ai-smoke`,
 `db:injection-smoke`, `db:meeting-delete`, `db:idor-smoke`) runs on a throwaway
 database it generates for the run and deletes afterwards: a suite that reseeds
 would otherwise truncate the working `.pglite`, taking the Linear connection and
@@ -677,7 +700,7 @@ build (`next build`) because it starts `next start` on a scratch port against
 its own throwaway directory.
 
 The battery and the hygiene gate are not only local: on every push and pull
-request CI (`.github/workflows/ci.yml`) runs typecheck, the ten fresh-database
+request CI (`.github/workflows/ci.yml`) runs typecheck, the eleven fresh-database
 suites from this list, the production build, `db:idor-smoke`, `pwa:check` against
 a server it starts itself, the desktop shell's configuration verify, and — in its
 own job — the shell's Rust rules (`cargo test`). A second job gates on
@@ -917,8 +940,10 @@ Milestones follow section 12 of `PREPO.md`:
    the page says so
 7. ◐ Extraction, scores and evals — extraction (OpenRouter, grounded, budgeted, with the
    Suggest/Assist/Autopilot split), the clarity score and the necessity score are done, and Ask
-   Prepo answers with cited passages (`db:ai-smoke` 56/56, one live call recorded). Automated evals
-   are not
+   Prepo answers with cited passages (`db:ai-smoke` 56/56, one live call recorded). A
+   recorded-output eval gate runs in CI (`db:eval`: item F1 0.800, owners 0.833, deadlines 0.833
+   against 0.75 floors). It scores fixed model replies, not live-model quality; that eval is
+   still absent
 8. ✅ Desktop app (Tauri 2) — the window, tray, global shortcut, `prepo://` links, notifications,
    single instance, window state and external-link handling. Compiled and tested (22 Rust tests,
    48 configuration checks). Not packaged: no installer, no signing key, no update endpoint, and no

@@ -53,8 +53,9 @@ Postgres does the retrieval, and the model only reads the passages it is given.
 ## Alternatives considered
 
 - **pgvector plus an embedding model.** Rejected for this size: another
-  provider, another key, another index, and a quality claim the project has no
-  eval to support (evals are not built, see ADR 0010).
+  provider, another key, another index, and a quality claim the project's
+  recorded-output eval does not support (it scores the extraction and resolution
+  pipeline, not retrieval relevance; see ADR 0010).
 - **Send every transcript to the model.** Rejected: unbounded cost and latency,
   and it makes the cap meaningless.
 - **A hosted search service.** Rejected: the workspace boundary is already in

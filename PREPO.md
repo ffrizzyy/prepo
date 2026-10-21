@@ -122,7 +122,7 @@ The move from table discussion to field execution becomes instant. Every team me
 | Structured output | `generateObject` / `streamObject` with Zod. **As built:** a JSON Schema `response_format` (with a JSON-mode fallback) and the same Zod schema as the arrival gate |
 | Agent tools | Typed tool calls with a hard allow-list: `create_ticket`, `assign_owner`, `schedule_followup`, `search_meetings`. **As built:** no model-facing tools at all; extraction returns JSON and the server decides what to write |
 | Observability | Langfuse (or an `ai_runs` table): prompts, latency, tokens, cost, eval scores. **As built:** `ai_runs` with model, tokens, cost, latency and the meeting id as `traceId`; no prompt tracing. Ask Prepo records the same fields with purpose `ask_workspace` and a null `traceId`, because the question is the one piece of free text a person writes here and it is not stored |
-| Evals | Golden transcripts scored on owner / deadline / action-item F1, gated in CI. **As built:** not implemented (7.5) |
+| Evals | Golden transcripts scored on owner / deadline / action-item F1, gated in CI. **As built:** `db:eval` scores three golden transcripts against **recorded** model replies (item F1 0.800, owners 0.833, deadlines 0.833, floors 0.75) in CI with no model call; it is a pipeline regression gate, not a live-model score, and the set is 3, not the 30-50 below |
 
 ### 1.5 Tooling, quality, DevOps
 
@@ -501,7 +501,7 @@ prepo/
 │  ├─ shared/                    # Zod schemas, types, constants
 │  └─ config/                    # eslint, tsconfig, tailwind tokens
 ├─ docs/ (ARCHITECTURE.md, SECURITY.md, adr/)
-├─ evals/                        # golden transcripts + scorers
+├─ evals/                        # golden transcripts + scorers (as built: apps/web/src/server/ai/eval*.ts)
 ├─ e2e/
 ├─ Dockerfile · docker-compose.yml · .github/workflows/
 ```
@@ -761,9 +761,15 @@ to `ai_runs`.
 - Metrics: item precision / recall / F1, owner accuracy, due-date accuracy, hallucination rate.
 - A prompt or model change that drops F1 below the threshold fails the PR. Score trend shown in the README.
 
-**As built:** not implemented. There is no golden set, no metrics run and no CI gate, so model quality
-is unmeasured; `db:extract-smoke` tests the schema and grounding with a fixture provider, which is a
-different claim. The README says so where the feature is described.
+**As built:** partly. `db:eval` (in CI) runs three golden transcripts - the launch sync, a client
+kickoff and an ops standup - through the real pipeline with a fixture provider, and scores the rows
+that land: item precision 0.750 / recall 0.857 / **F1 0.800**, owner accuracy **5/6 (0.833)**,
+due-date accuracy **5/6 (0.833)**, all against 0.75 floors. The replies are **recorded**, not fetched:
+the gate makes no model call and needs no key, so it measures schema, grounding, member resolution,
+date handling and the write - and it cannot measure a live model's judgement. Three cases is not the
+30-50 the specification asks for, there is no hallucination-rate metric (spurious items are counted
+against precision instead), and the README badge is a snapshot of this score rather than a trend.
+A prompt or model change still needs a live run (`db:ask-live`) before anyone can claim it improved.
 
 ---
 
@@ -1268,7 +1274,7 @@ All endpoints: Zod-validated, rate-limited, role-authorized, consistent error en
 |---|---|
 | Unit (Vitest) | Owner matching, date resolution, schema validators, RBAC, crypto helpers, Linear mapping, speaker mapping |
 | Integration | API routes against real Postgres (RLS included), MSW for Deepgram / Linear / Ably |
-| AI evals | Golden-set scoring in CI on prompt/model changes |
+| AI evals | Golden-set scoring in CI on prompt/model changes - built for **recorded** outputs (`db:eval`, 3 cases); a prompt or model change still needs a live run before quality is claimed |
 | E2E (Playwright) | Sign-up → record/upload → transcribe (mocked provider) → approve → ticket → Linear sync → follow-up. Mobile viewport. Two-browser sync. Passkey via virtual authenticator. Offline queue replay |
 | PWA | Lighthouse PWA audit, install flow, offline behavior |
 | Desktop | Tauri build smoke test on all three OS in CI, updater test against a staging manifest |
@@ -1282,13 +1288,13 @@ All endpoints: Zod-validated, rate-limited, role-authorized, consistent error en
 
 | Phase | Scope | Result |
 |---|---|---|
-| **1: Foundation** | Monorepo, CI, design tokens, auth (password + OAuth + passkey + 2FA), workspaces, RLS, security headers — ◐ **built**: monorepo, design tokens, password auth with TOTP second factor (OAuth, passkeys and magic links are not built), workspaces with row-level security enabled and forced on both PGlite and Postgres, and the security headers (a config-file CSP built from the origin inventory because the marketing pages are static, plus `X-Frame-Options`, `nosniff`, referrer policy, a least-privilege `Permissions-Policy`, COOP and CORP; CI exists as two workflows (`.github/workflows/ci.yml` and `codeql.yml`, first green on 19 October 2026): every push runs the check-suites battery on fresh databases with the production build, the IDOR matrix and PWA checks, the desktop shell's config verify and its Rust rules, plus `pnpm audit --prod` and gitleaks-over-history gates and a security-extended CodeQL analysis; Dependabot config covers the workspace. The shell's Rust job was first green on 21 October 2026 after a Linux-only dependency pin (recorded in `DESIGN.md`). CI does not yet run evals or Lighthouse) | Secure shell |
+| **1: Foundation** | Monorepo, CI, design tokens, auth (password + OAuth + passkey + 2FA), workspaces, RLS, security headers — ◐ **built**: monorepo, design tokens, password auth with TOTP second factor (OAuth, passkeys and magic links are not built), workspaces with row-level security enabled and forced on both PGlite and Postgres, and the security headers (a config-file CSP built from the origin inventory because the marketing pages are static, plus `X-Frame-Options`, `nosniff`, referrer policy, a least-privilege `Permissions-Policy`, COOP and CORP; CI exists as two workflows (`.github/workflows/ci.yml` and `codeql.yml`, first green on 19 October 2026): every push runs the check-suites battery on fresh databases with the production build, the IDOR matrix and PWA checks, the desktop shell's config verify and its Rust rules, plus `pnpm audit --prod` and gitleaks-over-history gates and a security-extended CodeQL analysis; Dependabot config covers the workspace. The shell's Rust job was first green on 21 October 2026 after a Linux-only dependency pin (recorded in `DESIGN.md`). CI also runs the recorded-output eval gate (`db:eval`, no model call); it does not yet run Lighthouse) | Secure shell |
 | **2: Core loop** | Text ingest → extraction → review → tickets → board | Three core capabilities working |
 | **3: Audio** | R2 uploads, in-app recorder, Deepgram pipeline, speaker mapping, synced player, retention — ✅ **built** with the local storage driver instead of R2, the recorder mic-only, and the provider unconfigured without a key | Recordings become transcripts |
 | **4: Follow-up engine** | Scheduler, escalation ladder, email, in-app notifications, realtime sync (Ably), device management — ✅ **built** with the chaser as a scheduler-invoked script (`db:followups`) instead of Inngest, email wired with a key set but no verified sending domain (a refusal is recorded with Resend's own words), push not queued at all, and the notification centre per person; **Ably realtime sync is not built** | The agent chases for you |
 | **5: Landing + demo + PWA** | Full landing, `/demo`, public recap, SEO, manifest, service worker, offline, install prompt, push — ◐ **mostly built**: the landing, `/demo`, SEO, the static pages (`/security`, `/privacy`, `/terms`, `/download`), and the **installable app** — manifest, icons, service worker, install prompt and an offline page — are built and checked (`pwa:check`, 55 checks). **Offline reads, queued edits and push are not built**: the worker stores no rendered page, so offline is a page that says so, and push has no subscription or key. The landing page, the FAQ and `/download` say exactly that | Shareable and installable |
 | **6: Linear** | OAuth, issue creation, mapping, two-way sync, failure handling — ✅ **built** with a personal API key instead of OAuth (encrypted AES-256-GCM), the mapping editable on `/integrations`, a queue the request never waits on, pull and signed webhook through one conflict rule, and per-ticket retry; comments, attachments and sub-issues are not synced | Work lands where teams already track it |
-| **7: Intelligence** | Ask Prepo, Necessity / Clarity scores, insights, evals in CI | ◐ **Partly built:** extraction from a transcript (OpenRouter, grounded, budgeted, with the Suggest/Assist/Autopilot split), the Clarity score, the Necessity score and Insights are built — extraction runs from `db:extract` or the meeting page, not Inngest. Ask Prepo is built as a cited, non-streamed page (`db:ai-smoke`, 56 checks, one live call recorded in `SECURITY.md`); the side panel, streaming and jump-to-line citations are not. Evals in CI are not built |
+| **7: Intelligence** | Ask Prepo, Necessity / Clarity scores, insights, evals in CI | ◐ **Partly built:** extraction from a transcript (OpenRouter, grounded, budgeted, with the Suggest/Assist/Autopilot split), the Clarity score, the Necessity score and Insights are built — extraction runs from `db:extract` or the meeting page, not Inngest. Ask Prepo is built as a cited, non-streamed page (`db:ai-smoke`, 56 checks, one live call recorded in `SECURITY.md`); the side panel, streaming and jump-to-line citations are not. Evals in CI are now built for recorded outputs (`db:eval`: item F1 0.800, owners 0.833, deadlines 0.833 against 0.75 floors), which gates the pipeline but does not score a live model |
 | **8: Desktop app** | Tauri shell, tray, global shortcut, native notifications, deep links, signed updater, release pipeline, `/download` — ✅ **built** as `apps/desktop`: Tauri 2, tray menu, global shortcut, workspace-qualified `prepo://` links, notifications, single instance, remembered window state, and non-app origins handed to the system browser. **Installers, the release pipeline and the signed updater are not built** (no endpoint, no signing key, nothing published), no capability is granted to the window so no plugin command is reachable from the page, there is no IndexedDB offline cache (the web app's service worker from phase 5 caches no data either), and `/download` says all of it | Real installable software |
 | **9: Polish** | Accessibility and performance pass, security checklist, docs, demo recording — ◐ **started**: the workspace segment loads behind an instant skeleton (`[workspace]/loading.tsx`, static blocks, because MOTION stays at dial 1), the audit/gitleaks/CodeQL hygiene gates run in CI on every push and `pnpm audit --prod` reports no known vulnerabilities against the pnpm lockfile, the security response headers are configured and were confirmed against a locally started production server (CSP, `X-Frame-Options`, `nosniff`, referrer, least-privilege `Permissions-Policy`, COOP and CORP), and the specification's pre-launch checklist (9.4) is mapped item by item to its evidence in `SECURITY.md`. Two 9.4 rows are now suites of their own: `db:injection-smoke` (38 checks: a poisoned transcript pressed against a fixture model that obeys it, asserting the data-stays-data boundary, no model-side tool affordance in the captured request, grounded output only, and ask retrieval scoped to the caller's workspace) and `db:idor-smoke` (25 checks: the built production server driven over real HTTP through audio streaming's 401/404/200/206/416 and the six form routes' anonymous and foreign refusals, with "not yours" and "unknown" answering identically, plus the chunk route's 4 MB piece cap answered 413 for an authorised caller). Every check suite also runs on a throwaway database by construction now, and the injection suite made the extraction schema's structural gate honest where a `catch([])` had been swallowing element failures into quiet zero-item imports. The architecture map and ten ADRs are now written down (`ARCHITECTURE.md`, `docs/adr/`), including the four decisions the specification's own list asks about (RLS, no Inngest, no Ably channel, no embeddings). Still not done: axe and Lighthouse runs (browser automation does not exist in this environment), the ZAP baseline (needs a hosted origin), the strict-dynamic CSP upgrade (needs every page to render for a request), a `cargo audit` (nothing of the desktop is published yet), and a demo recording | Production-ready |
 
@@ -1296,7 +1302,7 @@ All endpoints: Zod-validated, rate-limited, role-authorized, consistent error en
 
 - [ ] Live demo link with a no-signup demo workspace
 - [ ] Installable from the browser, plus downloadable desktop builds on GitHub Releases
-- [ ] README with architecture diagram, security model, and an eval score badge
+- [x] README with architecture diagram, security model, and an eval score badge *(the diagram lives in `ARCHITECTURE.md` and the trusted-boundary table lives in `SECURITY.md`, both linked from the README; the badge shows the recorded-output eval score `db:eval` gates in CI, and the README section says what it does not measure)*
 - [ ] 60–90 second screen recording of the core loop (record → tickets → Linear)
 - [x] `ARCHITECTURE.md` + ADRs (why RLS, why Inngest, why Ably IDs-only, why no embeddings) *(written: `ARCHITECTURE.md` is the map of components, request path, data model, pipelines and trust boundaries; `docs/adr/` holds ten records - RLS, PGlite/Postgres, job passes instead of Inngest, full-text retrieval instead of embeddings, the storage driver, JSON-only model output, encrypted integration secrets, a capability-less desktop shell, no realtime channel, and CI as the enforcement point)*
 - [ ] Public `SECURITY.md` and OWASP mapping

@@ -19,6 +19,7 @@
     "db:followup-smoke": "tsx src/server/db/followup-smoke.ts",
     "db:extract": "tsx src/server/db/extract.ts",
     "db:extract-smoke": "tsx src/server/db/extract-smoke.ts",
+    "db:eval": "tsx src/server/db/eval.ts",
     "db:necessity": "tsx src/server/db/necessity.ts",
     "db:ai-smoke": "tsx src/server/db/ai-smoke.ts",
     "db:injection-smoke": "tsx src/server/db/injection-smoke.ts",

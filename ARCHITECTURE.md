@@ -204,7 +204,8 @@ These are decisions, not a backlog being hidden:
 | R2 / presigned URLs | A storage driver over the local filesystem, authorization per request | [ADR 0005](./docs/adr/0005-audio-behind-a-storage-driver.md) |
 | Web push | In-app notifications and email | No subscription writer and no VAPID key |
 | Installers, signing, updater | A Tauri shell that refuses to update | No endpoint, no signing key, nothing published |
-| Evals, Lighthouse, axe, ZAP, `cargo audit` | CI suites and scans that do not need a browser or a host | [ADR 0010](./docs/adr/0010-ci-is-the-enforcement-point.md) |
+| Evals of a live model | A recorded-output eval gate: three golden transcripts, fixture replies, item/owner/deadline floors | [ADR 0010](./docs/adr/0010-ci-is-the-enforcement-point.md) |
+| Lighthouse, axe, ZAP, `cargo audit` | CI suites and scans that do not need a browser or a host | [ADR 0010](./docs/adr/0010-ci-is-the-enforcement-point.md) |
 
 ## How the invariants are checked
 
@@ -220,6 +221,7 @@ its own database directory. CI runs them on every push.
 | Ask Prepo cites only what it was sent | `db:ai-smoke` (56 checks) and the citation check in `ask.ts` |
 | The follow-up ladder, quiet hours and refusals are recorded honestly | `db:followup-smoke` |
 | Extraction grounds every item and drops the rest | `db:extract-smoke` |
+| Known transcripts score above the floors after schema, grounding and resolution | `db:eval` (recorded replies; item F1 0.800, owners 0.833, deadlines 0.833) |
 | Webhook signatures, the replay window and echoed pushes | `db:linear-smoke` |
 | A backup restores only its own data | `db:restore-drill` (12 checks, in CI on a dataset the job builds) |
 | The installable app's manifest, worker and offline page | `pwa:check` (55 checks) |

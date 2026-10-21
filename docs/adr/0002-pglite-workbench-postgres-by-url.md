@@ -30,7 +30,7 @@ One schema and one set of migrations, two drivers behind one interface.
 ## Consequences
 
 - A fresh clone runs the app and every suite with no services. That is why the
-  ten fresh-database suites can be a pre-commit-scale gate.
+  eleven fresh-database suites can be a pre-commit-scale gate.
 - PGlite is a single process over a directory. Two app instances cannot share
   one, and the dev server caches its instance on `globalThis` so hot reload does
   not open a second. This is a workbench property, not a production one.

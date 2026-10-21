@@ -3,10 +3,11 @@
 # - `web` runs the whole check battery on a throwaway database (every db:*
 #   check suite is self-contained by construction) plus the installability and
 #   desktop-configuration checks, so a push cannot silently break isolation
-#   boundaries, extraction grounding, or the HTTP IDOR matrix. The restore
-#   drill runs here too: a throwaway dataset is migrated, seeded and given the
-#   audio fixture, then copied and verified by the same 12 checks the local
-#   drill runs.
+#   boundaries, extraction grounding, or the HTTP IDOR matrix. The eval gate
+#   scores recorded model outputs against golden transcripts without a model
+#   call. The restore drill runs here too: a throwaway dataset is migrated,
+#   seeded and given the audio fixture, then copied and verified by the same
+#   12 checks the local drill runs.
 # - `scan` is the dependency and secret hygiene gate: pnpm audit against the
 #   production graph and gitleaks over the full git history.
 #
@@ -45,7 +46,7 @@ jobs:
 
       - name: Check suites (each on a fresh throwaway database)
         run: |
-          for s in verify smoke auth audio followup-smoke linear-smoke extract-smoke ai-smoke injection-smoke meeting-delete; do
+          for s in verify smoke auth audio followup-smoke linear-smoke extract-smoke eval ai-smoke injection-smoke meeting-delete; do
             echo "--- db:$s"
             pnpm --filter @prepo/web "db:$s"
           done

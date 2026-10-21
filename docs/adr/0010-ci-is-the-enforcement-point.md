@@ -16,13 +16,13 @@ proves very little.
 GitHub Actions runs the invariants on every push and pull request, in three
 jobs on a pinned runner.
 
-- **`web`**: typecheck, the ten fresh-database suites (verify, smoke, auth,
-  audio, follow-ups, extraction, Ask, injection, Linear, meeting delete), the
-  production build, `db:idor-smoke` over the built server, `pwa:check` against a
-  server it starts, and the desktop config verify. The audio and restore-drill
-  steps build their own dataset: `db:migrate`, `db:seed`, `db:audio-fixture`,
-  then `db:restore-drill` (12 checks, recording bytes included). No suite reads
-  an operator's `.pglite`.
+- **`web`**: typecheck, the eleven fresh-database suites (verify, smoke, auth,
+  audio, follow-ups, extraction, the eval gate, Ask, injection, Linear, meeting
+  delete), the production build, `db:idor-smoke` over the built server,
+  `pwa:check` against a server it starts, and the desktop config verify. The
+  audio and restore-drill steps build their own dataset: `db:migrate`, `db:seed`,
+  `db:audio-fixture`, then `db:restore-drill` (12 checks, recording bytes
+  included). No suite reads an operator's `.pglite`.
 - **`desktop shell`**: `cargo test` with the webkit system libraries a Linux
   link needs, `--locked`, so the committed `rust-ini` pin cannot drift.
 - **`scans`**: `pnpm audit --prod` against the lockfile and a gitleaks scan of
@@ -45,7 +45,8 @@ silently points at the working database.
   which is the job doing its work.
 - CI is not a security proof. It runs no browser, so axe and Lighthouse are not
   measured; it has no hosted origin, so ZAP and securityheaders are absent; it
-  runs no evals, so extraction quality is not scored; it publishes no coverage
+  makes no model call, so the eval gate scores recorded replies and extraction
+  quality against a live model is still unscored; it publishes no coverage
   number.
 - The fresh-database design makes suites slower than a shared fixture would be,
   and it is why the battery is credible.
@@ -67,5 +68,6 @@ silently points at the working database.
 
 `.github/workflows/ci.yml`, `.github/workflows/codeql.yml`,
 `.github/dependabot.yml`, `apps/web/src/server/db/restore-drill.ts`,
+`apps/web/src/server/ai/eval.ts`, `apps/web/src/server/ai/eval-cases.ts`,
 `apps/desktop/src-tauri/Cargo.toml` (the `rust-ini` pin),
 `README.md`'s CI paragraph, `SECURITY.md`'s CI/scan paragraphs.

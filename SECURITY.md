@@ -18,7 +18,8 @@ reason** rather than quietly marked sent, while the in-app half of the same rung
 Push is never queued, and the web app is installable but holds nothing for later — the service
 worker caches **no rendered page at all** — so nothing of yours is stored offline and no browser
 cache can hand one person's board to the next person on that machine. Extraction has **no PII
-redaction and no eval gate**. The desktop shell (milestone 8, `apps/desktop`) is a Tauri 2 window
+redaction and no live-model eval**; the recorded-output eval gate scores the pipeline against
+three golden transcripts, not a model's judgement. The desktop shell (milestone 8, `apps/desktop`) is a Tauri 2 window
 with a tray, a global shortcut, `prepo://` links and native notifications that **exposes no command
 and no capability to the page in the window**, hands any non-app origin to the system browser, and
 refuses any target that is not http(s); it is **not packaged** — no installer, no code signing, no
@@ -98,7 +99,7 @@ remain. None of them are secret; the goal of this list is that nobody has to gue
 | **A09** Logging & monitoring | No Sentry or alerting; `auth_events` and `audit_logs` are append-only but there is no anomaly detection, no "impossible travel" alert, and logs are not shipped anywhere. The follow-up job prints a per-row decision line, but there is no metric or alert on a run that fails wholesale |
 | **A10** SSRF | The transcription call is a fixed host with a body of bytes, the email sender is a fixed host with a server-built body, the Linear client is a fixed host (`api.linear.app`) with a server-built GraphQL document, and extraction posts a server-built JSON body to OpenRouter's fixed endpoint — so there is nothing to steer from user input, and applying a webhook never triggers an outbound fetch. No meeting is ever enriched by fetching a "source link" |
 | **Linear integration** | The credential is a **personal API key, not OAuth**: it carries the key owner's whole Linear access, cannot be narrowed by scope, and revoking it is done in Linear rather than in Prepo. The webhook reads the body with `request.text()` before the signature is checked, so a large unauthenticated POST costs memory; there is no explicit size cap, no per-IP rate limit and no allow-list of Linear's addresses on that route. The signing secret is pasted by hand rather than registered through Linear's API. Exactly one team and one project are mirrored per workspace. Tickets that predate connecting are not backfilled, so there is no queue entry and no retry for them until they are moved. Linear's `canceled` state has no Prepo equivalent and is left unmapped rather than guessed, and comments, attachments, sub-issues, cycles, estimates and Linear's own labels are neither read nor written |
-| AI pipeline | The transcript is sent **as stored** to the configured OpenRouter model: there is no PII redaction, no data-region choice and no per-user limit beyond the workspace's monthly run cap. There is no eval gate or prompt-version pinning, so a model or prompt change is not measured before it ships, and no output classifier — grounding catches uncited items but cannot catch a cited item that is still wrong. The provider is a third party and its retention terms apply to what is sent |
+| AI pipeline | The transcript is sent **as stored** to the configured OpenRouter model: there is no PII redaction, no data-region choice and no per-user limit beyond the workspace's monthly run cap. The eval gate scores **recorded** replies against three golden transcripts, so it catches a regression in grounding or resolution but does not measure a live model, and there is no prompt-version pinning, so a model or prompt change is not measured before it ships. There is no output classifier - grounding catches uncited items but cannot catch a cited item that is still wrong. The provider is a third party and its retention terms apply to what is sent |
 | Follow-up delivery | The `RESEND_API_KEY` is set, but the account has **no verified sending domain**, so Resend refuses every recipient except the account's own address with `403`. That was exercised live: three messages were accepted to the account's own address and eight refused `403`, with Resend's own text stored on each failed row. There is no bounce or complaint handling, no unsubscribe link, no per-recipient send rate limit beyond the ladder itself, and no retry with backoff: a failed message stays failed. The job is a script meant for a scheduler; there is no queue, no worker, no exactly-once guarantee and no scheduled-job auth, so whoever can run it can send |
 | Push notifications | Not implemented: no subscription flow, no `push_subscriptions` rows, no VAPID keys. The service worker exists now, but a worker is not a subscription — the ladder lists push on the nudge rung and the code refuses to write a push row while no device is subscribed, so nothing is pretended |
 | Offline data | Not implemented, on purpose. There is no client-side store (no IndexedDB, no cached read endpoints), so offline reads and queued edits do not exist and the worker stores no page rather than half-working. The offline page says so. Adding it would need a per-user, encrypted store that is cleared on sign-out and on remote revoke — none of which exists, which is why none of it was faked |
@@ -137,6 +138,7 @@ pnpm --filter @prepo/web db:retention  # the retention job, runnable from a sche
 pnpm --filter @prepo/web db:followup-smoke  # the ladder, quiet hours, digest and the job
 pnpm --filter @prepo/web db:linear-smoke    # crypto, mapping, queue, push, pull, webhook, tenancy
 pnpm --filter @prepo/web db:extract-smoke   # schema gate, grounding, dates, autonomy, refusals
+pnpm --filter @prepo/web db:eval             # recorded replies against three golden transcripts, with floors
 pnpm --filter @prepo/web db:meeting-delete   # deleting a meeting: counts, cascades, kept tickets, audit
 pnpm --filter @prepo/web db:ai-smoke        # Ask Prepo: scope, groundings, refusals, no stored question
 pnpm --filter @prepo/web db:restore-drill   # the backup restore drill: copy, then verify only the restore
@@ -161,8 +163,9 @@ chunked assembly and its refusal of an out-of-order piece, the retention clock a
 ingest writes, speaker mapping, and the cross-tenant attempts. Ninety-eight checks pass.
 
 Every push runs this list, not only the person at the keyboard. CI (`.github/workflows/ci.yml`,
-web and scan jobs first green 19 October 2026, run 39189509413) executes typecheck, the ten
-fresh-database suites above, the production build, `db:idor-smoke` against the built server,
+web and scan jobs first green 19 October 2026, run 39189509413) executes typecheck, the eleven
+fresh-database suites above (`db:eval` included, with no model call), the production build,
+`db:idor-smoke` against the built server,
 `pwa:check` against a server it starts itself, the desktop shell's configuration verify, and the
 shell's Rust rules in their own job - which on its first run found a Linux-only compile break (a
 `#[cfg(target_os = "linux")]` initializer meeting a newer `rust-ini`) and was first green two days
@@ -228,7 +231,10 @@ at 17:00 in the owner's zone across both DST changes; the transcript and monthly
 than truncate; Assist and Autopilot only auto-approve unflagged high-confidence items and record
 `actorKind: "prepo"`; a re-run replaces proposed items only; and another workspace's meeting is
 indistinguishable from a missing one. What it cannot prove is how well a real model reads a real
-transcript — nobody has measured that yet.
+transcript — nobody has measured that yet. `db:eval` narrows that gap only on the pipeline side:
+three golden transcripts with recorded replies score item F1 0.800, owner accuracy 0.833 and
+deadline accuracy 0.833 against 0.75 floors, in CI, with no model call. It catches a regression
+in grounding or resolution; it is not a live-model score.
 
 `db:ai-smoke` is the ask-and-necessity counterpart of that, on its own throwaway database (56 checks).
 On the necessity half: the arithmetic on known inputs, that a meeting with nothing to compare is
