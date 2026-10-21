@@ -34,10 +34,13 @@ import {
 } from "../audio/transcript";
 import {
   contentTypeForKey,
+  MAX_TITLE_CHARS,
+  MAX_TRANSCRIPT_CHARS,
   sniffAudio,
   UploadRejected,
   validateAudio,
   validateTitle,
+  validateTranscriptText,
   wavDurationSeconds,
 } from "../audio/validate";
 import { mapSpeaker, markAudioDeleted, findAudioAsset } from "../writes";
@@ -229,6 +232,67 @@ runCli("audio-smoke.ts", async () => {
   }
   check("an empty title is rejected", titleRejected);
   check("content types are derived from the stored key", contentTypeForKey("x/y/asset.wav") === "audio/wav");
+  check(
+    "an unknown extension is served as opaque bytes, not a guess",
+    contentTypeForKey("x/y/asset.bin") === "application/octet-stream",
+  );
+
+  let emptyRejected = false;
+  try {
+    validateAudio({ filename: "empty.wav", bytes: new Uint8Array(0) });
+  } catch (error) {
+    emptyRejected = error instanceof UploadRejected;
+  }
+  check("an empty file is rejected", emptyRejected);
+
+  // A zip is bytes, not audio: nothing in the upload path ever unpacks an
+  // archive, so the only honest thing to do with one is refuse it.
+  const zip = new Uint8Array(64);
+  zip.set([0x50, 0x4b, 0x03, 0x04]);
+  check("a zip archive does not sniff as audio", sniffAudio(zip) === null);
+  let zipRejected = false;
+  try {
+    validateAudio({ filename: "meeting.zip", bytes: zip });
+  } catch (error) {
+    zipRejected = error instanceof UploadRejected;
+  }
+  check("a zip is refused rather than unpacked", zipRejected);
+
+  // The WAV header is authoritative, so a client that reports a short duration
+  // cannot smuggle a long recording past the cap.
+  const liar = wav(1);
+  u32(liar, 28, 1); // byteRate 1, so the header claims about 16,000 seconds
+  let headerRejected = false;
+  try {
+    validateAudio({ filename: "short.wav", bytes: liar, reportedDurationS: 5 });
+  } catch (error) {
+    headerRejected = error instanceof UploadRejected;
+  }
+  check("a WAV whose header exceeds the cap is rejected despite a short claim", headerRejected);
+
+  let longTitleRejected = false;
+  try {
+    validateTitle("x".repeat(MAX_TITLE_CHARS + 1));
+  } catch (error) {
+    longTitleRejected = error instanceof UploadRejected;
+  }
+  check("a title over the cap is rejected", longTitleRejected);
+
+  let emptyTranscriptRejected = false;
+  try {
+    validateTranscriptText("   \n  ");
+  } catch (error) {
+    emptyTranscriptRejected = error instanceof UploadRejected;
+  }
+  check("an empty transcript is rejected", emptyTranscriptRejected);
+
+  let bigTranscriptRejected = false;
+  try {
+    validateTranscriptText("x".repeat(MAX_TRANSCRIPT_CHARS + 1));
+  } catch (error) {
+    bigTranscriptRejected = error instanceof UploadRejected;
+  }
+  check("a transcript over the cap is rejected", bigTranscriptRejected);
 
   /* ------------------------------------------- provider response mapping */
 

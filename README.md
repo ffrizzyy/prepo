@@ -675,8 +675,10 @@ own job — the shell's Rust rules (`cargo test`). A second job gates on
 `pnpm audit --prod` and scans the full git history with gitleaks; `.gitleaks.toml`
 documents the only two strings it allows, both fixture constants with no credential
 value. CodeQL (security-extended) runs in its own workflow, Dependabot config
-covers the workspace, and `db:restore-drill` is excluded on purpose: it backs up a
-working dataset and a fresh checkout has none. The web and scan jobs were first
+covers the workspace, and `db:restore-drill` runs against a dataset the web job
+migrates, seeds and gives an audio fixture first — so the copy-and-verify
+mechanics are checked on every push, while drilling an operator's own dataset
+stays a local run. The web and scan jobs were first
 green on 19 October 2026; the shell's Rust job found a Linux-only compile break
 on its first run and was first green two days later, after the dependency pin
 recorded in `DESIGN.md` (run 39533322567).
@@ -689,7 +691,7 @@ globex ticket. (The mutations live in `src/server/writes.ts` rather than inside 
 precisely so this stays runnable: an action needs a request scope for `cookies()` and
 `revalidatePath()`, a script does not have one.)
 
-`db:auth` reseeds, then exercises the authentication core the way the sign-in action does:
+`db:auth` builds a throwaway database, then exercises the authentication core the way the sign-in action does:
 argon2id hashing and verification, the timing decoy for unknown addresses, per-email and
 per-network throttling windows, session creation and lookup by hash (never by token),
 revocation scoped to the owning user, revoke-others, absolute and idle expiry, account
@@ -699,18 +701,20 @@ the enrolment round-trip: pending secret → confirm → recovery codes hashed a
 challenge lookup, expiry and cleanup → per-user throttle of second-factor failures.
 Fifty-five checks, all passing.
 
-`db:audio` reseeds and then covers the audio path end to end. It points the storage driver at a
+`db:audio` builds a throwaway database and then covers the audio path end to end. It points the storage driver at a
 scratch directory first, so it never touches the app's real audio. It checks the VTT, SRT and
 plain-text parsers (including the `Speaker 1:` prefix that makes numbered captions usable), the
 magic-byte sniffer against a real RIFF header, an MPEG frame sync, a Matroska header and an M4A
-brand, and the refusal of a renamed text file and of an oversized upload; the Deepgram response
+brand, and the refusal of a renamed text file, an empty file, a zip archive (never unpacked), an
+oversized upload, a WAV whose header outruns the duration cap even when the client reports five
+seconds, and titles or transcripts over their caps; the Deepgram response
 mapping against a recorded-shape payload (utterances and word-level fallback, empty utterances
 dropped, an empty response failing rather than becoming an empty transcript); the storage driver
 round trip, a byte range, and a key that tries to escape the storage root; chunked assembly and
 its refusal of a piece that arrives without its predecessors; the retention clock, the sweep
 deleting an expired blob while leaving a future-dated one alone, and the delete-audio path; and
 the cross-tenant attempts, where a globex scope cannot see a northwind asset or map its speakers.
-Ninety checks, all passing.
+Ninety-eight checks, all passing.
 
 The retention job is a script rather than a hidden timer:
 
@@ -740,7 +744,7 @@ delivered, the email half failed **with the reason**, the deferred message still
 why, the second pass finding nothing to do, the digest placed once and only once, and — with no
 email key anywhere — nothing marked `sent` that was not. It finishes by cancelling a real ladder
 through completion, a snooze and a stop-chasing, and by checking that a globex action cannot touch a
-northwind row. It reseeds at the end, so the demo database is left as a demo wants it.
+northwind row. It seeds a throwaway database for the run, so the demo one is untouched.
 
 Search is Postgres-native rather than embedding-based (`PREPO.md` §1.3): a trigger maintains
 a `tsvector` on every transcript segment, with a GIN index for ranking and a `pg_trgm` index

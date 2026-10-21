@@ -32,6 +32,7 @@ import { DEMO } from "../auth/demo";
 import { createSession } from "../auth/sessions";
 import { ingestAudio } from "../audio/ingest";
 import { audioStorage } from "../audio/storage";
+import { MAX_CHUNK_BYTES } from "../audio/validate";
 import { getPglite, rawQuery } from "./client";
 import { migrateAndApply } from "./migrate";
 import { resolveWorkspaceId } from "./repo";
@@ -275,6 +276,20 @@ runCli(
 
       const chunkForeign = await post("/api/uploads/audio/chunk", { workspace: "globex", meetingId: ingest.meetingId }, memberCookie);
       check("a chunk upload aimed at another workspace is a 404", chunkForeign.status === 404);
+
+      // The tenancy checks above are answered before the route looks at bytes;
+      // this one is authorised, so it reaches the 4 MB piece cap itself.
+      const tooBig = new FormData();
+      tooBig.set("workspace", "northwind");
+      tooBig.set("uploadId", "00000000-0000-7000-8000-0000000000ff");
+      tooBig.set("index", "0");
+      tooBig.set("file", new File([new Uint8Array(MAX_CHUNK_BYTES + 1)], "piece.webm", { type: "audio/webm" }));
+      const chunkTooBig = await fetch(`${base}/api/uploads/audio/chunk`, {
+        method: "POST",
+        headers: { accept: "application/json", cookie: memberCookie },
+        body: tooBig,
+      });
+      check("an authorised piece over the 4 MB cap is a 413", chunkTooBig.status === 413);
 
       const uploadForeign = await post("/api/uploads/audio", { workspace: "globex", meetingId: ingest.meetingId }, memberCookie);
       check("the recording upload route refuses a foreign workspace too", uploadForeign.status === 404);

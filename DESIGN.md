@@ -167,28 +167,31 @@ suites this pass:
   its own description.
 
 The `db:idor-smoke` suite drives the *built production server* over HTTP with
-real sessions and real bytes: 24 checks over audio streaming (401 anonymous,
+real sessions and real bytes: 25 checks over audio streaming (401 anonymous,
 byte-identical 404 for "foreign" and "unknown" so a probe learns nothing, 200
 member, 206 seek, 416) and the six form routes (a foreign workspace told 404
 before its body ids are honoured, a refused delete followed by the stream still
-playing). One process at a time owns a PGlite directory, so the suite closes its
+playing, and an authorised piece one byte over the 4 MB cap answered 413 by the
+route's own check rather than by tenancy). One process at a time owns a PGlite directory, so the suite closes its
 own handle before the server opens the same one. What it does not reach - page
 routes rendered by server components, anything browser-enforced - is said in
 `SECURITY.md`'s mapping, which carries the honest remainder.
 
 ## The push that made the guards ambient: CI, CodeQL, and the restore drill
 
-- **CI is the battery plus the hygiene gate, and it was green on the first
-  push.** `.github/workflows/ci.yml` has two jobs: one runs typecheck, the ten
-  fresh-database suites, the production build, `db:idor-smoke` against the built
-  server, `pwa:check` against a server it starts itself, and the desktop shell's
-  configuration verify; the other gates `pnpm audit --prod` and scans full git
-  history with gitleaks. The Rust rules ride in a third job with the webkit
-  system libraries a link needs, cached. A fresh checkout cannot run
-  `db:restore-drill` (there is no working dataset to copy), so it stays out on
-  purpose and the exclusion is written down rather than silent.
+- **CI is the battery plus the hygiene gate, and it runs the drill too.**
+  `.github/workflows/ci.yml` has three jobs: one runs typecheck, the ten
+  fresh-database suites, a migrate-seed-fixture-restore drill, the production build,
+  `db:idor-smoke` against the built server, `pwa:check` against a server it starts
+  itself, and the desktop shell's configuration verify; another gates `pnpm audit
+  --prod` and scans full git history with gitleaks; the Rust rules ride in a third
+  job with the webkit system libraries a link needs, cached. The drill's dataset is
+  built by the job itself, so the restore mechanics are checked on every push while
+  an operator's own dataset stays a local drill. The first push with all three jobs
+  went red on the shell (the Linux-only break below) and was green once the pin
+  landed.
 - **CodeQL earned its keep on the first run.** Its security-extended analysis
-  raised six alerts on `main`. Three files changed: the staged-upload writer
+  raised six alerts on `main`. Two files changed: the staged-upload writer
   stops checking a path and then operating on it (one creating-and-truncating
   open for a first piece, one refusing-to-create open for a later piece, so an
   out-of-order piece throws without resurrecting the file it would have
@@ -214,7 +217,10 @@ routes rendered by server components, anything browser-enforced - is said in
   but the copy, and verifies the restore seed-free - because `db:verify`
   reseeds, which on a restored copy would truncate it and prove nothing about
   the restored data. What it does not claim: a schedule, an off-machine
-  target, PITR.
+  target, PITR. It runs in CI too, on a dataset the job migrates, seeds and
+  gives an audio fixture first, so the mechanics are checked every push (12/12 in run
+  39536478037, recording bytes included); the local run remains the only one that proves
+  an operator's own data returns.
 - **The shell job caught a Linux-only break on its first day, which is what it
   is for.** CI compiled `tauri-plugin-deep-link 2.6.2` against `rust-ini`
   0.21.3 and stopped on a missing-field error in the plugin's
