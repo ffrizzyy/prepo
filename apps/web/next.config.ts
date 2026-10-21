@@ -1,8 +1,15 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   transpilePackages: ["@prepo/shared"],
+  // The deployment image runs `.next/standalone`. The tracing root is the
+  // workspace, not apps/web, so `@prepo/shared` (a transpiled workspace
+  // package) is copied into the standalone node_modules tree.
+  output: "standalone",
+  outputFileTracingRoot: path.join(path.dirname(fileURLToPath(import.meta.url)), "../.."),
   // PGlite ships WASM and worker assets, and pg opens raw sockets. Both must be
   // required at runtime rather than bundled by Turbopack.
   serverExternalPackages: ["@electric-sql/pglite", "pg"],

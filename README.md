@@ -637,6 +637,15 @@ pnpm --filter @prepo/desktop dev      # run the shell against the dev server
 pnpm --filter @prepo/desktop build    # build an installer locally (none is published)
 ```
 
+### Deploying it
+
+The repository ships a tested `Dockerfile` and a runbook in
+[`DEPLOYMENT.md`](./DEPLOYMENT.md): a container host with a persistent volume
+for audio, Postgres (`DATABASE_URL`), the exact environment variables, health
+check, migration step and the verification commands. There is still no hosted
+deployment and no domain in this repository; the runbook does not pretend
+otherwise.
+
 ## Database
 
 Postgres is the source of truth (`PREPO.md` §4.5). The schema, policies and queries are

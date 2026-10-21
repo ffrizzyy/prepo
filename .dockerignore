@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+.next
+**/.next
+.pglite
+.storage
+.git
+.github
+.env
+.env.*
+!.env.example
+reports
+apps/desktop/src-tauri/target
+**/*.log
