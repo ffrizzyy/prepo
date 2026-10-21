@@ -251,6 +251,14 @@ routes rendered by server components, anything browser-enforced - is said in
   diagnostics to clear, and the package bump needs the workspace lockfile
   regenerated rather than a version string changed. Merging them because the
   bot opened them would be the opposite of the gate.
+- **TypeScript 7.0.2: one option removed, then green.** The migration landed
+  as its own change rather than as a bot merge: both packages pin 7.0.2, the
+  workspace lockfile was regenerated (the native compiler ships per-platform
+  binaries), and `baseUrl` was removed from `apps/web/tsconfig.json` because
+  TypeScript 7 deleted the option. `paths` now resolves relative to the
+  tsconfig itself, which is what the removed setting asked for. `pnpm
+  typecheck`, `pnpm build` and `db:eval` pass on the migrated tree. The two
+  Dependabot branches (#2 and #6) are superseded by this commit.
 
 ## Assets
 
