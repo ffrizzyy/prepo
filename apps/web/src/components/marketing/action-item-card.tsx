@@ -11,9 +11,14 @@ const priorityStyles: Record<string, string> = {
 
 function formatDue(dueAt: string | null) {
   if (!dueAt) return "No date";
+  // Fixed locale and UTC: this card is rendered on the server and hydrated in
+  // the visitor's timezone, and a 17:00Z sample date becomes the next day in
+  // UTC+7. Without the zone the two renders differ text and React reports a
+  // hydration mismatch (caught by the Lighthouse console audit).
   return new Date(dueAt).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
   });
 }
 

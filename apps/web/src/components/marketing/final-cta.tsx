@@ -39,7 +39,7 @@ export function FinalCta() {
           <p className="text-sm text-white/60">
             {BRAND.tagline} Built by a developer, for developers.
           </p>
-          <nav className="flex flex-wrap gap-x-6 gap-y-2">
+          <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2">
             {FOOTER_LINKS.map((link) => (
               <a
                 key={link.label}

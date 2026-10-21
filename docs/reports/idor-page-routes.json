@@ -1,0 +1,323 @@
+{
+  "base": "https://prepo-web-production.up.railway.app",
+  "checkedAt": "2026-10-21T08:45:59.490Z",
+  "anonymous": [
+    {
+      "label": "anonymous",
+      "route": "/northwind",
+      "finalUrl": "/sign-in",
+      "title": "Sign in · Prepo",
+      "notFound": false,
+      "leakedGlobex": false,
+      "ms": 2009,
+      "bodyStart": "P Prepo Sign in Continue to your workspaces. Email Password Sign in No account? Create one · Try the demo",
+      "redirectedToSignIn": true,
+      "pass": true
+    },
+    {
+      "label": "anonymous",
+      "route": "/northwind/board",
+      "finalUrl": "/sign-in",
+      "title": "Sign in · Prepo",
+      "notFound": false,
+      "leakedGlobex": false,
+      "ms": 1367,
+      "bodyStart": "P Prepo Sign in Continue to your workspaces. Email Password Sign in No account? Create one · Try the demo",
+      "redirectedToSignIn": true,
+      "pass": true
+    }
+  ],
+  "pages": [
+    {
+      "label": "member",
+      "route": "/northwind",
+      "finalUrl": "/northwind",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": false,
+      "leakedGlobex": false,
+      "ms": 4666,
+      "bodyStart": "P Prepo Dashboard Meetings Board Tickets 7 Follow-ups Insights Ask Integrations Settings « Collapse ☰ Northwind Studio /northwind Search or jump to… ⌘K 1 LF Dashboard What needs yo",
+      "pass": true
+    },
+    {
+      "label": "member",
+      "route": "/northwind/ask",
+      "finalUrl": "/northwind/ask",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": false,
+      "leakedGlobex": false,
+      "ms": 4455,
+      "bodyStart": "P Prepo Dashboard Meetings Board Tickets 7 Follow-ups Insights Ask Integrations Settings « Collapse ☰ Northwind Studio /northwind Search or jump to… ⌘K 1 LF Ask Prepo Answered from",
+      "pass": true
+    },
+    {
+      "label": "member",
+      "route": "/northwind/board",
+      "finalUrl": "/northwind/board",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": false,
+      "leakedGlobex": false,
+      "ms": 4468,
+      "bodyStart": "P Prepo Dashboard Meetings Board Tickets 7 Follow-ups Insights Ask Integrations Settings « Collapse ☰ Northwind Studio /northwind Search or jump to… ⌘K 1 LF Board Drag a ticket bet",
+      "pass": true
+    },
+    {
+      "label": "member",
+      "route": "/northwind/followups",
+      "finalUrl": "/northwind/followups",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": false,
+      "leakedGlobex": false,
+      "ms": 4490,
+      "bodyStart": "P Prepo Dashboard Meetings Board Tickets 7 Follow-ups Insights Ask Integrations Settings « Collapse ☰ Northwind Studio /northwind Search or jump to… ⌘K 1 LF Follow-ups What the age",
+      "pass": true
+    },
+    {
+      "label": "member",
+      "route": "/northwind/insights",
+      "finalUrl": "/northwind/insights",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": false,
+      "leakedGlobex": false,
+      "ms": 5590,
+      "bodyStart": "P Prepo Dashboard Meetings Board Tickets 7 Follow-ups Insights Ask Integrations Settings « Collapse ☰ Northwind Studio /northwind Search or jump to… ⌘K 1 LF Insights Whether meetin",
+      "pass": true
+    },
+    {
+      "label": "member",
+      "route": "/northwind/integrations",
+      "finalUrl": "/northwind/integrations",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": false,
+      "leakedGlobex": false,
+      "ms": 4434,
+      "bodyStart": "P Prepo Dashboard Meetings Board Tickets 7 Follow-ups Insights Ask Integrations Settings « Collapse ☰ Northwind Studio /northwind Search or jump to… ⌘K 1 LF Integrations Linear two",
+      "pass": true
+    },
+    {
+      "label": "member",
+      "route": "/northwind/meetings",
+      "finalUrl": "/northwind/meetings",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": false,
+      "leakedGlobex": false,
+      "ms": 4576,
+      "bodyStart": "P Prepo Dashboard Meetings Board Tickets 7 Follow-ups Insights Ask Integrations Settings « Collapse ☰ Northwind Studio /northwind Search or jump to… ⌘K 1 LF Meetings Every meeting ",
+      "pass": true
+    },
+    {
+      "label": "member",
+      "route": "/northwind/meetings/new",
+      "finalUrl": "/northwind/meetings/new",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": false,
+      "leakedGlobex": false,
+      "ms": 4537,
+      "bodyStart": "P Prepo Dashboard Meetings Board Tickets 7 Follow-ups Insights Ask Integrations Settings « Collapse ☰ Northwind Studio /northwind Search or jump to… ⌘K 1 LF New meeting Record, upl",
+      "pass": true
+    },
+    {
+      "label": "member",
+      "route": "/northwind/notifications",
+      "finalUrl": "/northwind/notifications",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": false,
+      "leakedGlobex": false,
+      "ms": 4449,
+      "bodyStart": "P Prepo Dashboard Meetings Board Tickets 7 Follow-ups Insights Ask Integrations Settings « Collapse ☰ Northwind Studio /northwind Search or jump to… ⌘K 1 LF Notifications What the ",
+      "pass": true
+    },
+    {
+      "label": "member",
+      "route": "/northwind/settings",
+      "finalUrl": "/northwind/settings",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": false,
+      "leakedGlobex": false,
+      "ms": 4500,
+      "bodyStart": "P Prepo Dashboard Meetings Board Tickets 7 Follow-ups Insights Ask Integrations Settings « Collapse ☰ Northwind Studio /northwind Search or jump to… ⌘K 1 LF Settings Workspace beha",
+      "pass": true
+    },
+    {
+      "label": "member",
+      "route": "/northwind/tickets",
+      "finalUrl": "/northwind/tickets",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": false,
+      "leakedGlobex": false,
+      "ms": 4490,
+      "bodyStart": "P Prepo Dashboard Meetings Board Tickets 7 Follow-ups Insights Ask Integrations Settings « Collapse ☰ Northwind Studio /northwind Search or jump to… ⌘K 1 LF Tickets Everything the ",
+      "pass": true
+    },
+    {
+      "label": "member",
+      "route": "/northwind/meetings/01a15d0e-a514-74a5-8835-8529120b8041",
+      "finalUrl": "/northwind/meetings/01a15d0e-a514-74a5-8835-8529120b8041",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": false,
+      "leakedGlobex": false,
+      "ms": 7367,
+      "bodyStart": "P Prepo Dashboard Meetings Board Tickets 7 Follow-ups Insights Ask Integrations Settings « Collapse ☰ Northwind Studio /northwind Search or jump to… ⌘K 1 LF ← Meetings Q4 Launch, W",
+      "pass": true
+    },
+    {
+      "label": "foreign",
+      "route": "/globex/meetings/01a15d0e-a514-74a5-8835-8529120b8041",
+      "finalUrl": "/globex/meetings/01a15d0e-a514-74a5-8835-8529120b8041",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": true,
+      "leakedGlobex": false,
+      "ms": 3289,
+      "bodyStart": "P Prepo How it works Features Security Download GitHub Sign in Try demo 404 That page doesn’t exist The address you followed doesn’t match anything here. It may have been mistyped,",
+      "pass": true
+    },
+    {
+      "label": "member",
+      "route": "/northwind/tickets/PRE-133",
+      "finalUrl": "/northwind/tickets/PRE-133",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": false,
+      "leakedGlobex": false,
+      "ms": 5988,
+      "bodyStart": "P Prepo Dashboard Meetings Board Tickets 7 Follow-ups Insights Ask Integrations Settings « Collapse ☰ Northwind Studio /northwind Search or jump to… ⌘K 1 LF ← Tickets PRE-133 Tight",
+      "pass": true
+    },
+    {
+      "label": "foreign",
+      "route": "/globex/tickets/PRE-133",
+      "finalUrl": "/globex/tickets/PRE-133",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": true,
+      "leakedGlobex": false,
+      "ms": 3274,
+      "bodyStart": "P Prepo How it works Features Security Download GitHub Sign in Try demo 404 That page doesn’t exist The address you followed doesn’t match anything here. It may have been mistyped,",
+      "pass": true
+    },
+    {
+      "label": "foreign",
+      "route": "/globex",
+      "finalUrl": "/globex",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": true,
+      "leakedGlobex": false,
+      "ms": 3271,
+      "bodyStart": "P Prepo How it works Features Security Download GitHub Sign in Try demo 404 That page doesn’t exist The address you followed doesn’t match anything here. It may have been mistyped,",
+      "pass": true
+    },
+    {
+      "label": "foreign",
+      "route": "/globex/ask",
+      "finalUrl": "/globex/ask",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": true,
+      "leakedGlobex": false,
+      "ms": 3232,
+      "bodyStart": "P Prepo How it works Features Security Download GitHub Sign in Try demo 404 That page doesn’t exist The address you followed doesn’t match anything here. It may have been mistyped,",
+      "pass": true
+    },
+    {
+      "label": "foreign",
+      "route": "/globex/board",
+      "finalUrl": "/globex/board",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": true,
+      "leakedGlobex": false,
+      "ms": 3272,
+      "bodyStart": "P Prepo How it works Features Security Download GitHub Sign in Try demo 404 That page doesn’t exist The address you followed doesn’t match anything here. It may have been mistyped,",
+      "pass": true
+    },
+    {
+      "label": "foreign",
+      "route": "/globex/followups",
+      "finalUrl": "/globex/followups",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": true,
+      "leakedGlobex": false,
+      "ms": 3262,
+      "bodyStart": "P Prepo How it works Features Security Download GitHub Sign in Try demo 404 That page doesn’t exist The address you followed doesn’t match anything here. It may have been mistyped,",
+      "pass": true
+    },
+    {
+      "label": "foreign",
+      "route": "/globex/insights",
+      "finalUrl": "/globex/insights",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": true,
+      "leakedGlobex": false,
+      "ms": 3260,
+      "bodyStart": "P Prepo How it works Features Security Download GitHub Sign in Try demo 404 That page doesn’t exist The address you followed doesn’t match anything here. It may have been mistyped,",
+      "pass": true
+    },
+    {
+      "label": "foreign",
+      "route": "/globex/integrations",
+      "finalUrl": "/globex/integrations",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": true,
+      "leakedGlobex": false,
+      "ms": 3244,
+      "bodyStart": "P Prepo How it works Features Security Download GitHub Sign in Try demo 404 That page doesn’t exist The address you followed doesn’t match anything here. It may have been mistyped,",
+      "pass": true
+    },
+    {
+      "label": "foreign",
+      "route": "/globex/meetings",
+      "finalUrl": "/globex/meetings",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": true,
+      "leakedGlobex": false,
+      "ms": 3252,
+      "bodyStart": "P Prepo How it works Features Security Download GitHub Sign in Try demo 404 That page doesn’t exist The address you followed doesn’t match anything here. It may have been mistyped,",
+      "pass": true
+    },
+    {
+      "label": "foreign",
+      "route": "/globex/meetings/new",
+      "finalUrl": "/globex/meetings/new",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": true,
+      "leakedGlobex": false,
+      "ms": 3252,
+      "bodyStart": "P Prepo How it works Features Security Download GitHub Sign in Try demo 404 That page doesn’t exist The address you followed doesn’t match anything here. It may have been mistyped,",
+      "pass": true
+    },
+    {
+      "label": "foreign",
+      "route": "/globex/notifications",
+      "finalUrl": "/globex/notifications",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": true,
+      "leakedGlobex": false,
+      "ms": 3290,
+      "bodyStart": "P Prepo How it works Features Security Download GitHub Sign in Try demo 404 That page doesn’t exist The address you followed doesn’t match anything here. It may have been mistyped,",
+      "pass": true
+    },
+    {
+      "label": "foreign",
+      "route": "/globex/settings",
+      "finalUrl": "/globex/settings",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": true,
+      "leakedGlobex": false,
+      "ms": 3344,
+      "bodyStart": "P Prepo How it works Features Security Download GitHub Sign in Try demo 404 That page doesn’t exist The address you followed doesn’t match anything here. It may have been mistyped,",
+      "pass": true
+    },
+    {
+      "label": "foreign",
+      "route": "/globex/tickets",
+      "finalUrl": "/globex/tickets",
+      "title": "Prepo, The meeting ends. The work starts.",
+      "notFound": true,
+      "leakedGlobex": false,
+      "ms": 3326,
+      "bodyStart": "P Prepo How it works Features Security Download GitHub Sign in Try demo 404 That page doesn’t exist The address you followed doesn’t match anything here. It may have been mistyped,",
+      "pass": true
+    }
+  ],
+  "summary": {
+    "checks": 28,
+    "passed": 28,
+    "failed": 0
+  }
+}

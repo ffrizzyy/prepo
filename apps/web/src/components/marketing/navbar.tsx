@@ -30,7 +30,7 @@ export function Navbar({ home = true }: { home?: boolean }) {
           : "border-b border-transparent",
       )}
     >
-      <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+      <nav aria-label="Primary" className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <a href={home ? "#" : "/"} className="flex items-center gap-2">
           <span className="grid size-7 place-items-center rounded-1 bg-accent text-sm font-semibold text-accent-fg">
             P

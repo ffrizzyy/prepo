@@ -15,7 +15,7 @@ export default function DemoPage() {
       footer={
         <>
           Want your own workspace?{" "}
-          <Link href="/sign-up" className="text-accent-ink hover:underline">
+          <Link href="/sign-up" className="text-accent-ink underline underline-offset-4 hover:text-accent">
             Create an account
           </Link>
         </>
