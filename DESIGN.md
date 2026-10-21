@@ -179,17 +179,19 @@ routes rendered by server components, anything browser-enforced - is said in
 
 ## The push that made the guards ambient: CI, CodeQL, and the restore drill
 
-- **CI is the battery plus the hygiene gate, and it was green on the first
-  push.** `.github/workflows/ci.yml` has two jobs: one runs typecheck, the ten
-  fresh-database suites, the production build, `db:idor-smoke` against the built
-  server, `pwa:check` against a server it starts itself, and the desktop shell's
-  configuration verify; the other gates `pnpm audit --prod` and scans full git
-  history with gitleaks. The Rust rules ride in a third job with the webkit
-  system libraries a link needs, cached. A fresh checkout cannot run
-  `db:restore-drill` (there is no working dataset to copy), so it stays out on
-  purpose and the exclusion is written down rather than silent.
+- **CI is the battery plus the hygiene gate, and it runs the drill too.**
+  `.github/workflows/ci.yml` has three jobs: one runs typecheck, the ten
+  fresh-database suites, a migrate-seed-fixture-restore drill, the production build,
+  `db:idor-smoke` against the built server, `pwa:check` against a server it starts
+  itself, and the desktop shell's configuration verify; another gates `pnpm audit
+  --prod` and scans full git history with gitleaks; the Rust rules ride in a third
+  job with the webkit system libraries a link needs, cached. The drill's dataset is
+  built by the job itself, so the restore mechanics are checked on every push while
+  an operator's own dataset stays a local drill. The first push with all three jobs
+  went red on the shell (the Linux-only break below) and was green once the pin
+  landed.
 - **CodeQL earned its keep on the first run.** Its security-extended analysis
-  raised six alerts on `main`. Three files changed: the staged-upload writer
+  raised six alerts on `main`. Two files changed: the staged-upload writer
   stops checking a path and then operating on it (one creating-and-truncating
   open for a first piece, one refusing-to-create open for a later piece, so an
   out-of-order piece throws without resurrecting the file it would have
