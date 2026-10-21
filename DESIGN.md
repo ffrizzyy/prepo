@@ -167,11 +167,12 @@ suites this pass:
   its own description.
 
 The `db:idor-smoke` suite drives the *built production server* over HTTP with
-real sessions and real bytes: 24 checks over audio streaming (401 anonymous,
+real sessions and real bytes: 25 checks over audio streaming (401 anonymous,
 byte-identical 404 for "foreign" and "unknown" so a probe learns nothing, 200
 member, 206 seek, 416) and the six form routes (a foreign workspace told 404
 before its body ids are honoured, a refused delete followed by the stream still
-playing). One process at a time owns a PGlite directory, so the suite closes its
+playing, and an authorised piece one byte over the 4 MB cap answered 413 by the
+route's own check rather than by tenancy). One process at a time owns a PGlite directory, so the suite closes its
 own handle before the server opens the same one. What it does not reach - page
 routes rendered by server components, anything browser-enforced - is said in
 `SECURITY.md`'s mapping, which carries the honest remainder.

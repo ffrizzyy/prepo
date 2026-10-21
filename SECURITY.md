@@ -255,7 +255,7 @@ was live; the defence the suite checks is the one thing upstream of the review q
 
 `db:idor-smoke` presses every data route over real HTTP against the built production server with
 four callers: no cookie, a forged token, a member of the inviting workspace, and a member of
-another one (24 checks, needs `next build` first, and it starts `next start` on a scratch port
+another one (25 checks, needs `next build` first, and it starts `next start` on a scratch port
 against its own throwaway database). The audio playback route gets the full matrix: anonymous 401,
 forged 401, member 200 with the stored bytes and `private, no-store`, range 206 with the right
 `content-range`, unsatisfiable 416, foreign 404 and unknown 404 answering **byte-identically** so a
