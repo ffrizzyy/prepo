@@ -60,6 +60,6 @@
     "drizzle-kit": "0.31.11",
     "tailwindcss": "4.3.3",
     "tsx": "4.23.15",
-    "typescript": "^5"
+    "typescript": "^7"
   }
 }

@@ -16,6 +16,6 @@
   },
   "devDependencies": {
     "@prepo/config": "workspace:*",
-    "typescript": "^5"
+    "typescript": "^7"
   }
 }
