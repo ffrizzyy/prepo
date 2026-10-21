@@ -60,7 +60,7 @@ fly deploy -a prepo-demo
 fly open -a prepo-demo
 ```
 
-`fly.toml` for that app:
+The repository includes `fly.toml` with this shape (change `app` if the name is taken):
 
 ```toml
 app = "prepo-demo"
