@@ -23,7 +23,7 @@ on:
 jobs:
   web:
     name: web - typecheck, suites, build, HTTP matrix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -89,7 +89,7 @@ jobs:
 
   desktop-rules:
     name: desktop shell - cargo test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -112,7 +112,7 @@ jobs:
 
   scan:
     name: scans - pnpm audit, gitleaks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
