@@ -37,7 +37,15 @@ in only on submit, so it is the unauthenticated front door.
 
 Performance 100 is **not** a claim about a slow phone on a slow network: the
 throttling method was `provided`, so this is the origin on the machine that ran
-the scan. A throttled run is still to do.
+the scan. A mobile-throttled run exists separately:
+
+| Run | Performance | Accessibility | Best practices | SEO |
+|---|---:|---:|---:|---:|
+| `/`, mobile emulation, simulated slow 4G (150 ms RTT, 1.6 Mbps) and 4x CPU slowdown | 97 | 96 | 96 | 100 |
+
+That run (`lighthouse-mobile/home.json`) measured FCP 1.1 s, LCP 1.8 s, TBT
+170 ms and CLS 0. It is one page, not all seven; the other scores above remain
+unthrottled.
 
 ## What the non-perfect scores are
 
