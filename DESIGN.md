@@ -215,6 +215,22 @@ routes rendered by server components, anything browser-enforced - is said in
   reseeds, which on a restored copy would truncate it and prove nothing about
   the restored data. What it does not claim: a schedule, an off-machine
   target, PITR.
+- **The shell job caught a Linux-only break on its first day, which is what it
+  is for.** CI compiled `tauri-plugin-deep-link 2.6.2` against `rust-ini`
+  0.21.3 and stopped on a missing-field error in the plugin's
+  `#[cfg(target_os = "linux")]` desktop-entry initializer - code this Windows
+  machine never compiles, so the local `cargo test` could not have seen it.
+  `rust-ini` 0.21.2 added two `ParseOption` fields that the plugin does not
+  set; 0.21.2 was then yanked for its own parser regression (indented sections
+  read as keys, issue #146), fixed in 0.21.3, which keeps the fields. The
+  plugin's newest stable release is still 2.6.2 (the 3.0 line is a Tauri-3
+  alpha, not usable here), so the committed lock pins `rust-ini` 0.21.1 - the
+  last release before the fields existed, never yanked, and predating the
+  regression too. CI runs `cargo test --locked` so resolution cannot silently
+  walk away from the pin. `Cargo.toml` records the pin and its removal
+  condition. (The first fix attempt pinned 0.21.2 on the wrong reading of the
+  changelog; CI rejected it in three minutes, which is the job working. The
+  0.21.1 pin went green on 21 October 2026, run 39533322567, all three jobs.)
 
 ## Assets
 
