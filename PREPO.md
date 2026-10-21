@@ -1223,11 +1223,11 @@ Cross-Origin-Resource-Policy: same-origin
 
 ### 9.4 Pre-launch security checklist
 
-- [ ] ASVS L2 checklist reviewed and documented
+- [ ] ASVS L2 checklist reviewed and documented *(not a clause-by-clause review: `SECURITY.md` reads the threat model by the OWASP Top 10 areas the specification targets and records each gap and what replaced it, or why it is not built — see its checklist table)*
 - [ ] Automated RLS tests: user A can never read workspace B (including audio and transcripts)
 - [ ] IDOR tests on every route and every presigned-URL issuer *(built as `db:idor-smoke`: the HTTP matrix over audio playback and the six form routes; no presigned-URL issuer exists to test; page-render routes still need a browser)*
 - [ ] Prompt-injection suite passes (malicious transcript, spoken-instruction audio sample cannot trigger tools) *(text half built as `db:injection-smoke`, 38 checks; a recorded-audio wound is still unexercised because no STT provider has been live)*
-- [ ] Upload abuse tests (wrong type, oversized, spoofed extension, zip bombs) *(built into `db:audio`: a renamed file is refused before storage, a `.docx` transcript is refused rather than parsed, the size, duration, title and transcript caps hold, a WAV's header overrides a short client claim, a zip is refused without being unpacked, and unknown extensions are served opaque — see `SECURITY.md`; the chunk route's own 4 MB piece cap is enforced but not yet exercised by a request, and the matrix that reaches the route only tests tenancy)*
+- [ ] Upload abuse tests (wrong type, oversized, spoofed extension, zip bombs) *(built into `db:audio`: a renamed file is refused before storage, a `.docx` transcript is refused rather than parsed, the size, duration, title and transcript caps hold, a WAV's header overrides a short client claim, a zip is refused without being unpacked, and unknown extensions are served opaque — see `SECURITY.md`; the chunk route's 4 MB piece cap is exercised over HTTP by `db:idor-smoke`, where an authorised piece over the cap is a 413)*
 - [ ] Linear webhook signature and replay tests
 - [ ] OWASP ZAP baseline clean
 - [ ] Headers verified (securityheaders.com A+)
