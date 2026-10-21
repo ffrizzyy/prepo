@@ -168,13 +168,17 @@ shell's Rust rules in their own job - which on its first run found a Linux-only 
 `#[cfg(target_os = "linux")]` initializer meeting a newer `rust-ini`) and was first green two days
 later once the lock pinned `rust-ini` 0.21.1 - the last release before `ParseOption` gained the
 two fields the plugin does not set - and the job ran `--locked`, so the pin cannot drift
-silently. A second job gates `pnpm audit --prod` and scans the full git
+silently. All three jobs were green together on 21 October 2026 (run 39533322567). A second job
+gates `pnpm audit --prod` and scans the full git
 history with gitleaks, allowing only the two strings `.gitleaks.toml` documents. CodeQL
 (security-extended) runs in its own workflow; its first analysis raised six alerts, of which four
 were closed by two fixes in code (the staged-upload writer's check-then-operate race, and the
 transcript's multi-character tag strip, now a scanner) and two were dismissed with reasons on the
 alert itself (a suite-fixture assertion and the recording bytes going to the configured Deepgram
-endpoint).
+endpoint). The workflows still run `actions/checkout@v4` and `github/codeql-action@v3`; GitHub
+annotates both as targeting deprecated Node 20 and gives CodeQL Action v3 a December 2026
+deprecation date. The bumps that clear this are open as Dependabot PRs #5 and #8, unmerged as of
+21 October 2026 - a dated edge, not a hidden one.
 Dependabot config covers the workspace; `db:restore-drill` is deliberately not in CI because it
 backs up the working dataset and a fresh checkout has none.
 

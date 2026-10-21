@@ -229,7 +229,8 @@ routes rendered by server components, anything browser-enforced - is said in
   regression too. CI runs `cargo test --locked` so resolution cannot silently
   walk away from the pin. `Cargo.toml` records the pin and its removal
   condition. (The first fix attempt pinned 0.21.2 on the wrong reading of the
-  changelog; CI rejected it in three minutes, which is the job working.)
+  changelog; CI rejected it in three minutes, which is the job working. The
+  0.21.1 pin went green on 21 October 2026, run 39533322567, all three jobs.)
 
 ## Assets
 

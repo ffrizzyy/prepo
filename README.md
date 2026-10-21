@@ -679,7 +679,7 @@ covers the workspace, and `db:restore-drill` is excluded on purpose: it backs up
 working dataset and a fresh checkout has none. The web and scan jobs were first
 green on 19 October 2026; the shell's Rust job found a Linux-only compile break
 on its first run and was first green two days later, after the dependency pin
-recorded in `DESIGN.md`.
+recorded in `DESIGN.md` (run 39533322567).
 
 `db:smoke` drives the same write functions the server actions call — approving
 action items, moving a ticket, rejecting one, commenting, changing a setting — and reads the
