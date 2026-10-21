@@ -5,7 +5,7 @@ Snapshot taken against the hosted Railway origin
 files beside this note are the raw reports; this page is the short version and
 names the things a score hides.
 
-The live build at scan time was the 14:09 UTC deploy. Railway paused new
+The live build at scan time was the 14:09 local (07:09 UTC) deploy. Railway paused new
 deployments immediately afterwards, so the navigation-label fix in this commit
 is **not** on the origin yet; the reports below are a timestamped snapshot, not
 a claim about the committed tree. Everything else in that build - the hydration
@@ -56,7 +56,7 @@ unthrottled.
   pages had a `landmark-unique` violation in this snapshot (two `<nav>`
   elements with no distinct names); `aria-label="Primary"` and
   `aria-label="Footer"` are in this commit, but the live instance is still the
-  14:09 build because Railway paused new deployments immediately afterwards.
+  14:09 local build because Railway paused new deployments immediately afterwards.
   Re-run this set once that deploy lands. The contrast fix was not cosmetic:
   `text-subtle` was 4.47:1 against the light background, and darkening it to
   4.7:1 fixed real small text.
