@@ -10,6 +10,8 @@ is done.
 [![CodeQL](https://github.com/ffrizzyy/prepo/actions/workflows/codeql.yml/badge.svg)](https://github.com/ffrizzyy/prepo/actions/workflows/codeql.yml)
 
 This repository is being built against the specification in [`PREPO.md`](./PREPO.md).
+The shape of the built system, its trust boundaries and the decisions behind it
+are in [`ARCHITECTURE.md`](./ARCHITECTURE.md) and [`docs/adr/`](./docs/adr/README.md).
 
 ## Status
 
@@ -243,6 +245,12 @@ say which it used.
 considers every message whose time has come and decides one of four things: deliver it, fail it
 with a reason, defer it for quiet hours, or cancel it because it no longer makes sense. It prints
 that decision per row, so a scheduler log is readable rather than a shrug.
+
+There is no row lock between passes. Two `db:followups` processes started at the same time can
+both pick up the same message, and a crash after an email is accepted but before the row is
+marked can resend it: delivery is **at-least-once**, and the scheduler must run one pass at a
+time. The same applies to `db:linear`, where a crash between creating an issue and storing its id
+can create a duplicate. See [`docs/adr/0003`](docs/adr/0003-row-and-a-pass-instead-of-a-workflow-engine.md).
 
 - **Cancelled, not sent.** A message is cancelled when the ticket was finished after the message
   was queued, when its due date moved so the rung's moment no longer exists, when chasing was
