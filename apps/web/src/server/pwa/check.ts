@@ -289,8 +289,11 @@ async function main(): Promise<void> {
   const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1] ?? "");
   check("the sitemap lists pages", locations.length > 0, `${locations.length} entries`);
   check(
-    "no page claims somebody else's domain",
-    !sitemap.includes("prepo.vercel.app") && locations.every((loc) => !loc.includes("prepo.vercel.app")),
+    "every sitemap entry is on this deployment's origin, not a baked-in or stranger's host",
+    locations.length > 0 &&
+      locations.every((loc) => loc.startsWith(`${base}/`)) &&
+      !locations.some((loc) => loc.includes("prepo.vercel.app")),
+    locations.find((loc) => !loc.startsWith(`${base}/`)) ?? locations[0] ?? "",
   );
   check(
     "every sitemap entry is an absolute URL, so it is a site origin and not a guess",
@@ -301,7 +304,8 @@ async function main(): Promise<void> {
   const robots = robotsResponse?.ok ? await robotsResponse.text() : "";
   check(
     "robots.txt points at this origin's sitemap, not a stranger's",
-    /Sitemap: https?:\/\/[^\s]+\/sitemap\.xml/i.test(robots) && !robots.includes("prepo.vercel.app"),
+    robots.includes(`Sitemap: ${base}/sitemap.xml`),
+    robots.match(/Sitemap:\s*(\S+)/i)?.[1] ?? "",
   );
 
   /* ------------------------------------------------------- the offline page */

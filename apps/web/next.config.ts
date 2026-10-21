@@ -4,6 +4,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Do not advertise the framework; it is not a security boundary, but it is
+  // free to remove and securityheaders.com flags it.
+  poweredByHeader: false,
   transpilePackages: ["@prepo/shared"],
   // The deployment image runs `.next/standalone`. The tracing root is the
   // workspace, not apps/web, so `@prepo/shared` (a transpiled workspace
@@ -63,6 +66,17 @@ const nextConfig: NextConfig = {
           // from other origins can never reach a session.
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+          // Every subresource is same-origin (the CSP allows nothing else), so
+          // requiring CORP costs nothing and clears ZAP's COEP warning.
+          { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
+          // HSTS. Browsers ignore it over HTTP, so a local production build is
+          // unaffected; a hosted HTTPS origin gets it. No `preload`: a platform
+          // subdomain is not eligible for the preload list, and claiming
+          // otherwise would be a lie in a header.
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000; includeSubDomains",
+          },
         ],
       },
       {

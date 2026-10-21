@@ -9,6 +9,7 @@ is done.
 [![CI](https://github.com/ffrizzyy/prepo/actions/workflows/ci.yml/badge.svg)](https://github.com/ffrizzyy/prepo/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/ffrizzyy/prepo/actions/workflows/codeql.yml/badge.svg)](https://github.com/ffrizzyy/prepo/actions/workflows/codeql.yml)
 [![eval gate: item F1 0.800](https://img.shields.io/badge/eval_items_F1-0.800-blue)](#the-eval-gate)
+[![live demo: Railway trial](https://img.shields.io/badge/live_demo-Railway_trial-blue)](https://prepo-web-production.up.railway.app)
 
 This repository is being built against the specification in [`PREPO.md`](./PREPO.md).
 The shape of the built system, its trust boundaries and the decisions behind it
@@ -73,8 +74,18 @@ One correction is worth naming. The specification suggested launching on a free 
 name, and the metadata, sitemap and robots.txt had `https://prepo.vercel.app` hardcoded — which
 turns out to answer `200` with an **unrelated application**. No page claims it any more: the origin
 comes from `APP_URL` (`src/lib/site-url.ts`), and with that unset the site describes itself as
-`http://localhost:3000`, which is where an undeployed checkout genuinely runs. `pwa:check` fails if
-a sitemap entry or a robots rule names that domain again.
+`http://localhost:3000`, which is where an undeployed checkout genuinely runs.
+
+The first hosted origin is a **Railway free trial** at
+[`prepo-web-production.up.railway.app`](https://prepo-web-production.up.railway.app), deployed
+21 October 2026 with a 500 MB volume and Neon Postgres. That trial expires around 20 November
+2026; after that the service stops unless it moves to a paid plan. No AI provider keys are set
+on the public instance, so extraction, transcription and Resend email report themselves
+unconfigured there rather than failing silently. The first deploy also exposed a real bug: the
+sitemap and robots.txt were static, and a Docker build does not inherit the host's `APP_URL`, so
+they advertised `http://localhost:3000`. Both routes now read the origin per request, and
+`pwa:check` fails any sitemap or robots entry that is not the origin it is checking — which it
+did, against the broken deploy, before the fix.
 
 | Area | State |
 |---|---|
@@ -642,9 +653,10 @@ pnpm --filter @prepo/desktop build    # build an installer locally (none is publ
 The repository ships a tested `Dockerfile` and a runbook in
 [`DEPLOYMENT.md`](./DEPLOYMENT.md): a container host with a persistent volume
 for audio, Postgres (`DATABASE_URL`), the exact environment variables, health
-check, migration step and the verification commands. There is still no hosted
-deployment and no domain in this repository; the runbook does not pretend
-otherwise.
+check, migration step and the verification commands. The current public
+instance is Railway's free trial (`prepo-web-production.up.railway.app`); the
+runbook also covers Fly.io for a paid, always-on deployment and names what the
+free tiers do not preserve.
 
 ## Database
 

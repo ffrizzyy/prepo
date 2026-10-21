@@ -101,8 +101,24 @@ async function defaultLanding(userId: string): Promise<string> {
 
 /** Only same-origin absolute paths, so `next` cannot become an open redirect. */
 function safeNext(value: string): string | null {
-  if (!value.startsWith("/") || value.startsWith("//")) return null;
-  return value;
+  if (
+    !value.startsWith("/") ||
+    value.startsWith("//") ||
+    value.includes("\\") ||
+    /[\u0000-\u001f]/.test(value)
+  ) {
+    return null;
+  }
+  try {
+    // Browsers treat a backslash as a slash in special schemes; the check above
+    // rejects it, and this parses the rest against a fixed origin so a value
+    // that somehow escapes still cannot become another host.
+    const parsed = new URL(value, "http://prepo.invalid");
+    if (parsed.origin !== "http://prepo.invalid") return null;
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return null;
+  }
 }
 
 /** Issues a session and hands the browser its cookie. Always redirects. */

@@ -1,6 +1,10 @@
 import type { MetadataRoute } from "next";
 import { siteUrl } from "@/lib/site-url";
 
+// Runtime, for the same reason as sitemap.ts: the origin is a runtime variable, and a
+// Docker build does not see the host's service variables.
+export const dynamic = "force-dynamic";
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
@@ -8,8 +12,7 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/api/", "/r/", "/demo"],
     },
-    // APP_URL decides the origin (lib/site-url.ts); the spec's suggested
-    // `*.vercel.app` name turned out to belong to an unrelated app.
+    // APP_URL decides the origin (lib/site-url.ts).
     sitemap: `${siteUrl()}/sitemap.xml`,
   };
 }

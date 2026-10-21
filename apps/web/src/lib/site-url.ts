@@ -8,11 +8,15 @@ import { BRAND } from "@prepo/shared";
  * somebody else's app. Hardcoding it meant the sitemap advertised a stranger's host, and
  * every absolute Open Graph URL pointed there too, so there is nothing to keep.
  *
- * Until a deployment exists, the honest origin is the one this code actually runs on:
- * `http://localhost:3000`. Set `APP_URL` (already the variable the Linear backlink and the
- * webhook address use) and metadata, the sitemap and robots.txt all follow it. A value that
- * is not http(s) or that carries credentials is refused loudly and falls back, rather than
+ * Hosted deployments set `APP_URL` (the same variable the Linear backlink and the webhook
+ * address use) and metadata, the sitemap and robots.txt all follow it. Without it the honest
+ * origin is the one development actually runs on: `http://localhost:3000`. A value that is
+ * not http(s) or that carries credentials is refused loudly and falls back, rather than
  * being put into a canonical URL.
+ *
+ * The sitemap and robots routes read this per request (`force-dynamic`) because a Docker
+ * build does not inherit service variables; the first Railway deploy proved that by baking
+ * localhost into a static sitemap.
  */
 export function siteUrl(): string {
   const configured = (process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "").trim();
