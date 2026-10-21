@@ -16,6 +16,12 @@ tauri-plugin-window-state = "2.5.0"
 tauri-plugin-notification = "2.7.0"
 tauri-plugin-global-shortcut = "2.4.1"
 tauri-plugin-deep-link = "2.6.2"
+# The lockfile pins rust-ini to 0.21.2 for tauri-plugin-deep-link's Linux-only
+# desktop-entry parser. rust-ini 0.21.3 added two ParseOption fields, so the
+# plugin (which initializes the struct with the old two) stops compiling on
+# Linux - rust-ini 0.21.2 was yanked only because it had a different parsing
+# regression (#146, indented sections read as keys), fixed upstream in 0.21.3.
+# Revisit when the plugin gains a release that constructs the new fields.
 tauri-plugin-opener = "2.7.2"
 tauri-plugin-updater = "2.14.0"
 serde = { version = "1.0", features = ["derive"] }
