@@ -237,6 +237,20 @@ routes rendered by server components, anything browser-enforced - is said in
   condition. (The first fix attempt pinned 0.21.2 on the wrong reading of the
   changelog; CI rejected it in three minutes, which is the job working. The
   0.21.1 pin went green on 21 October 2026, run 39533322567, all three jobs.)
+- **Dependabot's first batch: six merged, three left open because they are
+  migrations.** The six whose own branch runs were green - `actions/checkout`
+  4 to 7, `setup-node` 4 to 7, `pnpm/action-setup` 4 to 6,
+  `gitleaks-action` 2 to 3, `codeql-action` 3 to 4, and the root `@types/node`
+  24 to 26 - were merged on 21 October 2026. Every merge run passed, and the
+  first CI run on the merged tree (39543941504) prints none of the Node 20 and
+  CodeQL v3 deprecation annotations that the first run carried. The three still
+  open are `typescript` 5.9.3 to 7.0.2 in the root and in `apps/web` (#6 and
+  #2, the same major twice) and the per-package `@types/node` bump in
+  `apps/web` (#3), whose lockfile edit predates the merged root bump. They are
+  red for real reasons: TypeScript 7 is a compiler migration with its own
+  diagnostics to clear, and the package bump needs the workspace lockfile
+  regenerated rather than a version string changed. Merging them because the
+  bot opened them would be the opposite of the gate.
 
 ## Assets
 
