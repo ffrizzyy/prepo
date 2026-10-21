@@ -710,7 +710,7 @@ round trip, a byte range, and a key that tries to escape the storage root; chunk
 its refusal of a piece that arrives without its predecessors; the retention clock, the sweep
 deleting an expired blob while leaving a future-dated one alone, and the delete-audio path; and
 the cross-tenant attempts, where a globex scope cannot see a northwind asset or map its speakers.
-Ninety checks, all passing.
+Ninety-eight checks, all passing.
 
 The retention job is a script rather than a hidden timer:
 
