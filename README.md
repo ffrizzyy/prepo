@@ -659,7 +659,8 @@ pnpm --filter @prepo/web pwa:check     # the installable app, against a running 
 
 `db:verify` migrates, seeds, then asserts the tenant boundary at the database level: each
 workspace sees only its own rows, an unscoped session sees nothing, a cross-tenant read by
-explicit id returns nothing, and a cross-tenant **write** is rejected by RLS. All ten checks
+explicit id returns nothing (tickets, and with non-empty preconditions, transcripts and
+recordings too), and a cross-tenant **write** is rejected by RLS. All twelve checks
 pass on PGlite by default; to run them against a real Postgres instead, set both
 `DATABASE_URL` and a scratch `PGLITE_DIR` (the suite keeps any database an operator points
 at, and creates a throwaway only when nothing was pointed anywhere).

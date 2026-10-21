@@ -110,6 +110,39 @@ export async function verify(): Promise<boolean> {
       `${crossRead.length} globex rows visible from northwind`,
     );
 
+    /* ------------------- transcripts and recordings get their own probes */
+    // The row must exist in the owning tenant first, or a zero-row answer
+    // would prove nothing about the policy.
+    const northwindTranscripts = await runAsApp(northwind, () =>
+      client.query<{ n: number }>(
+        "select count(*)::int as n from transcript_segments",
+      ),
+    );
+    const crossTranscripts = await runAsApp(globex, () =>
+      client.query("select id from transcript_segments where workspace_id = $1", [
+        northwind,
+      ]),
+    );
+    check(
+      "transcripts are partitioned per workspace",
+      (northwindTranscripts[0]?.n ?? 0) > 0 && crossTranscripts.length === 0,
+      `${northwindTranscripts[0]?.n ?? 0} northwind row(s), ${crossTranscripts.length} visible from globex`,
+    );
+
+    const northwindAudio = await runAsApp(northwind, () =>
+      client.query<{ n: number }>("select count(*)::int as n from audio_assets"),
+    );
+    const crossAudio = await runAsApp(globex, () =>
+      client.query("select id from audio_assets where workspace_id = $1", [
+        northwind,
+      ]),
+    );
+    check(
+      "recordings are partitioned per workspace",
+      (northwindAudio[0]?.n ?? 0) > 0 && crossAudio.length === 0,
+      `${northwindAudio[0]?.n ?? 0} northwind row(s), ${crossAudio.length} visible from globex`,
+    );
+
     /* ------------------------------------ cross-tenant write is rejected by RLS */
     let writeRejected = false;
     let writeError = "";
