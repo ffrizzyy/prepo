@@ -280,17 +280,22 @@ against a restored copy instead; the suite's own restore drill shows the shape.
   failed against the first deploy, which served `http://localhost:3000`, before
   the `force-dynamic` fix.
 - `db:verify` passed **12/12** against Neon (not PGlite) from the checkout.
-- `securityheaders.com` graded the origin **A** at 06:26 UTC: HSTS, CSP,
+- `securityheaders.com` graded the deployed origin **A** at 06:26 UTC: HSTS, CSP,
   `X-Frame-Options`, `nosniff`, referrer policy, Permissions-Policy, COOP, CORP
-  and COEP were all present, and `X-Powered-By` was absent. It is **not A+**
-  because `script-src` still allows `'unsafe-inline'`; a nonce/`strict-dynamic`
-  policy needs every page to render for a request, which this app's static
-  marketing/legal pages do not.
+  and COEP were all present, and `X-Powered-By` was absent. The committed build
+  now writes a per-request nonce in `apps/web/src/proxy.ts` and uses
+  `script-src 'self' 'nonce-…' 'strict-dynamic'`; `securityheaders.com` graded
+  that build **A+** through a Cloudflare quick tunnel on 21 October 2026. The
+  Railway origin has not been redeployed since the pause, so it still reports
+  the A policy. Every page is now rendered for the request (a nonce cannot be
+  baked into static HTML), and a tunneled mobile Lighthouse run measured 90
+  with LCP 1.9 s and TBT 370 ms; the committed 98-99 table is the pre-nonce
+  build. Re-run both against Railway when it accepts a deploy.
 - OWASP ZAP baseline: **0 failures, 9 warnings, 58 passes**. The warnings are
-  reviewed in `SECURITY.md` (CSP inline allowance, a Server Actions CSRF false
-  positive, Next's `$ACTION_*`/`next` fields, `/api` and `/r` normalization
-  redirects, and cache/framework informationals). A zero-warning scan was not
-  achieved and is not claimed.
+  reviewed in `SECURITY.md` (the then-current CSP inline allowance, a Server
+  Actions CSRF false positive, Next's `$ACTION_*`/`next` fields, `/api` and `/r`
+  normalization redirects, and cache/framework informationals). A zero-warning
+  scan was not achieved and is not claimed.
 - The local image was also smoke-tested against `postgres:17-alpine`:
   `/api/health` returned 200, the same routes returned 200, and `db:verify`
   passed 12/12. That is evidence for the image, separate from the hosted origin.

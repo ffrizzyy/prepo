@@ -122,6 +122,14 @@ runCli(
     )[0];
     if (!foreignMember) throw new Error("No other-workspace member to play a foreign caller.");
 
+    const seededTicket = (
+      await rawQuery<{ key: string }>(
+        `select key from tickets where workspace_id = $1 order by key limit 1`,
+        [northwind],
+      )
+    )[0];
+    if (!seededTicket) throw new Error("No seeded ticket to ask a page route for.");
+
     const ingest = await ingestAudio({
       workspaceId: northwind,
       actorId: lena.id,
@@ -167,6 +175,100 @@ runCli(
           },
           body: new URLSearchParams(form).toString(),
         });
+
+      /* ------------------------------------------- page routes, same identity */
+
+      // Page routes render on the server, so the same production server can be
+      // asked for them with the same cookies. This is not a browser test: it
+      // does not run client JavaScript. It does exercise the membership check
+      // that decides whether any HTML is sent at all.
+      const page = (pathUrl: string, cookie?: string) =>
+        fetch(`${base}${pathUrl}`, {
+          headers: cookie ? { cookie } : {},
+          redirect: "manual",
+        });
+
+      const anonymousPage = await page("/northwind");
+      check(
+        "an anonymous workspace page redirects to sign-in",
+        (anonymousPage.status === 307 || anonymousPage.status === 308) &&
+          (anonymousPage.headers.get("location") ?? "").includes("/sign-in"),
+      );
+
+      const memberPages = [
+        "",
+        "/ask",
+        "/board",
+        "/followups",
+        "/insights",
+        "/integrations",
+        "/meetings",
+        "/meetings/new",
+        "/notifications",
+        "/settings",
+        "/tickets",
+      ];
+      for (const route of memberPages) {
+        const response = await page(`/northwind${route}`, memberCookie);
+        check(`a member renders /northwind${route}`, response.status === 200);
+      }
+
+      const memberMeeting = await page(`/northwind/meetings/${ingest.meetingId}`, memberCookie);
+      check("a member renders their own meeting detail", memberMeeting.status === 200);
+
+      const memberTicket = await page(`/northwind/tickets/${seededTicket.key}`, memberCookie);
+      check(`a member renders their own ticket detail (${seededTicket.key})`, memberTicket.status === 200);
+
+      const memberGlobex = await page("/globex", memberCookie);
+      const memberGlobexBody = await memberGlobex.text();
+      check(
+        "a member cannot render another workspace's dashboard",
+        memberGlobex.status === 404 && !memberGlobexBody.includes("Globex"),
+      );
+
+      for (const route of memberPages.slice(1)) {
+        const response = await page(`/globex${route}`, memberCookie);
+        check(`a member cannot render /globex${route}`, response.status === 404);
+      }
+
+      const memberForeignMeeting = await page(`/globex/meetings/${ingest.meetingId}`, memberCookie);
+      check("a member cannot render their meeting id under another workspace", memberForeignMeeting.status === 404);
+
+      const memberForeignTicket = await page(`/globex/tickets/${seededTicket.key}`, memberCookie);
+      check("a member cannot render their ticket key under another workspace", memberForeignTicket.status === 404);
+
+      const foreignNorthwind = await page("/northwind", foreignCookie);
+      check("a member of another workspace cannot render /northwind", foreignNorthwind.status === 404);
+
+      const foreignOwn = await page("/globex", foreignCookie);
+      check("that member can render their own /globex dashboard", foreignOwn.status === 200);
+
+      // Detail pages render an in-shell empty state with HTTP 200 when the id
+      // is not in the caller's workspace; the workspace layout itself is 404.
+      // The assertion is therefore "no meeting data", not a status code.
+      const foreignMeeting = await page(`/globex/meetings/${ingest.meetingId}`, foreignCookie);
+      const foreignMeetingBody = await foreignMeeting.text();
+      check(
+        "a globex member asking for a northwind meeting id gets the empty state, not the meeting",
+        foreignMeeting.status === 200 &&
+          foreignMeetingBody.includes("Meeting not found") &&
+          !foreignMeetingBody.includes("The recording that must stay inside"),
+      );
+
+      const foreignOwnTicket = await page(`/globex/tickets/${seededTicket.key}`, foreignCookie);
+      const foreignOwnTicketBody = await foreignOwnTicket.text();
+      check(
+        "a globex member asking for a northwind ticket key gets the empty state, not the ticket",
+        foreignOwnTicket.status === 200 &&
+          foreignOwnTicketBody.includes(`Ticket ${seededTicket.key} not found`) &&
+          !foreignOwnTicketBody.includes("Review the legal copy for the enterprise plan"),
+      );
+
+      const foreignTicket = await page(`/northwind/tickets/${seededTicket.key}`, foreignCookie);
+      check("a northwind ticket key is 404 to a globex member", foreignTicket.status === 404);
+
+      const unknownWorkspace = await page("/does-not-exist", memberCookie);
+      check("an unknown workspace is 404, not a redirect that distinguishes it", unknownWorkspace.status === 404);
 
       /* ----------------------------------------------------- audio, by identity */
 

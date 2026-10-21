@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { BRAND } from "@prepo/shared";
@@ -43,9 +44,14 @@ const themeScript = `(function(){try{var t=localStorage.getItem('prepo-theme');v
  */
 const installPromptScript = `(function(){window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__prepoInstallPrompt=e;window.dispatchEvent(new Event('prepo:install-available'));});})();`;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Reading a request header is also what makes every page render for the
+  // request. A nonce cannot be attached at build time, and a static page would
+  // get the build's nonce on every request.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html
       lang="en"
@@ -53,8 +59,8 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        <script dangerouslySetInnerHTML={{ __html: installPromptScript }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: installPromptScript }} />
       </head>
       <body className="bg-bg font-sans text-text antialiased">
         <ServiceWorkerRegistrar />

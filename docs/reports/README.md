@@ -37,15 +37,22 @@ in only on submit, so it is the unauthenticated front door.
 
 Performance 100 is **not** a claim about a slow phone on a slow network: the
 throttling method was `provided`, so this is the origin on the machine that ran
-the scan. A mobile-throttled run exists separately:
+the scan. A separate set with Lighthouse's default mobile emulation and
+simulated slow 4G (150 ms RTT, 1.6 Mbps) plus 4x CPU slowdown is in
+`lighthouse-mobile/`:
 
-| Run | Performance | Accessibility | Best practices | SEO |
+| Page | Performance | Accessibility | Best practices | SEO |
 |---|---:|---:|---:|---:|
-| `/`, mobile emulation, simulated slow 4G (150 ms RTT, 1.6 Mbps) and 4x CPU slowdown | 97 | 96 | 96 | 100 |
+| `/` | 99 | 96 | 96 | 100 |
+| `/security` | 98 | 96 | 96 | 100 |
+| `/privacy` | 98 | 96 | 96 | 100 |
+| `/terms` | 99 | 96 | 96 | 100 |
+| `/download` | 99 | 96 | 96 | 100 |
+| `/sign-in` | 99 | 100 | 96 | 100 |
+| `/demo` | 99 | 100 | 96 | 63 |
 
-That run (`lighthouse-mobile/home.json`) measured FCP 1.1 s, LCP 1.8 s, TBT
-170 ms and CLS 0. It is one page, not all seven; the other scores above remain
-unthrottled.
+LCP was 1.8-1.9 s on every page and TBT was 40-150 ms. These are the mobile
+numbers to quote; the unthrottled table above is only a fast-machine baseline.
 
 ## What the non-perfect scores are
 
@@ -61,9 +68,12 @@ unthrottled.
   `text-subtle` was 4.47:1 against the light background, and darkening it to
   4.7:1 fixed real small text.
 - **Best practices 96** is one `inspector-issues` entry: Chrome's Issues panel
-  records a "Content security policy" issue with no sub-items. The CSP keeps
-  `script-src 'unsafe-inline'`, which is also why `securityheaders.com` caps
-  the grade at A. This is the known nonce/`strict-dynamic` gap, not a new one.
+  records a "Content security policy" issue with no sub-items. This snapshot is
+  the pre-nonce build, whose CSP kept `script-src 'unsafe-inline'`. The committed
+  build moves the policy to `src/proxy.ts` with a per-request nonce and
+  `'strict-dynamic'`; `securityheaders.com` grades it **A+**, and a local browser
+  pass found no CSP violations and no nonce-less inline script. The live Railway
+  origin is still the older A build because deploys are paused.
 - **Demo SEO 63** is deliberate: `robots.txt` disallows `/demo` because opening
   it signs a visitor into a shared account. Lighthouse still audits it when
   asked directly.
@@ -107,26 +117,56 @@ The axe runner is not committed as a dependency: it was a throwaway Selenium
 script in the temp directory. That is a gap for CI, not a claim that axe runs
 there.
 
-## Page-route IDOR browser pass
+## Page-route IDOR checks
 
-`db:idor-smoke` drives the built server over HTTP, which covers the audio
-streaming route and the six form routes but not a rendered workspace page. A
-separate one-off browser pass on 21 October 2026 covered the page routes:
+`db:idor-smoke` now drives the built server over HTTP for the audio route, the
+six form routes and the rendered workspace pages. The page-route matrix is
+repeatable in CI rather than a one-off browser pass:
 
-- signed out, `/northwind` and `/northwind/board` both redirected to
-  `/sign-in` (2 checks);
-- signed in as the seeded demo user, all 11 Northwind pages rendered:
-  the dashboard, `/ask`, `/board`, `/followups`, `/insights`, `/integrations`,
+- signed out, `/northwind` redirects to `/sign-in`;
+- as the seeded Northwind member, all 11 Northwind pages render: the
+  dashboard, `/ask`, `/board`, `/followups`, `/insights`, `/integrations`,
   `/meetings`, `/meetings/new`, `/notifications`, `/settings` and `/tickets`;
 - the member's own meeting detail (`/northwind/meetings/<uuid>`) and ticket
-  detail (`/northwind/tickets/PRE-133`) rendered, while the same ids under
-  `/globex` returned the not-found page;
-- all 11 `/globex/...` pages returned the same not-found page as an unknown
-  workspace, with no "Globex" or `GLO-101` text in the body.
+  detail (`/northwind/tickets/PRE-118`) render;
+- the same ids under `/globex`, and all 11 `/globex/...` pages, answer 404
+  to the Northwind member with no "Globex" text in the body;
+- a Globex member can render `/globex`, but a Northwind meeting id or ticket
+  key asked for inside `/globex` renders the in-shell **empty state with HTTP
+  200** (`Meeting not found` / `Ticket PRE-118 not found`), not the data. The
+  workspace layout itself is 404 when the caller is not a member.
 
-**28/28 passed.** The raw result, including the final URL and the first 180
-characters of each body, is in `idor-page-routes.json`. This was a Selenium pass
-against the live origin, not a CI job: the browser/driver dependency is not in
-the repository, so it does not run on every push. That limitation is the reason
-the checklist entry says a browser pass, not an automated suite.
+The 200 empty state is not an IDOR: a foreign id and an unknown id render the
+same text, because the row-level security query returns nothing either way. It
+does mean a page route does not mirror the API routes' 404 status, so the
+assertion is "the meeting title and ticket title are absent", not "404".
+
+The earlier one-off Selenium pass against the live origin remains as UI
+evidence, **28/28**, in `idor-page-routes.json`. It is no longer the only
+page-route coverage; the HTTP matrix is the part that runs on every push.
+
+## Security headers: A+ on the build, A on the live origin
+
+Two scans on 21 October 2026, forty-five seconds apart:
+
+- **09:18:55 UTC, live Railway origin: A.** The only warning was
+  `script-src 'unsafe-inline'`.
+- **09:23:44 UTC, the committed build through an ephemeral Cloudflare quick
+  tunnel: A+.** The policy was
+  `default-src 'self'; script-src 'self' 'nonce-…' 'strict-dynamic';
+  script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self'
+  blob: data:; media-src 'self' blob:; connect-src 'self'; font-src 'self';
+  worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self';
+  form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests`.
+  The nonce is generated per request in `apps/web/src/proxy.ts`; the tunnel is
+  gone, so there is no public URL to re-scan.
+
+The live origin still runs the older build because Railway refuses new
+deployments. The committed build makes every document dynamic, since a nonce
+cannot be baked into static HTML. That removes CDN caching for the marketing
+and legal pages, so the 98-99 mobile table above is a snapshot of the pre-nonce
+build. A tunneled mobile run of the nonce build measured performance 90, LCP
+1.9 s, TBT 370 ms; the difference is recorded, not rounded away.
+
+
 
