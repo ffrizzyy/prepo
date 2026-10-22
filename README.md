@@ -67,8 +67,10 @@ is configured: `AI_MODEL_EXTRACT` names a model on OpenRouter, chosen from the p
 list and free to run at this size, so a real extraction needs no credit.
 
 The links under the landing page are real routes now — `/security`, `/privacy`, `/terms` and
-`/download` — and so are the 404 and 500 states. [`SECURITY.md`](./SECURITY.md) records what is
+`/download` - and so are the 404 and 500 states. [`SECURITY.md`](./SECURITY.md) records what is
 implemented next to the OWASP gaps that are still open, so nothing has to be taken on trust.
+[`docs/ASVS-L2.md`](./docs/ASVS-L2.md) is the clause-by-clause ASVS 4.0.3 L1/L2 screening:
+253 requirements, each with a status, and an explicit "not a pass" result.
 
 One correction is worth naming. The specification suggested launching on a free `*.vercel.app`
 name, and the metadata, sitemap and robots.txt had `https://prepo.vercel.app` hardcoded — which
@@ -143,7 +145,7 @@ did, against the broken deploy, before the fix.
 | Meeting necessity score (does one meeting repeat earlier ones) | Done - arithmetic over the stored action items and decisions, at the same 0.6 title match the duplicate flag uses. Run by the extraction path and by `db:necessity`; a meeting with nothing to compare against is left **unscored**, never guessed |
 | Meeting-decision insights (which meetings were worth holding) | Partly - `/insights` shows meeting load; the necessity column is the one figure drawn from this score |
 | Desktop (Tauri 2) shell - native window, tray, global shortcut, `prepo://` links, notifications, single instance, window state, external links kept out of the app window | Done - `cargo test` 22/22, `desktop:verify` 48/48. **No installer is built or published**, there is no update endpoint or signing key, and no command is exposed to the page in the window |
-| Docs - `PREPO.md`, `SECURITY.md` (posture + OWASP gaps), `DESIGN.md` (direction, dials, reasons) | Done |
+| Docs - `PREPO.md`, `SECURITY.md` (posture + OWASP gaps), `docs/ASVS-L2.md` (clause-by-clause ASVS 4.0.3 L1/L2 screening; 253 clauses, not a certification), `DESIGN.md` (direction, dials, reasons) | Done |
 | Accessibility and performance reports | Lighthouse 12.8.2 and axe-core 4.14.0 against the live origin; raw JSON in [`docs/reports/`](docs/reports/README.md). The summary names what the scores hide: the decorative footer wordmark is the only automated contrast hit, `/demo` is deliberately SEO 63, and both unthrottled and mobile-throttled sets are committed (mobile performance 98-99) |
 | Rust dependency audit | `cargo audit` 0.22.2 run locally: `rustls-webpki` and `webpki-root-certs` patched, **3 `zip` advisories remain** through `tauri-plugin-updater` 2.14.0 (no update endpoint or key, so the path is unreachable, but the scan is not clean). No CI job yet |
 

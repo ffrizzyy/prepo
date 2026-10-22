@@ -149,7 +149,11 @@ export const accounts = pgTable(
     providerAccountId: text("provider_account_id"),
     /** argon2id PHC string; only ever written and verified on the server. */
     passwordHash: text("password_hash"),
-    /** Encrypted at rest with AES-256-GCM. Never read by the browser. */
+    /**
+     * TOTP shared secret. Stored as text, not encrypted by this application;
+     * that is ASVS 4.0.3 2.8.2 gap recorded in `docs/ASVS-L2.md`. Never read
+     * by the browser.
+     */
     totpSecret: text("totp_secret"),
     totpEnabledAt: timestamp("totp_enabled_at", { withTimezone: true }),
     /** SHA-256 of each one-time recovery code, so the plaintext is shown once. */
