@@ -9,7 +9,9 @@ The live build at scan time was the 14:09 local (07:09 UTC) deploy. Railway paus
 deployments immediately afterwards, so the navigation-label fix in this commit
 is **not** on the origin yet; the reports below are a timestamped snapshot, not
 a claim about the committed tree. Everything else in that build - the hydration
-fix, the darker `text-subtle`, the demo link underline - is deployed.
+fix, the darker `text-subtle`, the demo link underline - is deployed. A deploy
+retry on 22 October 2026 from commit `1bb1234` was also rejected with
+`Deploys have been paused temporarily`; the origin is unchanged.
 
 ## How they were run
 
@@ -162,8 +164,10 @@ Two scans on 21 October 2026, forty-five seconds apart:
   gone, so there is no public URL to re-scan.
 
 The live origin still runs the older build because Railway refuses new
-deployments. The committed build makes every document dynamic, since a nonce
-cannot be baked into static HTML. That removes CDN caching for the marketing
+deployments. The pause was retested on 22 October 2026 from `1bb1234` and
+returned `Deploys have been paused temporarily`; `railway redeploy` could not
+redeploy the latest deployment. The committed build makes every document
+dynamic, since a nonce cannot be baked into static HTML. That removes CDN caching for the marketing
 and legal pages, so the 98-99 mobile table above is a snapshot of the pre-nonce
 build. A tunneled mobile run of the nonce build measured performance 90, LCP
 1.9 s, TBT 370 ms; the difference is recorded, not rounded away.

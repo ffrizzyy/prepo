@@ -287,10 +287,15 @@ against a restored copy instead; the suite's own restore drill shows the shape.
   `script-src 'self' 'nonce-…' 'strict-dynamic'`; `securityheaders.com` graded
   that build **A+** through a Cloudflare quick tunnel on 21 October 2026. The
   Railway origin has not been redeployed since the pause, so it still reports
-  the A policy. Every page is now rendered for the request (a nonce cannot be
-  baked into static HTML), and a tunneled mobile Lighthouse run measured 90
-  with LCP 1.9 s and TBT 370 ms; the committed 98-99 table is the pre-nonce
-  build. Re-run both against Railway when it accepts a deploy.
+  the A policy. The pause was retested on 22 October 2026 from commit
+  `1bb1234`: `railway up` uploaded the tree and Railway rejected it with
+  `Deploys have been paused temporarily`; `railway redeploy` then reported that
+  the latest deployment cannot be redeployed. The origin therefore still serves
+  the 14:09 local (07:09 UTC) 21 October build, not the nonce build. Every page
+  is now rendered for the request (a nonce cannot be baked into static HTML),
+  and a tunneled mobile Lighthouse run measured 90 with LCP 1.9 s and TBT
+  370 ms; the committed 98-99 table is the pre-nonce build. Re-run both against
+  Railway when it accepts a deploy.
 - OWASP ZAP baseline: **0 failures, 9 warnings, 58 passes**. The warnings are
   reviewed in `SECURITY.md` (the then-current CSP inline allowance, a Server
   Actions CSRF false positive, Next's `$ACTION_*`/`next` fields, `/api` and `/r`
