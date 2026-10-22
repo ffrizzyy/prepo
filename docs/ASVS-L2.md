@@ -39,8 +39,8 @@ assessment applies to that row.
 
 | Status | Clauses |
 | :--- | ---: |
-| Met | 130 |
-| Partial | 51 |
+| Met | 128 |
+| Partial | 53 |
 | Gap | 35 |
 | N/A | 37 |
 | **Total** | **253** |
@@ -84,7 +84,7 @@ pretending to work. That is a product limitation, not an ASVS control.
 
 ## V1 Architecture, Design and Threat Modeling
 
-*38 clauses: 24 met, 8 partial, 5 gap, 1 N/A.*
+*38 clauses: 23 met, 9 partial, 5 gap, 1 N/A.*
 
 **V1.1 Secure Software Development Lifecycle** — default status: **Partial**. Architecture notes and ten ADRs exist, and CI is the enforcement point, but there is no formal per-change threat model or SDLC gate.
 
@@ -179,7 +179,7 @@ pretending to work. That is a product limitation, not an ASVS control.
 | :--- | :--- | :--- | :--- |
 | 1.14.1 | Verify the segregation of components of differing trust levels through well-defined security controls, firewall rules, API gateways, reverse proxies, cloud-based security groups, or similar… | Met | The app and database are separate services; Railway provides the network boundary. |
 | 1.14.2 | Verify that binary signatures, trusted connections, and verified endpoints are used to deploy binaries to remote devices. | N/A | No binaries are deployed to remote devices. |
-| 1.14.3 | Verify that the build pipeline warns of out-of-date or insecure components and takes appropriate actions. | Met | Dependabot, `pnpm audit`, `cargo audit` and CodeQL warn on outdated or insecure components. |
+| 1.14.3 | Verify that the build pipeline warns of out-of-date or insecure components and takes appropriate actions. | Partial | Dependabot, `pnpm audit`, `cargo audit` and CodeQL run, but the CI cargo-audit gate explicitly ignores three `zip` advisories, so it is not a complete insecure-component gate. |
 | 1.14.4 | Verify that the build pipeline contains a build step to automatically build and verify the secure deployment of the application, particularly if the application infrastructure is software d… | Partial | CI builds and tests the image, but the Railway infrastructure is not defined as code. |
 | 1.14.5 | Verify that application deployments adequately sandbox, containerize and/or isolate at the network level to delay and deter attackers from attacking other applications, especially when they… | Met | The web app runs in a container with a separate database and volume. |
 | 1.14.6 | Verify the application does not use unsupported, insecure, or deprecated client-side technologies such as NSAPI plugins, Flash, Shockwave, ActiveX, Silverlight, NACL, or client-side Java ap… | Met | No Flash, ActiveX, Java applets or other deprecated client technology is used. |
@@ -671,7 +671,7 @@ pretending to work. That is a product limitation, not an ASVS control.
 
 ## V14 Configuration
 
-*23 clauses: 13 met, 6 partial, 2 gap, 2 N/A.*
+*23 clauses: 12 met, 7 partial, 2 gap, 2 N/A.*
 
 **V14.1 Build and Deploy** — default status: **Partial**. CI builds and typechecks the app and the Docker image is repeatable from a lockfile, but there is no infrastructure-as-code or native compiler hardening step.
 
@@ -686,7 +686,7 @@ pretending to work. That is a product limitation, not an ASVS control.
 
 | ID | Requirement (abridged) | Status | Evidence or gap |
 | :--- | :--- | :--- | :--- |
-| 14.2.1 | Verify that all components are up to date, preferably using a dependency checker during build or compile time. (C2) | Met | Dependabot, `pnpm audit`, `cargo audit` and CodeQL run in CI. |
+| 14.2.1 | Verify that all components are up to date, preferably using a dependency checker during build or compile time. (C2) | Partial | Dependabot and audits run in CI, but three `zip` advisories remain and are explicitly ignored by the cargo-audit gate, so the components are not all up to date. |
 | 14.2.2 | Verify that all unneeded features, documentation, sample applications and configurations are removed. | Partial | No sample apps are shipped, but development dependencies and source maps are not audited for removal. |
 | 14.2.3 | Verify that if application assets, such as JavaScript libraries, CSS or web fonts, are hosted externally on a Content Delivery Network (CDN) or external provider, Subresource Integrity (SRI… | N/A | No externally hosted assets. |
 | 14.2.4 | Verify that third party components come from pre-defined, trusted and continually maintained repositories. (C2) | Met | Dependencies come from npm and crates.io via a lockfile. |

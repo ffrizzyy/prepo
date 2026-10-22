@@ -10,6 +10,9 @@
 #   12 checks the local drill runs.
 # - `scan` is the dependency and secret hygiene gate: pnpm audit against the
 #   production graph and gitleaks over the full git history.
+# - `desktop-rules` also runs cargo audit against the desktop lockfile. The
+#   three known `zip` advisories are ignored deliberately (no stable
+#   zip-9-compatible updater release exists); any other vulnerability fails.
 #
 # Nothing here needs a hosted origin: the suites carry their own databases,
 # and the IDOR suite starts its own production server.
@@ -110,6 +113,18 @@ jobs:
 
       - name: The shell's rules (target refusal, deep-link grammar, workspace detection)
         run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: Cargo audit (three known `zip` advisories ignored; anything else fails)
+        run: |
+          cargo audit --file apps/desktop/src-tauri/Cargo.lock \
+            --ignore RUSTSEC-2026-0367 \
+            --ignore RUSTSEC-2026-0368 \
+            --ignore RUSTSEC-2026-0369
 
   scan:
     name: scans - pnpm audit, gitleaks
