@@ -2,10 +2,11 @@
 
 The repository ships a working container image and a hosted instance:
 [`https://prepo-web-production.up.railway.app`](https://prepo-web-production.up.railway.app),
-deployed 21 October 2026 on Railway's free trial with Neon Postgres and a 500 MB
-volume. This is the runbook for that deployment: what the app needs, how this
-instance is wired, how to migrate and verify it, the Fly.io path for a paid
-always-on host, and what no deployment here can do.
+first deployed 21 October 2026 and last deployed **23 October 2026** on Railway's
+free trial with Neon Postgres and a 500 MB volume. This is the runbook for that
+deployment: what the app needs, how this instance is wired, how to migrate and
+verify it, the Fly.io path for a paid always-on host, and what no deployment
+here can do.
 
 Two limits are part of the instance, not an afterthought: the Railway trial's
 credit expires around **20 November 2026** (after which the service stops unless
@@ -49,6 +50,7 @@ free tiers, so they are not the current path.
 | Service | `prepo-web` (`3415935a-ea06-4c0b-9694-d2d4a5179873`) |
 | Volume | `prepo-web-volume`, 500 MB, mounted at `/data` |
 | Public origin | `https://prepo-web-production.up.railway.app` |
+| Latest deployment | `07dc9289-3156-4055-afdc-0e0763a9aedc`, commit `7ca5b3a`, built 23 October 2026 11:31:47 +07 (04:31:47 UTC), status `SUCCESS` |
 | Database | Neon `prepo-demo` (`lively-lake-34658833`, `aws-eu-central-1`), pooled URL in `DATABASE_URL` |
 | Build | Repository root `Dockerfile`, Next standalone output |
 | Health check | `GET /api/health` (200 `{"ok":true}` only when the database answers) |
@@ -258,52 +260,63 @@ pnpm --filter @prepo/web db:verify          # expect 12/12
 $env:PREPO_CHECK_URL = $base
 pnpm --filter @prepo/web pwa:check
 
-# 5. Headers, then a browser pass
-#    https://securityheaders.com/?q=https://prepo-web-production.up.railway.app
+# 5. Headers: open this in a normal browser. Cloudflare's challenge blocks
+#    headless Chrome from this host, so an automated fetch is not evidence.
+#    https://securityheaders.com/?q=https://prepo-web-production.up.railway.app&followRedirects=on
 
-# 6. ZAP baseline, report outside the repository
+# 6. ZAP baseline; the 23 October reports are committed under
+#    docs/reports/zap-live-2026-10-23/.
 $zap = "$env:TEMP\prepo-zap"; New-Item -ItemType Directory -Force $zap | Out-Null
 docker run --rm -v "${zap}:/zap/wrk/:rw" ghcr.io/zaproxy/zaproxy:stable `
-  zap-baseline.py -t $base -m 2 -r zap-report.html -J zap-report.json
+  zap-baseline.py -t $base -m 2 -r zap-report.html -J zap-report.json -w zap-report.md
 ```
 
 `db:verify` seeds and truncates, so point it at a scratch database or accept that
 it resets the demo. On a deployment with real data, run the isolation checks
 against a restored copy instead; the suite's own restore drill shows the shape.
 
-### Evidence from 21 October 2026
+### Evidence from 23 October 2026
 
-- `/api/health` returned `200 {"ok":true}`; `/`, `/demo`, `/sign-in`, `/security`,
-  `/manifest.webmanifest` and `/.well-known/security.txt` returned 200.
-- `pwa:check` passed every installable-app assertion against the live origin,
-  including the new same-origin sitemap/robots assertions. The same assertions
-  failed against the first deploy, which served `http://localhost:3000`, before
-  the `force-dynamic` fix.
+- Deployment `07dc9289-3156-4055-afdc-0e0763a9aedc` finished with status
+  `SUCCESS`; the origin serves commit `7ca5b3a`. `/api/health` returned
+  `200 {"ok":true}`; `/`, `/demo`, `/sign-in`, `/security`,
+  `/manifest.webmanifest`, `/.well-known/security.txt`, `/sitemap.xml` and
+  `/robots.txt` all returned 200. The sitemap and robots entries name the public
+  origin, not `localhost`.
+- `pwa:check` passed **55/55** installable-app assertions against the live origin.
 - `db:verify` passed **12/12** against Neon (not PGlite) from the checkout.
-- `securityheaders.com` graded the deployed origin **A** at 06:26 UTC: HSTS, CSP,
-  `X-Frame-Options`, `nosniff`, referrer policy, Permissions-Policy, COOP, CORP
-  and COEP were all present, and `X-Powered-By` was absent. The committed build
-  now writes a per-request nonce in `apps/web/src/proxy.ts` and uses
-  `script-src 'self' 'nonce-…' 'strict-dynamic'`; `securityheaders.com` graded
-  that build **A+** through a Cloudflare quick tunnel on 21 October 2026. The
-  Railway origin has not been redeployed since the pause, so it still reports
-  the A policy. The pause was retested on 22 October 2026 from commit
-  `1bb1234`: `railway up` uploaded the tree and Railway rejected it with
-  `Deploys have been paused temporarily`; `railway redeploy` then reported that
-  the latest deployment cannot be redeployed. The origin therefore still serves
-  the 14:09 local (07:09 UTC) 21 October build, not the nonce build. Every page
-  is now rendered for the request (a nonce cannot be baked into static HTML),
-  and a tunneled mobile Lighthouse run measured 90 with LCP 1.9 s and TBT
-  370 ms; the committed 98-99 table is the pre-nonce build. Re-run both against
-  Railway when it accepts a deploy.
-- OWASP ZAP baseline: **0 failures, 9 warnings, 58 passes**. The warnings are
-  reviewed in `SECURITY.md` (the then-current CSP inline allowance, a Server
-  Actions CSRF false positive, Next's `$ACTION_*`/`next` fields, `/api` and `/r`
-  normalization redirects, and cache/framework informationals). A zero-warning
-  scan was not achieved and is not claimed.
-- The local image was also smoke-tested against `postgres:17-alpine`:
-  `/api/health` returned 200, the same routes returned 200, and `db:verify`
-  passed 12/12. That is evidence for the image, separate from the hosted origin.
+- `securityheaders.com` graded the live origin **A+** at
+  **23 Oct 2026 04:36:44 UTC**. The CSP is the per-request nonce policy from
+  `apps/web/src/proxy.ts`: `script-src 'self' 'nonce-<value>' 'strict-dynamic'`
+  and `script-src-attr 'none'`, with no `script-src 'unsafe-inline'`. HSTS
+  (`max-age=31536000; includeSubDomains`, no `preload`), `X-Frame-Options:
+  DENY`, `nosniff`, referrer policy, least-privilege `Permissions-Policy`,
+  same-origin COOP/CORP and `COEP: require-corp` are present; `X-Powered-By` is
+  absent. The verbatim report is
+  `docs/reports/securityheaders-live-2026-10-23.txt`.
+- The nonce makes every document render for the request, so the marketing and
+  legal pages are no longer CDN-cached. The live mobile Lighthouse run is
+  **97-99** with LCP 1.8-1.9 s, TBT 40-170 ms and CLS 0; the unthrottled run is
+  **100** with LCP 0.6-0.9 s and TBT 0. Reports:
+  `docs/reports/lighthouse-mobile-live-2026-10-23/` and
+  `docs/reports/lighthouse-live-2026-10-23/`.
+- axe reports zero violations on `/sign-in` and `/demo`, and one
+  `color-contrast` hit on each of the five public pages: the `aria-hidden`
+  decorative footer wordmark, which WCAG 1.4.3 exempts. Reports:
+  `docs/reports/axe-live-2026-10-23/`.
+- The one-off page-route IDOR browser pass is **28/28** against this build,
+  checked at 04:41:12 UTC:
+  `docs/reports/idor-page-routes-live-2026-10-23.json`. The repeatable HTTP
+  matrix is `db:idor-smoke` (58 checks) in CI.
+- OWASP ZAP baseline: **0 failures, 9 warnings, 59 passes** at 04:52:16 UTC.
+  The JSON, Markdown and HTML reports are in
+  `docs/reports/zap-live-2026-10-23/`. The warnings are reviewed in
+  `SECURITY.md` and `docs/reports/README.md`; a zero-warning scan was not
+  achieved and is not claimed.
+- The local image was also smoke-tested against `postgres:17-alpine` on
+  21 October 2026: `/api/health` returned 200, the same routes returned 200,
+  and `db:verify` passed 12/12. That is evidence for the image, separate from
+  the hosted origin.
 
 ## What this deployment still does not do
 

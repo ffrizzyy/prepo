@@ -79,9 +79,10 @@ comes from `APP_URL` (`src/lib/site-url.ts`), and with that unset the site descr
 `http://localhost:3000`, which is where an undeployed checkout genuinely runs.
 
 The first hosted origin is a **Railway free trial** at
-[`prepo-web-production.up.railway.app`](https://prepo-web-production.up.railway.app), deployed
-21 October 2026 with a 500 MB volume and Neon Postgres. That trial expires around 20 November
-2026; after that the service stops unless it moves to a paid plan. No AI provider keys are set
+[`prepo-web-production.up.railway.app`](https://prepo-web-production.up.railway.app), first
+deployed 21 October 2026 and last deployed **23 October 2026** (commit `7ca5b3a`) with a 500 MB
+volume and Neon Postgres. That trial expires around 20 November 2026; after that the service
+stops unless it moves to a paid plan. No AI provider keys are set
 on the public instance, so extraction, transcription and Resend email report themselves
 unconfigured there rather than failing silently. The first deploy also exposed a real bug: the
 sitemap and robots.txt were static, and a Docker build does not inherit the host's `APP_URL`, so
@@ -146,7 +147,7 @@ did, against the broken deploy, before the fix.
 | Meeting-decision insights (which meetings were worth holding) | Partly - `/insights` shows meeting load; the necessity column is the one figure drawn from this score |
 | Desktop (Tauri 2) shell - native window, tray, global shortcut, `prepo://` links, notifications, single instance, window state, external links kept out of the app window | Done - `cargo test` 22/22, `desktop:verify` 48/48. **No installer is built or published**, there is no update endpoint or signing key, and no command is exposed to the page in the window |
 | Docs - `PREPO.md`, `SECURITY.md` (posture + OWASP gaps), `docs/ASVS-L2.md` (clause-by-clause ASVS 4.0.3 L1/L2 screening; 253 clauses, not a certification), `DESIGN.md` (direction, dials, reasons) | Done |
-| Accessibility and performance reports | Lighthouse 12.8.2 and axe-core 4.14.0 against the live origin; raw JSON in [`docs/reports/`](docs/reports/README.md). The summary names what the scores hide: the decorative footer wordmark is the only automated contrast hit, `/demo` is deliberately SEO 63, and both unthrottled and mobile-throttled sets are committed (mobile performance 98-99) |
+| Accessibility and performance reports | Lighthouse 12.8.2 and axe-core 4.14.0 against the live origin on 23 October 2026; raw JSON in [`docs/reports/`](docs/reports/README.md). The summary names what the scores hide: the decorative footer wordmark is the only automated contrast hit, `/demo` is deliberately SEO 63, and both unthrottled and mobile-throttled sets are committed (mobile performance 97-99, LCP 1.8-1.9 s, TBT 40-170 ms) |
 | Rust dependency audit | `cargo audit` 0.22.2 runs in CI against the desktop lockfile, with **3 `zip` advisories explicitly ignored** through `tauri-plugin-updater` 2.14.0 (RUSTSEC-2026-0367/0368/0369; no update endpoint or key, so the path is unreachable). Any other vulnerability fails the job. The full local run also patched `rustls-webpki` and `webpki-root-certs`; the audit is scoped, not clean |
 
 The app runs at **`/northwind`** on the seeded "Northwind Studio" workspace. Sign in

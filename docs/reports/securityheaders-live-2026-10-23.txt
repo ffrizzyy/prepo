@@ -1,0 +1,53 @@
+Home
+About
+API
+Scan your site now
+
+
+ 
+ Hide results  Follow redirects
+Security Report Summary
+A+
+Site:	https://prepo-web-production.up.railway.app/
+IP Address:	69.46.46.105
+Report Time:	23 Oct 2026 04:36:44 UTC
+Headers:	
+Content-Security-Policy Permissions-Policy Referrer-Policy Strict-Transport-Security X-Content-Type-Options X-Frame-Options
+
+Advanced:	
+Wow, amazing grade! Perform a deeper security analysis of your website and APIs:	
+Raw Headers
+HTTP/2	200
+cache-control	private, no-cache, no-store, max-age=0, must-revalidate
+content-encoding	gzip
+content-security-policy	default-src 'self'; script-src 'self' 'nonce-ZmI4YTFlODctODNjZC00MzZhLWIyMjctOTY2NmJjN2U4N2M3' 'strict-dynamic'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+content-type	text/html; charset=utf-8
+cross-origin-embedder-policy	require-corp
+cross-origin-opener-policy	same-origin
+cross-origin-resource-policy	same-origin
+date	Fri, 23 Oct 2026 04:36:44 GMT
+link	</_next/static/media/GeistMono_Variable.p.074yowjdp83r3.woff2>; rel=preload; as="font"; crossorigin=""; nonce="ZmI4YTFlODctODNjZC00MzZhLWIyMjctOTY2NmJjN2U4N2M3"; type="font/woff2", </_next/static/media/Geist_Variable-s.p.142kz3f7gseln.woff2>; rel=preload; as="font"; crossorigin=""; nonce="ZmI4YTFlODctODNjZC00MzZhLWIyMjctOTY2NmJjN2U4N2M3"; type="font/woff2"
+permissions-policy	camera=(), display-capture=(), geolocation=(), microphone=(self), payment=(), usb=()
+referrer-policy	strict-origin-when-cross-origin
+server	railway-hikari
+strict-transport-security	max-age=31536000; includeSubDomains
+vary	rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding
+x-content-type-options	nosniff
+x-frame-options	DENY
+x-railway-request-id	YujUT5FxRY2viM6AY53eZw
+x-railway-edge	lhr1
+x-hikari-trace	lhr1.mryf
+Additional Information
+content-security-policy	Content Security Policy is an effective measure to protect your site from XSS attacks. By whitelisting sources of approved content, you can prevent the browser from loading malicious assets. Analyse this policy in more detail. You can sign up for a free account on Report URI to collect reports about problems on your site.
+cross-origin-embedder-policy	Cross-Origin Embedder Policy allows a site to prevent assets being loaded that do not grant permission to load them via CORS or CORP.
+cross-origin-opener-policy	Cross-Origin Opener Policy allows a site to opt-in to Cross-Origin Isolation in the browser.
+cross-origin-resource-policy	Cross-Origin Resource Policy allows a resource owner to specify who can load the resource.
+permissions-policy	Permissions Policy is a new header that allows a site to control which features and APIs can be used in the browser.
+referrer-policy	Referrer Policy is a new header that allows a site to control how much information the browser includes with navigations away from a document and should be set by all sites.
+server	Server value has been changed. Typically you will see values like "Microsoft-IIS/8.0" or "nginx 1.7.2".
+strict-transport-security	HTTP Strict Transport Security is an excellent feature to support on your site and strengthens your implementation of TLS by getting the User Agent to enforce the use of HTTPS.
+x-content-type-options	X-Content-Type-Options stops a browser from trying to MIME-sniff the content type and forces it to stick with the declared content-type. The only valid value for this header is "X-Content-Type-Options: nosniff".
+x-frame-options	X-Frame-Options tells the browser whether you want to allow your site to be framed or not. By preventing a browser from framing your site you can defend against attacks like clickjacking.
+A snyk.io project - CC-BY-SA 4.0
+Powered by Snyk
+  
