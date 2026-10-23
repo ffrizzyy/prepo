@@ -206,6 +206,10 @@ The warnings were read from the JSON, not waved through:
 - **Modern web application / authentication request** — framework and
   login-form informationals.
 
+The committed ZAP files replace Next's opaque `$ACTION_KEY` values with
+`<redacted>`. They are per-request form identifiers, not credentials, and the
+findings and counts are otherwise unchanged.
+
 ZAP crawls the unauthenticated surface only; it does not log in to the
 workspace, so it is not a substitute for `db:idor-smoke`.
 
