@@ -190,8 +190,8 @@ importers:
         specifier: 0.45.4
         version: 0.45.4(@electric-sql/pglite@0.5.10)(@types/pg@8.23.1)(pg@8.23.1)
       geist:
-        specifier: 1.8.1
-        version: 1.8.1(next@16.4.2(@types/node@26.6.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))
+        specifier: 1.8.2
+        version: 1.8.2(next@16.4.2(@types/node@26.6.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))
       hash-wasm:
         specifier: ^4.12.0
         version: 4.12.0
@@ -1434,8 +1434,8 @@ packages:
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
 
-  geist@1.8.1:
-    resolution: {integrity: sha512-oSBhuzTvwZqGAZVC4swTRo61G/JHojtEVNR3DCToU+4nUBkG48ndKNvj4Ma7zZ+OlJkYDLT66HS+hrFszkovTg==}
+  geist@1.8.2:
+    resolution: {integrity: sha512-fRF4sbJ9qcCxPb35cVtKBAwYlTt1IbU9nkbPi0a+xyZqPIjCJ2BY8ekGhx6/SGSZKrR7/UuL57r/eeDQ1Xy11g==}
     peerDependencies:
       next: '>=13.2.0'
 
@@ -2450,7 +2450,7 @@ snapshots:
   fsevents@2.3.3:
     optional: true
 
-  geist@1.8.1(next@16.4.2(@types/node@26.6.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)):
+  geist@1.8.2(next@16.4.2(@types/node@26.6.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)):
     dependencies:
       next: 16.4.2(@types/node@26.6.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
 
