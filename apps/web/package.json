@@ -36,7 +36,7 @@
     "pwa:check": "tsx src/server/pwa/check.ts"
   },
   "dependencies": {
-    "@electric-sql/pglite": "0.5.10",
+    "@electric-sql/pglite": "0.5.11",
     "@phosphor-icons/react": "2.1.10",
     "@prepo/shared": "workspace:*",
     "clsx": "2.1.1",
